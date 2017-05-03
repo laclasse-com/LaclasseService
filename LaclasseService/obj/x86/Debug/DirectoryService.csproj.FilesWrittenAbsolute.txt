@@ -1,0 +1,10 @@
+/home/daniel/Programmation/laclassev4/DirectoryService/DirectoryService/obj/x86/Debug/.NETFramework,Version=v4.5.AssemblyAttribute.cs
+/home/daniel/Programmation/laclassev4/DirectoryService/DirectoryService/obj/x86/Debug/DirectoryService.laclasse.conf
+/home/daniel/Programmation/laclassev4/DirectoryService/DirectoryService/bin/Debug/DirectoryService.exe.config
+/home/daniel/Programmation/laclassev4/DirectoryService/DirectoryService/bin/Debug/DirectoryService.exe.mdb
+/home/daniel/Programmation/laclassev4/DirectoryService/DirectoryService/bin/Debug/DirectoryService.exe
+/home/daniel/Programmation/laclassev4/DirectoryService/DirectoryService/obj/x86/Debug/DirectoryService.exe
+/home/daniel/Programmation/laclassev4/DirectoryService/DirectoryService/obj/x86/Debug/DirectoryService.exe.mdb
+/home/daniel/Programmation/laclassev4/DirectoryService/DirectoryService/bin/Debug/MySql.Data.dll
+/home/daniel/Programmation/laclassev4/DirectoryService/DirectoryService/bin/Debug/Erasme.Http.dll
+/home/daniel/Programmation/laclassev4/DirectoryService/DirectoryService/bin/Debug/BCrypt.Net.dll

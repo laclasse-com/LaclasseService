@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
+    <ProjectGuid>{47C33413-0B35-469D-887B-367ABFFA85EE}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Laclasse</RootNamespace>
+    <AssemblyName>LaclasseService</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ExternalConsole>true</ExternalConsole>
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ExternalConsole>true</ExternalConsole>
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="MySql.Data">
+      <HintPath>..\packages\MySql.Data.6.9.9\lib\net45\MySql.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="Erasme.Http">
+      <HintPath>..\..\..\liberasme-http-cil\liberasme-http-cil\Erasme.Http\bin\Debug\Erasme.Http.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Data.Linq" />
+    <Reference Include="BCrypt.Net">
+      <HintPath>..\packages\BCrypt.Net.0.1.0\lib\net35\BCrypt.Net.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Core" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Security" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Directory\Applications.cs" />
+    <Compile Include="DB.cs" />
+    <Compile Include="Utils.cs" />
+    <Compile Include="Directory\Resources.cs" />
+    <Compile Include="Directory\Profils.cs" />
+    <Compile Include="Directory\Emails.cs" />
+    <Compile Include="WebException.cs" />
+    <Compile Include="Directory\Users.cs" />
+    <Compile Include="Directory\Groups.cs" />
+    <Compile Include="Directory\Etablissements.cs" />
+    <Compile Include="Directory\Matieres.cs" />
+    <Compile Include="Directory\Sso.cs" />
+    <Compile Include="Server.cs" />
+    <Compile Include="Directory\PortailEntree.cs" />
+    <Compile Include="Directory\Logs.cs" />
+    <Compile Include="StaticFiles.cs" />
+    <Compile Include="Directory\Niveaux.cs" />
+    <Compile Include="Authentication\Cas.cs" />
+    <Compile Include="Authentication\Sessions.cs" />
+    <Compile Include="Authentication\Tickets.cs" />
+    <Compile Include="Authentication\CasClient.cs" />
+    <Compile Include="Authentication\CasView.cs">
+      <DependentUpon>CasView.tt</DependentUpon>
+    </Compile>
+    <Compile Include="ContextInjector.cs" />
+    <Compile Include="Authentication\ContextExtensions.cs" />
+    <Compile Include="Directory\PortailFlux.cs" />
+    <Compile Include="Directory\PortailNews.cs" />
+    <Compile Include="Directory\Roles.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
+    <None Include="packages.config" />
+    <None Include="Authentication\CasView.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>CasView.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Directory\" />
+    <Folder Include="Authentication\" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="laclasse.conf" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <ProjectExtensions>
+    <MonoDevelop>
+      <Properties>
+        <Policies>
+          <DotNetNamingPolicy DirectoryNamespaceAssociation="PrefixedHierarchical" ResourceNamePolicy="FileFormatDefault" />
+        </Policies>
+      </Properties>
+    </MonoDevelop>
+  </ProjectExtensions>
+</Project>

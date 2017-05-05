@@ -42,18 +42,18 @@ namespace Laclasse.Directory
 		readonly string dbUrl;
 		readonly Emails emails;
 		readonly Profils profils;
-		readonly Groups groups;
+		readonly Groupes groupes;
 		readonly Etablissements etabs;
 		readonly Resources resources;
 		readonly string masterPassword;
 
-		public Users(string dbUrl, Emails emails, Profils profils, Groups groups, Etablissements etabs,
+		public Users(string dbUrl, Emails emails, Profils profils, Groupes groupes, Etablissements etabs,
 		             Resources resources, string storageDir, string masterPassword)
 		{
 			this.dbUrl = dbUrl;
 			this.emails = emails;
 			this.profils = profils;
-			this.groups = groups;
+			this.groupes = groupes;
 			this.etabs = etabs;
 			this.etabs.users = this;
 			this.resources = resources;
@@ -222,25 +222,18 @@ namespace Laclasse.Directory
 				var uid = (string)p["uid"];
 				var profil_id = c.Request.QueryString["profil_id"];
 				var uai = c.Request.QueryString["uai"];
-				var etabId = await etabs.GetEtablissementIdAsync(uai);
-				if (etabId == -1)
-					throw new WebException(404, $"Etablissement {uai} not found");
-				
+								
 				using (DB db = await DB.CreateAsync(dbUrl, true))
 				{
-					var userId = await GetUserIdAsync(db, uid);
-					if (userId == -1)
-						throw new WebException(404, $"User not found");
-
 					var count = await db.UpdateAsync(
 						"UPDATE profil_user SET actif=TRUE WHERE user_id=? AND profil_id=? AND etablissement_id=?",
-						userId, profil_id, etabId);
+						uid, profil_id, uai);
 					if (count < 1)
 						throw new WebException(404, $"Profil not found");
 					
 					await db.UpdateAsync(
 						"UPDATE profil_user SET actif=FALSE WHERE user_id=? AND (profil_id != ? OR etablissement_id != ?)",
-						userId, profil_id, etabId);
+						uid, profil_id, uai);
 
 					c.Response.StatusCode = 200;
 					c.Response.Content = await GetUserAsync(uid);
@@ -250,15 +243,14 @@ namespace Laclasse.Directory
 
 		public async Task<JsonObject> UserToJsonAsync(DB db, Dictionary<string, object> item, bool expand = true)
 		{
-			var id = (int)item["id"];
-			var uid = (string)item["id_ent"];
+			var id = (string)item["id"];
 			string avatar;
 			if (((string)item["avatar"] == null) || ((string)item["avatar"] == "empty"))
 				avatar = "api/default_avatar/avatar_neutre.svg";
 			else
 				avatar = "api/avatar/user/" + 
-					uid.Substring(0, 1) + "/" + uid.Substring(1, 1) + "/" +
-				    uid.Substring(2, 1) + "/" + (string)item["avatar"];
+					id.Substring(0, 1) + "/" + id.Substring(1, 1) + "/" +
+				    id.Substring(2, 1) + "/" + (string)item["avatar"];
 
 			var result = new JsonObject
 			{
@@ -268,7 +260,6 @@ namespace Laclasse.Directory
 				["login"] = (string)item["login"],
 				["nom"] = (string)item["nom"],
 				["prenom"] = (string)item["prenom"],
-				["full_name"] = (string)item["nom"] + " " + (string)item["prenom"],
 				["sexe"] = (string)item["sexe"],
 				["date_naissance"] = (DateTime?)item["date_naissance"],
 				["adresse"] = (string)item["adresse"],
@@ -278,138 +269,58 @@ namespace Laclasse.Directory
 				["date_creation"] = (DateTime?)item["date_creation"],
 				["date_derniere_connexion"] = (DateTime?)item["date_derniere_connexion"],
 				["default_password"] = (bool)item["change_password"],
-				["default_password_value"] = ((bool)item["change_password"]) ? (string)item["id_ent"] : null,
-				["id_ent"] = (string)item["id_ent"],
+				["default_password_value"] = ((bool)item["change_password"]) ? (string)item["id"] : null,
+				["super_admin"] = (bool)item["super_admin"],
 				["avatar"] = avatar,
 				["telephones"] = await GetUserTelephonesAsync(db, id),
-				["emails"] = await emails.GetUserEmailsAsync(db, (string)item["id_ent"])
+				["emails"] = await emails.GetUserEmailsAsync(db, (string)item["id"])
 			};
 			if (expand)
 			{
 				var profilsJson = await profils.GetUserProfilsAsync(db, id);
 				var profilActif = (from p in profilsJson where p["actif"] select p).SingleOrDefault();
-
-				var roles = await GetUserRolesAsync(db, id);
-				int rolesMaxPriorityEtabActif = 0;
-				if (profilActif != null)
-				{
-					foreach (var obj in roles)
-					{
-						if ((obj["etablissement_id"] == profilActif["etablissement_id"]) &&
-							(obj["priority"] > rolesMaxPriorityEtabActif))
-							rolesMaxPriorityEtabActif = obj["priority"];
-					}
-				}
-				var etabsJson = new JsonArray();
-				foreach (var obj in profilsJson)
-				{
-					var etab = etabsJson.FirstOrDefault((arg) => arg["id"] == obj["etablissement_id"]);
-					if (etab == null)
-					{
-						etab = new JsonObject
-						{
-							["id"] = (int)obj["etablissement_id"],
-							["nom"] = (string)obj["etablissement_nom"],
-							["code_uai"] = (string)obj["etablissement_code_uai"],
-							["profils"] = new JsonArray(),
-							["roles"] = new JsonArray()
-						};
-						etabsJson.Add(etab);
-					}
-					((JsonArray)etab["profils"]).Add(obj);
-				}
-
-				foreach (var obj in roles)
-				{
-					var etab = etabsJson.FirstOrDefault((arg) => arg["id"] == obj["etablissement_id"]);
-					if (etab == null)
-					{
-						etab = new JsonObject
-						{
-							["id"] = (int)obj["etablissement_id"],
-							["nom"] = (string)obj["etablissement_nom"],
-							["code_uai"] = (string)obj["etablissement_code_uai"],
-							["profils"] = new JsonArray(),
-							["roles"] = new JsonArray()
-						};
-						etabsJson.Add(etab);
-					}
-					((JsonArray)etab["roles"]).Add(obj);
-				}
-
-				var ressources_numeriques = new JsonArray();
-				foreach (var etab in etabsJson)
-				{
-					var etabResources = await etabs.GetEtablissementResourcesAsync(db, etab["id"]);
-					foreach (var resource in etabResources)
-					{
-						var r = await resources.GetResourceAsync(db, resource);
-						r["etablissement_code_uai"] = (string)etab["code_uai"];
-						ressources_numeriques.Add(r);
-					}
-				}
-
-				var groupsJson = await groups.GetUserGroupsAsync(db, id);
+				var groupsJson = await groupes.GetUserGroupesAsync(db, id);
 
 				var groupsList = new List<JsonValue>();
 				foreach (var g in groupsJson)
 				{
 					if (g.ContainsKey("regroupement_libre_id"))
-						groupsList.Add(await groups.GetGroupFreeAsync(g["regroupement_libre_id"]));
+						groupsList.Add(await groupes.GetGroupFreeAsync(g["regroupement_libre_id"]));
 					else
-						groupsList.Add(await groups.GetGroupAsync(g["regroupement_id"]));
+						groupsList.Add(await groupes.GetGroupAsync(g["regroupement_id"]));
 				}
 
 				var classes = from g in groupsList where g["type_regroupement_id"] == "CLS" select g;
 				var groupes_eleves = from g in groupsList where g["type_regroupement_id"] == "GRP" select g;
 				var groupes_libres = from g in groupsList where g["type_regroupement_id"] == "GPL" select g;
 
-				var relations_adultes = await GetUserRelationsParentsAsync(db, id);
-				var parentsJson = new JsonArray();
-				foreach (var r in relations_adultes)
-					parentsJson.Add(await GetUserAsync(db, r["id_ent"], false));
+				var relations_parents = await GetUserRelationsParentsAsync(db, id);
+				var relations_enfants = await GetUserRelationsEnfantsAsync(db, id);
 
-				var relations_eleves = await GetUserRelationsElevesAsync(db, id);
-				var enfantsJson = new JsonArray();
-				foreach (var r in relations_eleves)
-					enfantsJson.Add(await GetUserAsync(db, r["id_ent"], false));
-
-				result["roles"] = roles;
-				result["roles_max_priority_etab_actif"] = rolesMaxPriorityEtabActif;
-				result["etablissements"] = etabsJson;
 				result["profil_actif"] = profilActif;
 				result["profils"] = profilsJson;
-				result["groups"] = groupsJson;
-				result["ressources_numeriques"] = ressources_numeriques;
+				result["groupes"] = groupsJson;
 				result["classes"] = new JsonArray(classes);
 				result["groupes_libres"] = new JsonArray(groupes_libres);
 				result["groupes_eleves"] = new JsonArray(groupes_eleves);
-				result["relations_eleves"] = relations_eleves;
-				result["relations_adultes"] = relations_adultes;
-				result["parents"] = parentsJson;
-				result["enfants"] = enfantsJson;
+				result["relations_enfants"] = relations_enfants;
+				result["relations_parents"] = relations_parents;
 				result["email_backend_id"] = (int)item["email_backend_id"];
 			}
 			return result;
 		}
 
-		public async Task<int> GetUserIdAsync(DB db, string uid)
-		{
-			var item = (await db.SelectAsync("SELECT id FROM user WHERE id_ent=?", uid)).SingleOrDefault();
-			return (item != null) ? (int)item["id"] : -1;
-		}
-
-		public async Task<JsonValue> GetUserAsync(string uid)
+		public async Task<JsonValue> GetUserAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetUserAsync(db, uid);
+				return await GetUserAsync(db, id);
 			}
 		}
 
-		public async Task<JsonValue> GetUserAsync(DB db, string uid, bool expand = true)
+		public async Task<JsonValue> GetUserAsync(DB db, string id, bool expand = true)
 		{
-			var item = (await db.SelectAsync("SELECT * FROM user WHERE id_ent=?", uid)).First();
+			var item = (await db.SelectAsync("SELECT * FROM user WHERE id=?", id)).First();
 			return (item == null) ? null : await UserToJsonAsync(db, item, expand);
 		}
 
@@ -452,7 +363,7 @@ namespace Laclasse.Directory
 		{
 			var result = new SearchResult();
 			var allowedFields = new List<string> {
-				"id_ent", "login", "prenom", "nom", "sexe", "adresse", "ville", "code_postal",
+				"id", "login", "prenom", "nom", "sexe", "adresse", "ville", "code_postal",
 				"id_sconet", "change_password", "profils.profil_id", "profils.etablissement_id",
 				"emails.adresse", "emails.type"
 			};
@@ -544,7 +455,7 @@ namespace Laclasse.Directory
 				{
 					if (filter != "")
 						filter += " AND ";
-					filter += "id_ent IN (SELECT user_id FROM email WHERE ";
+					filter += "id IN (SELECT user_id FROM email WHERE ";
 
 					var first = true;
 					var emailsTable = tables[tableName];
@@ -586,15 +497,15 @@ namespace Laclasse.Directory
 			return result;
 		}
 
-		async Task<JsonArray> GetUserRelationsElevesAsync(int id)
+		async Task<JsonArray> GetUserRelationsEnfantsAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetUserRelationsElevesAsync(db, id);
+				return await GetUserRelationsEnfantsAsync(db, id);
 			}
 		}
 
-		async Task<JsonArray> GetUserRelationsElevesAsync(DB db, int id)
+		async Task<JsonArray> GetUserRelationsEnfantsAsync(DB db, string id)
 		{
 			var res = new JsonArray();
 			foreach (var relation in await db.SelectAsync(
@@ -604,8 +515,7 @@ namespace Laclasse.Directory
 			{
 				res.Add(new JsonObject
 				{
-					["id_ent"] = (string)relation["id_ent"],
-					["user_id"] = (int)relation["eleve_id"],
+					["user_id"] = (string)relation["eleve_id"],
 					["type_relation_eleve_id"] = (int)relation["type_relation_eleve_id"],
 					["libelle"] = (string)relation["libelle"],
 					["description"] = (string)relation["description"],
@@ -618,7 +528,7 @@ namespace Laclasse.Directory
 			return res;
 		}
 
-		async Task<JsonArray> GetUserRelationsParentsAsync(int id)
+		async Task<JsonArray> GetUserRelationsParentsAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
@@ -626,7 +536,7 @@ namespace Laclasse.Directory
 			}
 		}
 
-		async Task<JsonArray> GetUserRelationsParentsAsync(DB db, int id)
+		async Task<JsonArray> GetUserRelationsParentsAsync(DB db, string id)
 		{
 			var res = new JsonArray();
 			foreach (var relation in await db.SelectAsync(
@@ -636,8 +546,7 @@ namespace Laclasse.Directory
 			{
 				res.Add(new JsonObject
 				{
-					["id_ent"] = (string)relation["id_ent"],
-					["user_id"] = (int)relation["user_id"],
+					["user_id"] = (string)relation["user_id"],
 					["type_relation_eleve_id"] = (int)relation["type_relation_eleve_id"],
 					["libelle"] = (string)relation["libelle"],
 					["description"] = (string)relation["description"],
@@ -650,7 +559,7 @@ namespace Laclasse.Directory
 			return res;
 		}
 
-		public async Task<JsonArray> GetUserTelephonesAsync(DB db, int id)
+		public async Task<JsonArray> GetUserTelephonesAsync(DB db, string id)
 		{
 			var telephones = new JsonArray();
 			foreach (var tel in await db.SelectAsync("SELECT * FROM telephone WHERE user_id=?", id))
@@ -664,33 +573,6 @@ namespace Laclasse.Directory
 			}
 			return telephones;
 		}
-
-		public async Task<JsonArray> GetUserRolesAsync(DB db, int id)
-		{
-			var roles = new JsonArray();
-			foreach (var role in await db.SelectAsync(
-				"SELECT role_user.role_id AS role_id, "+
-				"etablissement.nom AS etablissement_nom, "+
-				"etablissement.code_uai AS etablissement_code_uai, " +
-				"etablissement.id AS etablissement_id, " +
-				"role.priority AS priority, " +
-				"role.libelle AS libelle " +
-				"FROM role_user,etablissement,role WHERE role_user.user_id=? "+
-				"AND etablissement_id=etablissement.id AND role.id=role_user.role_id", id))
-			{
-				roles.Add(new JsonObject
-				{
-					["role_id"] = (string)role["role_id"],
-					["etablissement_id"] = (int)role["etablissement_id"],
-					["etablissement_nom"] = (string)role["etablissement_nom"],
-					["etablissement_code_uai"] = (string)role["etablissement_code_uai"],
-					["priority"] = (int)role["priority"],
-					["libelle"] = (string)role["libelle"]
-				});
-			}
-			return roles;
-		}
-
 
 		public async Task<JsonValue> CreateUserAsync(JsonValue json)
 		{
@@ -712,7 +594,7 @@ namespace Laclasse.Directory
 				extracted["password"] = BCrypt.Net.BCrypt.HashPassword((string)extracted["password"], 5);
 
 			string uid = await GetUserNextUID(db);
-			extracted["id_ent"] = uid;
+			extracted["id"] = uid;
 
 			if (!extracted.ContainsKey("login"))
 				extracted["login"] = await FindAvailableLoginAsync((string)extracted["prenom"], (string)extracted["nom"]);
@@ -731,7 +613,7 @@ namespace Laclasse.Directory
 			}
 		}
 
-		public async Task<JsonValue> ModifyUserAsync(DB db, string uid, JsonValue json)
+		public async Task<JsonValue> ModifyUserAsync(DB db, string id, JsonValue json)
 		{
 			var extracted = json.ExtractFields(
 				"id_sconet", "password", "nom", "prenom", "sexe", "date_naissance", "adresse",
@@ -742,16 +624,16 @@ namespace Laclasse.Directory
 				extracted["password"] = BCrypt.Net.BCrypt.HashPassword((string)extracted["password"], 5);
 
 			if (extracted.Count > 0)
-				await db.UpdateRowAsync("user", "id_ent", uid, extracted);
-			return await GetUserAsync(db, uid);
+				await db.UpdateRowAsync("user", "id", id, extracted);
+			return await GetUserAsync(db, id);
 		}
 
-		public async Task<bool> DeleteUserAsync(string uid)
+		public async Task<bool> DeleteUserAsync(string id)
 		{
 			bool done = false;
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				done = (await db.DeleteAsync("DELETE FROM user WHERE id_ent=?", uid) > 0);
+				done = (await db.DeleteAsync("DELETE FROM user WHERE id=?", id) > 0);
 			}
 			return done;
 		}
@@ -859,7 +741,7 @@ namespace Laclasse.Directory
 			{
 				if ((password == masterPassword) ||
 				        BCrypt.Net.BCrypt.Verify(password, (string)item["password"]))
-					user = (string)item["id_ent"];
+					user = (string)item["id"];
 				// TODO: update date_derniere_connexion
 			}
 			return user;

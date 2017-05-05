@@ -1,6 +1,6 @@
-﻿// Group.cs
+﻿// Groupe.cs
 // 
-//  Handle groups API. 
+//  Handle groupes API. 
 //
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
@@ -35,12 +35,12 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	public class Groups : HttpRouting
+	public class Groupes : HttpRouting
 	{
 		readonly string dbUrl;
 		readonly Niveaux niveaux;
 
-		public Groups(string dbUrl, Niveaux niveaux)
+		public Groupes(string dbUrl, Niveaux niveaux)
 		{
 			this.dbUrl = dbUrl;
 			this.niveaux = niveaux;
@@ -94,7 +94,7 @@ namespace Laclasse.Directory
 				["type_regroupement_id"] = (string)group["type_regroupement_id"],
 				["code_mef_aaf"] = code_mef_aaf,
 				["mef_libelle"] = mef_libelle,
-				["etablissement_id"] = (int?)group["etablissement_id"],
+				["etablissement_id"] = (string)group["etablissement_id"],
 				["date_creation"] = (DateTime)group["date_creation"],
 				["profs"] = teachersCount,
 				["eleves"] = studentsCount
@@ -112,7 +112,7 @@ namespace Laclasse.Directory
 				["type_regroupement_id"] = "GPL",
 				["libelle"] = (string)group["libelle"],
 				["created_at"] = (DateTime?)group["created_at"],
-				["created_by"] = (int)group["created_by"],
+				["created_by"] = (string)group["created_by"],
 				["membres"] = membersCount,
 				["is_public"] = (bool)group["is_public"]
 			};
@@ -185,15 +185,15 @@ namespace Laclasse.Directory
 			return (await db.DeleteAsync("DELETE FROM regroupement WHERE id=?", id)) != 0;
 		}
 
-		public async Task<JsonArray> GetUserGroupsAsync(int id)
+		public async Task<JsonArray> GetUserGroupesAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetUserGroupsAsync(db, id);
+				return await GetUserGroupesAsync(db, id);
 			}
 		}
 
-		public async Task<JsonArray> GetUserGroupsAsync(DB db, int id)
+		public async Task<JsonArray> GetUserGroupesAsync(DB db, string id)
 		{
 			var res = new JsonArray();
 			foreach (var inGroup in await db.SelectAsync("SELECT * FROM enseigne_dans_regroupement WHERE user_id=?", id))
@@ -229,15 +229,15 @@ namespace Laclasse.Directory
 			return res;
 		}
 
-		public async Task<JsonArray> GetEtablissementGroupsAsync(int id)
+		public async Task<JsonArray> GetEtablissementGroupesAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetEtablissementGroupsAsync(db, id);
+				return await GetEtablissementGroupesAsync(db, id);
 			}
 		}
 
-		public async Task<JsonArray> GetEtablissementGroupsAsync(DB db, int id)
+		public async Task<JsonArray> GetEtablissementGroupesAsync(DB db, string id)
 		{
 			var res = new JsonArray();
 			foreach (var group in await db.SelectAsync("SELECT * FROM regroupement WHERE etablissement_id=?", id))
@@ -247,15 +247,15 @@ namespace Laclasse.Directory
 			return res;
 		}
 
-		public async Task<JsonArray> GetGroupsFreeAsync()
+		public async Task<JsonArray> GetGroupesFreeAsync()
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetGroupsFreeAsync(db);
+				return await GetGroupesFreeAsync(db);
 			}
 		}
 
-		public async Task<JsonArray> GetGroupsFreeAsync(DB db)
+		public async Task<JsonArray> GetGroupesFreeAsync(DB db)
 		{
 			var res = new JsonArray();
 			foreach (var item in await db.SelectAsync("SELECT * FROM regroupement_libre"))

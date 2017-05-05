@@ -38,14 +38,16 @@ namespace Laclasse.Directory
 	public class Etablissements : HttpRouting
 	{
 		readonly string dbUrl;
-		readonly Groups groups;
+		readonly Groupes groupes;
+		readonly Profils profils;
 		// Users register itself
 		internal Users users;
 
-		public Etablissements(string dbUrl, Groups groups, Resources resources)
+		public Etablissements(string dbUrl, Groupes groupes, Resources resources, Profils profils)
 		{
 			this.dbUrl = dbUrl;
-			this.groups = groups;
+			this.groupes = groupes;
+			this.profils = profils;
 
 			// register a type
 			Types["uai"] = (val) => (Regex.IsMatch(val, "^[0-9]{7,7}[A-Z]$")) ? val : null;
@@ -84,27 +86,6 @@ namespace Laclasse.Directory
 					};
 				else
 					c.Response.Content = result.Data;
-			};
-
-			GetAsync["/types/types_etablissements"] = async (p, c) =>
-			{
-				var json = new JsonArray();
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					foreach (var item in await db.SelectAsync("SELECT * FROM type_etablissement"))
-					{
-						json.Add(new JsonObject
-						{
-							["id"] = (int)item["id"],
-							["nom"] = (string)item["nom"],
-							["type_contrat"] = (string)item["type_contrat"],
-							["libelle"] = (string)item["libelle"],
-							["type_struct_aaf"] = (string)item["type_struct_aaf"]
-						});
-					}
-				}
-				c.Response.StatusCode = 200;
-				c.Response.Content = json;
 			};
 
 			GetAsync["/{uai:uai}"] = async (p, c) =>
@@ -169,13 +150,11 @@ namespace Laclasse.Directory
 				var json = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					foreach (var item in await db.SelectAsync("SELECT * FROM etablissement_has_ressources_num"))
+					foreach (var item in await db.SelectAsync("SELECT * FROM etablissement_has_ressources_num WHERE etablissement_id=?",(string)p["uai"]))
 					{
 						var jsonItem = await resources.GetResourceAsync((int)item["ressources_num_id"]);
 						jsonItem["etablissement_id"] = (int)item["etablissement_id"];
 						jsonItem["ressources_num_id"] = (int)item["ressources_num_id"];
-						jsonItem["date_deb_abon"] = (DateTime?)item["date_deb_abon"];
-						jsonItem["date_fin_abon"] = (DateTime?)item["date_fin_abon"];
 						json.Add(jsonItem);
 					}
 				}
@@ -188,14 +167,10 @@ namespace Laclasse.Directory
 				var json = await c.Request.ReadAsJsonAsync();
 				json.RequireFields("ressource_num_id");
 
-				var jsonEtab = await GetEtablissementAsync((string)p["uai"]);
-				if (jsonEtab == null)
-					throw new WebException(404, "Etablissement " + (string)p["uai"] + " not found");
-
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
 					await db.InsertAsync("INSERT INTO etablissement_has_ressources_num (etablissement_id,ressources_num_id) VALUES (?,?)",
-					               (int)jsonEtab["id"], (int)json["ressource_num_id"]);
+					                     (string)p["uai"], (int)json["ressource_num_id"]);
 				}
 				c.Response.StatusCode = 200;
 			};
@@ -204,11 +179,7 @@ namespace Laclasse.Directory
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					var id = await GetEtablissementIdAsync(db, (string)p["uai"]);
-					if (id == -1)
-						throw new WebException(404, "Etablissement " + (string)p["uai"] + "not found");
-
-					var jsonGroups = await groups.GetEtablissementGroupsAsync(db, id);
+					var jsonGroups = await groupes.GetEtablissementGroupesAsync(db, (string)p["uai"]);
 					var classes = from g in jsonGroups where g["type_regroupement_id"] == "CLS" select g;
 					c.Response.StatusCode = 200;
 					c.Response.Content = new JsonArray(classes);
@@ -219,11 +190,7 @@ namespace Laclasse.Directory
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					var id = await GetEtablissementIdAsync(db, (string)p["uai"]);
-					if (id == -1)
-						throw new WebException(404, "Etablissement " + (string)p["uai"] + "not found");
-
-					var jsonGroups = await groups.GetEtablissementGroupsAsync(db, id);
+					var jsonGroups = await groupes.GetEtablissementGroupesAsync(db, (string)p["uai"]);
 					var classes = from g in jsonGroups where g["type_regroupement_id"] == "GRP" select g;
 					c.Response.StatusCode = 200;
 					c.Response.Content = new JsonArray(classes);
@@ -233,17 +200,13 @@ namespace Laclasse.Directory
 			GetAsync["/{uai:uai}/groupes_libres"] = async (p, c) =>
 			{
 				c.Response.StatusCode = 200;
-				c.Response.Content = await groups.GetGroupsFreeAsync();
+				c.Response.Content = await groupes.GetGroupesFreeAsync();
 			};
 
 			GetAsync["/{uai:uai}/users"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					var id = await GetEtablissementIdAsync(db, (string)p["uai"]);
-					if (id == -1)
-						throw new WebException(404, "Etablissement " + (string)p["uai"] + " not found");
-
 					int offset = 0;
 					int count = -1;
 					var query = "";
@@ -256,7 +219,7 @@ namespace Laclasse.Directory
 							offset = Math.Max(0, (int.Parse(c.Request.QueryString["page"]) - 1) * count);
 					}
 					var queryFields = query.QueryParser();
-					queryFields["profils.etablissement_id"] = new List<string>(new string[] { id.ToString() });
+					queryFields["profils.etablissement_id"] = new List<string>(new string[] { (string)p["uai"] });
 					var usersResult = await users.SearchUserAsync(queryFields, offset, count);
 					c.Response.StatusCode = 200;
 					if (count > 0)
@@ -274,16 +237,16 @@ namespace Laclasse.Directory
 
 		async Task<JsonObject> EtablissementToJsonAsync(DB db, Dictionary<string, object> item)
 		{
-			var id = (int)item["id"];
-			var jsonGroups = await groups.GetEtablissementGroupsAsync(db, id);
+			var id = (string)item["id"];
+			var jsonGroups = await groupes.GetEtablissementGroupesAsync(db, id);
 			var classes = from g in jsonGroups where g["type_regroupement_id"] == "CLS" select g;
 			var groupes_eleves = from g in jsonGroups where g["type_regroupement_id"] == "GRP" select g;
 			var groupes_libres = from g in jsonGroups where g["type_regroupement_id"] == "GPL" select g;
+			var jsonProfils = await profils.GetEtablissementProfilsAsync(db, id);
 
 			return new JsonObject
 			{
 				["id"] = id,
-				["code_uai"] = (string)item["code_uai"],
 				["nom"] = (string)item["nom"],
 				["adresse"] = (string)item["adresse"],
 				["code_postal"] = (string)item["code_postal"],
@@ -292,11 +255,12 @@ namespace Laclasse.Directory
 				["fax"] = (string)item["fax"],
 				["date_last_maj_aaf"] = (DateTime?)item["date_last_maj_aaf"],
 				["type_etablissement_id"] = (int)item["type_etablissement_id"],
-				["resources"] = await GetEtablissementResourcesAsync(db, id),
-				["groups"] = jsonGroups,
+				["ressources"] = await GetEtablissementResourcesAsync(db, id),
+				["groupes"] = jsonGroups,
 				["classes"] = new JsonArray(classes),
 				["groupes_eleves"] = new JsonArray(groupes_eleves),
-				["groupes_libres"] = new JsonArray(groupes_libres)
+				["groupes_libres"] = new JsonArray(groupes_libres),
+				["profils"] = jsonProfils
 			};
 		}
 
@@ -311,26 +275,12 @@ namespace Laclasse.Directory
 		public async Task<JsonValue> GetEtablissementAsync(DB db, string uai)
 		{
 			JsonValue res = null;
-			var item = (await db.SelectAsync("SELECT * FROM etablissement WHERE code_uai=?", uai)).SingleOrDefault();
+			var item = (await db.SelectAsync("SELECT * FROM etablissement WHERE id=?", uai)).SingleOrDefault();
 			if (item != null)
 			{
 				res = await EtablissementToJsonAsync(db, item);
 			}
 			return res;
-		}
-
-		public async Task<int> GetEtablissementIdAsync(string uai)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-			{
-				return await GetEtablissementIdAsync(db, uai);
-			}
-		}
-
-		public async Task<int> GetEtablissementIdAsync(DB db, string uai)
-		{
-			var item = (await db.SelectAsync("SELECT id FROM etablissement WHERE code_uai=?", uai)).SingleOrDefault();
-			return (item != null) ? (int)item["id"] : -1;
 		}
 
 		public async Task<JsonValue> CreateEtablissementAsync(JsonValue json)
@@ -345,16 +295,16 @@ namespace Laclasse.Directory
 		{
 			JsonValue jsonResult = null;
 			var extracted = json.ExtractFields(
-				"code_uai", "nom", "type_etablissement_id", "adresse",
+				"id", "nom", "type_etablissement_id", "adresse",
 				"code_postal", "adresse");
 			// check required fields
-			if (!extracted.ContainsKey("code_uai") || !extracted.ContainsKey("nom") ||
+			if (!extracted.ContainsKey("id") || !extracted.ContainsKey("nom") ||
 			        !extracted.ContainsKey("type_etablissement_id"))
 				return null;
 			
 			int res = await db.InsertRowAsync("etablissement", extracted);
 			if (res == 1)
-				jsonResult = await GetEtablissementAsync(db, (string)extracted["code_uai"]);
+				jsonResult = await GetEtablissementAsync(db, (string)extracted["id"]);
 			return jsonResult;
 		}
 
@@ -366,31 +316,31 @@ namespace Laclasse.Directory
 			}
 		}
 
-		public async Task<JsonValue> ModifyEtablissementAsync(DB db, string uai, JsonValue json)
+		public async Task<JsonValue> ModifyEtablissementAsync(DB db, string id, JsonValue json)
 		{
 			var extracted = json.ExtractFields(
 				"nom", "adresse", "code_postal", "ville", "telephone", "fax", "date_last_maj_aaf",
 				"type_etablissement_id"
 			);
 			if (extracted.Count > 0)
-				await db.UpdateRowAsync("etablissement", "code_uai", uai, extracted);
-			return await GetEtablissementAsync(db, uai);
+				await db.UpdateRowAsync("etablissement", "id", id, extracted);
+			return await GetEtablissementAsync(db, id);
 		}
 
-		public async Task<bool> DeleteEtablissementAsync(string uai)
+		public async Task<bool> DeleteEtablissementAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await DeleteEtablissementAsync(db, uai);
+				return await DeleteEtablissementAsync(db, id);
 			}
 		}
 
-		public async Task<bool> DeleteEtablissementAsync(DB db, string uai)
+		public async Task<bool> DeleteEtablissementAsync(DB db, string id)
 		{
-			return (await db.DeleteAsync("DELETE FROM etablissement WHERE code_uai=?", uai)) != 0;
+			return (await db.DeleteAsync("DELETE FROM etablissement WHERE id=?", id)) != 0;
 		}
 
-		public async Task<JsonArray> GetEtablissementResourcesAsync(DB db, int id)
+		public async Task<JsonArray> GetEtablissementResourcesAsync(DB db, string id)
 		{
 			var json = new JsonArray();
 			foreach (var obj in await db.SelectAsync(
@@ -416,7 +366,7 @@ namespace Laclasse.Directory
 		{
 			var result = new SearchResult();
 			var allowedFields = new List<string> {
-				"id", "nom", "code_uai", "adresse", "ville", "code_postal"
+				"id", "nom", "adresse", "ville", "code_postal"
 			};
 			string filter = "";
 			var tables = new Dictionary<string, Dictionary<string, List<string>>>();

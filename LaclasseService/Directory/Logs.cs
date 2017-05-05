@@ -45,12 +45,19 @@ namespace Laclasse.Directory
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
+
+			GetAsync["/{id:int}"] = async (p, c) =>
+			{
+				c.Response.StatusCode = 200;
+				c.Response.Content = await GetLogAsync((int)p["id"]);
+			};
+
 			PostAsync["/"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
 				// check required fields
-				json.RequireFields("app", "uid", "uai", "user_type", "url");
-				var extracted = json.ExtractFields("app", "uid", "uai", "user_type", "url", "params");
+				json.RequireFields("application_id", "user_id", "etablissement_id", "profil_id", "url");
+				var extracted = json.ExtractFields("application_id", "user_id", "etablissement_id", "profil_id", "url", "params");
 				// append the sender IP address
 				string ip = "unknown";
 				if (c.Request.RemoteEndPoint is IPEndPoint)
@@ -108,10 +115,10 @@ namespace Laclasse.Directory
 			{
 				["id"] = (int)item["id"],
 				["ip"] = (string)item["ip"],
-				["app"] = (string)item["app"],
-				["uid"] = (string)item["uid"],
-				["uai"] = (string)item["uai"],
-				["user_type"] = (string)item["user_type"],
+				["application_id"] = (string)item["application_id"],
+				["user_id"] = (string)item["user_id"],
+				["etablissement_id"] = (string)item["etablissement_id"],
+				["profil_id"] = (string)item["profil_id"],
 				["url"] = (string)item["url"],
 				["params"] = (string)item["params"],
 				["timestamp"] = (DateTime)item["timestamp"]

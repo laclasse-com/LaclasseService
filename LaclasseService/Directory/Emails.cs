@@ -47,7 +47,7 @@ namespace Laclasse.Directory
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
-			PostAsync["/offer_ent"] = async (p, c) =>
+			GetAsync["/offer_ent"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
 				if (!json.ContainsKey("prenom") || !json.ContainsKey("nom"))
@@ -56,7 +56,7 @@ namespace Laclasse.Directory
 				c.Response.Content = new JsonPrimitive(await OfferEntEmailAsync(json["prenom"], json["nom"]));
 			};
 
-			PostAsync["/mail_available"] = async (p, c) =>
+			GetAsync["/mail_available"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
 				if (!json.ContainsKey("mail"))

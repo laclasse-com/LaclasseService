@@ -107,7 +107,6 @@ namespace Laclasse
 			mapper.Add("/api/sessions", sessions);
 			var niveaux = new Niveaux(dbUrl);
 			mapper.Add("/api/niveaux", niveaux);
-			mapper.Add("/api/roles", new Roles(dbUrl));
 			var applications = new Applications(dbUrl);
 			mapper.Add("/api/applications", applications);
 			var resources = new Resources(dbUrl);
@@ -116,20 +115,21 @@ namespace Laclasse
 			mapper.Add("/api/profils", profils);
 			var emails = new Emails(dbUrl);
 			mapper.Add("/api/emails", emails);
-			var groups = new Groups(dbUrl, niveaux);
-			mapper.Add("/api/groups", groups);
-			var etabs = new Etablissements(dbUrl, groups, resources);
+			var groupes = new Groupes(dbUrl, niveaux);
+			mapper.Add("/api/groupes", groupes);
+			mapper.Add("/api/types_etablissements", new TypesEtablissements(dbUrl));
+			var etabs = new Etablissements(dbUrl, groupes, resources, profils);
 			mapper.Add("/api/etablissements", etabs);
 			var users = new Users(
-				dbUrl, emails, profils, groups, etabs, resources, setup["server"]["storage"],
+				dbUrl, emails, profils, groupes, etabs, resources, setup["server"]["storage"],
 				setup["authentication"]["masterPassword"]);
 			mapper.Add("/api/users", users);
 			mapper.Add("/api/app/users", users);
 			mapper.Add("/api/sso", new Sso(dbUrl, users));
-			mapper.Add("/api/portail/entree", new PortailEntree(dbUrl, etabs));
-			mapper.Add("/api/portail/flux", new PortailFlux(dbUrl));
+			mapper.Add("/api/etablissements", new PortailEntree(dbUrl, etabs));
+			mapper.Add("/api/etablissements", new PortailFlux(dbUrl));
 			mapper.Add("/api/portail/news", new PortailNews(dbUrl));
-			mapper.Add("/api/app/v2/log", new Logs(dbUrl));
+			mapper.Add("/api/logs", new Logs(dbUrl));
 
 			mapper.Add("/api/avatar/user", new StaticFiles(
 				Path.Combine(setup["server"]["storage"], "avatar"),

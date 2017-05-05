@@ -44,7 +44,7 @@ namespace Laclasse.Authentication
 {
 	public partial class CasView
 	{
-		public string service = "/";
+		public string service = "";
 		public string error;
 		public string title;
 		public string message;
@@ -60,7 +60,7 @@ namespace Laclasse.Authentication
 		readonly string cookieName;
 
 		public Cas(string dbUrl, Sessions sessions, Users users, Etablissements etablissements,
-		           string cookieName, double ticketTimeout, JsonValue aafSsoSetup)
+				   string cookieName, double ticketTimeout, JsonValue aafSsoSetup)
 		{
 			this.dbUrl = dbUrl;
 			this.sessions = sessions;
@@ -84,7 +84,7 @@ namespace Laclasse.Authentication
 					{
 						string service = c.Request.QueryString["service"];
 						var ticket = await tickets.CreateAsync(c.Request.Cookies[cookieName]);
-						if (service.IndexOf('?') > 0)
+						if (service.IndexOf('?') >= 0)
 							service += "&ticket=" + ticket;
 						else
 							service += "?ticket=" + ticket;
@@ -94,7 +94,8 @@ namespace Laclasse.Authentication
 					{
 						c.Response.StatusCode = 200;
 						c.Response.Headers["content-type"] = "text/html; charset=utf-8";
-						c.Response.Content = (new CasView {
+						c.Response.Content = (new CasView
+						{
 							title = "Connexion réussie",
 							message = @"
 							<p>Vous vous &ecirc;tes authentifi&eacute;(e) aupr&egrave;s du Service Central d'Authentification</p>
@@ -105,7 +106,7 @@ namespace Laclasse.Authentication
 				}
 				else
 				{
-					string service = "?";
+					string service = "";
 					if (c.Request.QueryString.ContainsKey("service"))
 						service = c.Request.QueryString["service"];
 
@@ -128,7 +129,8 @@ namespace Laclasse.Authentication
 				{
 					c.Response.StatusCode = 200;
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
-					c.Response.Content = (new CasView {
+					c.Response.Content = (new CasView
+					{
 						service = formFields.ContainsKey("service") ? formFields["service"] : "/",
 						error = "Les informations transmises n'ont pas permis de vous authentifier."
 					}).TransformText();
@@ -166,7 +168,7 @@ namespace Laclasse.Authentication
 					c.Response.StatusCode = 200;
 					c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
 					c.Response.Content = ServiceResponseFailure(
-						"INVALID_REQUEST", 
+						"INVALID_REQUEST",
 						$"serviceValidate require at least two parameters : ticket and service.");
 					return;
 				}
@@ -224,7 +226,8 @@ namespace Laclasse.Authentication
 				var nodes = doc.DocumentElement.SelectNodes("//samlp:AssertionArtifact", ns);
 
 				// if no artifact or multiples artifacts found or not SAML 1.0 protocol, stop here
-				if (nodes.Count != 1) {
+				if (nodes.Count != 1)
+				{
 					Console.WriteLine("samlValidate AssertionArtifact not found");
 					c.Response.StatusCode = 200;
 					c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
@@ -332,7 +335,8 @@ namespace Laclasse.Authentication
 
 				// verify the Digital Signature
 				var refDom = VerifySignedXml(dom, agentCert);
-				if (refDom == null) {
+				if (refDom == null)
+				{
 					c.Response.StatusCode = 200;
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
 					c.Response.Content = (new CasView
@@ -364,7 +368,7 @@ namespace Laclasse.Authentication
 				Console.WriteLine($"agentPortalIdp ctemail: {ctemail}, node: {node}");
 
 				// find the corresponding user
-				var queryFields = new Dictionary<string,List<string>>();
+				var queryFields = new Dictionary<string, List<string>>();
 				queryFields["emails.type"] = new List<string>(new string[] { "Academique" });
 				queryFields["emails.adresse"] = new List<string>(new string[] { ctemail });
 				var userResult = (await users.SearchUserAsync(queryFields)).Data.SingleOrDefault();
@@ -384,7 +388,7 @@ namespace Laclasse.Authentication
 				}
 
 				// init the session and redirect to service
-				await CasLoginAsync(c, userResult["id_ent"], service);
+				await CasLoginAsync(c, userResult["id"], service);
 			};
 
 			PostAsync["/parentPortalIdp"] = async (p, c) =>
@@ -460,7 +464,7 @@ namespace Laclasse.Authentication
 				}
 
 				// init the session and redirect to service
-				await CasLoginAsync(c, userResult["id_ent"], service);
+				await CasLoginAsync(c, userResult["id"], service);
 			};
 		}
 
@@ -517,8 +521,8 @@ namespace Laclasse.Authentication
 
 			return new Dictionary<string, string>
 			{
-				["uid"] = user["id_ent"],
-				["user"] = user["id_ent"],
+				["uid"] = user["id"],
+				["user"] = user["id"],
 				["login"] = user["login"],
 				["nom"] = user["nom"],
 				["prenom"] = user["prenom"],
@@ -542,10 +546,10 @@ namespace Laclasse.Authentication
 			c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
 			c.Response.Headers["set-cookie"] = cookieName + "=" + sessionId + "; Path=/";
 
-			if (service != null)
+			if (!string.IsNullOrEmpty(service))
 			{
 				var ticket = await tickets.CreateAsync(sessionId);
-				if (service.IndexOf('?') > 0)
+				if (service.IndexOf('?') >= 0)
 					service += "&ticket=" + ticket;
 				else
 					service += "?ticket=" + ticket;
@@ -557,7 +561,7 @@ namespace Laclasse.Authentication
 				c.Response.Headers["location"] = "login";
 		}
 
-		public async Task<Dictionary<string,string>> GetUserSsoAttributesAsync(string uid)
+		public async Task<Dictionary<string, string>> GetUserSsoAttributesAsync(string uid)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
@@ -620,7 +624,7 @@ namespace Laclasse.Authentication
 
 			foreach (var attribute in attributes.Keys)
 			{
-				var casAttribute = dom.CreateElement("cas:"+attribute, cas);
+				var casAttribute = dom.CreateElement("cas:" + attribute, cas);
 				casAttribute.InnerText = attributes[attribute];
 				casAttributes.AppendChild(casAttribute);
 				authenticationSuccess.AppendChild(casAttribute);
@@ -682,7 +686,7 @@ namespace Laclasse.Authentication
 			AuthnRequest.SetAttribute("xmlns:saml", saml);
 			AuthnRequest.SetAttribute("ID", id);
 			AuthnRequest.SetAttribute("Version", "2.0");
-			AuthnRequest.SetAttribute("IssueInstant", DateTime.UtcNow.ToString("s")+"Z");
+			AuthnRequest.SetAttribute("IssueInstant", DateTime.UtcNow.ToString("s") + "Z");
 			AuthnRequest.SetAttribute("Destination", setup["url"]);
 			AuthnRequest.SetAttribute("AssertionConsumerServiceURL", assertionConsumerServiceURL);
 			AuthnRequest.SetAttribute("ProtocolBinding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST");
@@ -748,8 +752,8 @@ namespace Laclasse.Authentication
 			return doc;
 		}
 
-		XmlDocument SamlResponse1(Dictionary<string,string> attributes, string inResponseTo, string issuer,
-		                          string nameIdentifier, string recipient)
+		XmlDocument SamlResponse1(Dictionary<string, string> attributes, string inResponseTo, string issuer,
+								  string nameIdentifier, string recipient)
 		{
 			var samlp = "urn:oasis:names:tc:SAML:1.0:protocol";
 			var saml = "urn:oasis:names:tc:SAML:1.0:assertion";
@@ -812,7 +816,7 @@ namespace Laclasse.Authentication
 			assertion.AppendChild(attributeStatement);
 
 			var subject = doc.CreateElement("Subject", saml);
-			attributeStatement.AppendChild(subject);	
+			attributeStatement.AppendChild(subject);
 			var nameIdentifierNode = doc.CreateElement("NameIdentifier", saml);
 			nameIdentifierNode.InnerText = nameIdentifier;
 			subject.AppendChild(nameIdentifierNode);
@@ -881,7 +885,7 @@ namespace Laclasse.Authentication
 		}
 
 		XmlDocument SoapSamlResponse(string selfUrl, XmlDocument request, Dictionary<string, string> attributes,
-		                             string nameIdentifier, string recipient)
+									 string nameIdentifier, string recipient)
 		{
 			var SOAPENV = "http://schemas.xmlsoap.org/soap/envelope/";
 			var ns = new XmlNamespaceManager(request.NameTable);
@@ -938,7 +942,7 @@ namespace Laclasse.Authentication
 			// find the reference part ID which is used by the digest
 			nodeList = signedInfoDoc.DocumentElement.GetElementsByTagName("Reference", ds);
 			if (nodeList.Count != 1)
-				return null;	
+				return null;
 			var referenceId = nodeList[0].Attributes["URI"].Value;
 			// remove the #
 			referenceId = referenceId.Substring(1);
@@ -1047,7 +1051,7 @@ namespace Laclasse.Authentication
 			var tab = FrEduVecteur.Split('|');
 			if (tab.Length != 5)
 				return null;
-			
+
 			var type = tab[0];
 			var lastname = tab[1];
 			var firstname = tab[2];
@@ -1055,17 +1059,13 @@ namespace Laclasse.Authentication
 			var uai = tab[4];
 
 			// if parents
-			if ((type == "1") || (type == "2")) 
+			if ((type == "1") || (type == "2"))
 			{
-				var etabId = await etablissements.GetEtablissementIdAsync(uai);
-				if (etabId == -1)
-					return null;
-
 				// search by 'nom', 'prenom' and etablissement 'uai'
 				var queryFields = new Dictionary<string, List<string>>();
 				queryFields["nom"] = new List<string>(new string[] { lastname });
 				queryFields["prenom"] = new List<string>(new string[] { firstname });
-				queryFields["profils.etablissement_id"] = new List<string>(new string[] { etabId.ToString() });
+				queryFields["profils.etablissement_id"] = new List<string>(new string[] { uai });
 				queryFields["profils.profil_id"] = new List<string>(new string[] { "TUT" });
 				var usersResult = (await users.SearchUserAsync(queryFields)).Data;
 				if (usersResult.Count == 1)
@@ -1091,14 +1091,10 @@ namespace Laclasse.Authentication
 				if (usersResult.Count == 1)
 					return usersResult[0];
 
-				var etabId = await etablissements.GetEtablissementIdAsync(uai);
-				if (etabId == -1)
-					return null;
-
 				queryFields = new Dictionary<string, List<string>>();
 				queryFields["nom"] = new List<string>(new string[] { lastname });
 				queryFields["prenom"] = new List<string>(new string[] { firstname });
-				queryFields["profils.etablissement_id"] = new List<string>(new string[] { etabId.ToString() });
+				queryFields["profils.etablissement_id"] = new List<string>(new string[] { uai });
 				queryFields["profils.profil_id"] = new List<string>(new string[] { "ELV" });
 				usersResult = (await users.SearchUserAsync(queryFields)).Data;
 				if (usersResult.Count == 1)

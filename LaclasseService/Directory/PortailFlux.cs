@@ -54,17 +54,12 @@ namespace Laclasse.Directory
 				}
 			};
 
-			GetAsync["/etablissement/{etab_code_uai}"] = async (p, c) =>
+			GetAsync["/{uai}/flux"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					// get the etab id
-					var res = await db.ExecuteScalarAsync("SELECT id FROM etablissement WHERE code_uai=?", (string)p["etab_code_uai"]);
-					if (res == null)
-						throw new WebException(400, $"Unknown etab with uai: " + p["etab_code_uai"]);
-
 					var jsonResult = new JsonArray();
-					foreach (var item in await db.SelectAsync("SELECT * FROM flux_portail WHERE etab_id=?", (int)res))
+					foreach (var item in await db.SelectAsync("SELECT * FROM flux_portail WHERE etablissement_id=?", (string)p["uai"]))
 					{
 						jsonResult.Add(PortailFluxToJson(item));
 					}
@@ -73,7 +68,7 @@ namespace Laclasse.Directory
 				}
 			};
 
-			GetAsync["/{id:int}"] = async (p, c) =>
+			GetAsync["/{uai}/flux/{id:int}"] = async (p, c) =>
 			{
 				var jsonResult = await GetPortailFluxAsync((int)p["id"]);
 				if (jsonResult == null)
@@ -85,7 +80,7 @@ namespace Laclasse.Directory
 				}
 			};
 
-			PostAsync["/"] = async (p, c) => 
+			PostAsync["/{uai}/flux"] = async (p, c) => 
 			{
 				var json = await c.Request.ReadAsJsonAsync();
 				if (json is JsonArray)
@@ -106,10 +101,10 @@ namespace Laclasse.Directory
 				}
 			};
 
-			PutAsync["/{id:int}"] = async (p, c) =>
+			PutAsync["/{uai}/flux/{id:int}"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
-				var extracted = json.ExtractFields("flux", "icon", "nb", "title");
+				var extracted = json.ExtractFields("url", "nb", "name");
 				if (extracted.Count == 0)
 					return;
 				using (DB db = await DB.CreateAsync(dbUrl))
@@ -125,7 +120,7 @@ namespace Laclasse.Directory
 				}
 			};
 
-			DeleteAsync["/{id:int}"] = async (p, c) =>
+			DeleteAsync["/{uai}/flux/{id:int}"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
@@ -142,11 +137,10 @@ namespace Laclasse.Directory
 			return new JsonObject
 			{
 				["id"] = (int)item["id"],
-				["etab_id"] = (int)item["etab_id"],
+				["etablissement_id"] = (int)item["etablissement_id"],
 				["nb"] = (int)item["nb"],
-				["icon"] = (string)item["icon"],
-				["flux"] = (string)item["flux"],
-				["title"] = (string)item["title"]
+				["url"] = (string)item["url"],
+				["name"] = (string)item["name"]
 			};
 		}
 
@@ -175,16 +169,16 @@ namespace Laclasse.Directory
 		public async Task<JsonValue> CreatePortailFluxAsync(DB db, JsonValue json)
 		{
 			// check required fields
-			json.RequireFields("etab_code_uai", "flux", "title");
-			var extracted = json.ExtractFields("etab_code_uai", "flux", "icon", "nb", "title");
+			json.RequireFields("etablissement_id", "url", "name");
+			var extracted = json.ExtractFields("etablissement_id", "url", "nb", "name");
 
 			// get the etab id
-			var res = await db.ExecuteScalarAsync("SELECT id FROM etablissement WHERE code_uai=?", (string)extracted["etab_code_uai"]);
-			if (res == null)
-				throw new WebException(400, $"Unknown etab with uai: " + extracted["etab_code_uai"]);
+//			var res = await db.ExecuteScalarAsync("SELECT id FROM etablissement WHERE code_uai=?", (string)extracted["etab_code_uai"]);
+//			if (res == null)
+//				throw new WebException(400, $"Unknown etab with uai: " + extracted["etab_code_uai"]);
 
-			extracted["etab_id"] = (int)res;
-			extracted.Remove("etab_code_uai");
+//			extracted["etab_id"] = (int)res;
+//			extracted.Remove("etab_code_uai");
 
 			JsonValue jsonResult = null;
 			if (await db.InsertRowAsync("flux_portail", extracted) == 1)

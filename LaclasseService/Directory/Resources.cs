@@ -6,6 +6,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -75,10 +76,9 @@ namespace Laclasse.Directory
 
 				var json = await c.Request.ReadAsJsonAsync();
 				var extracted = json.ExtractFields(
-					"lib", "url_access_get", "site_web", "code", "url_logout", "type_ressource",
-					"nom_court");
+					"name", "url", "site_web", "type_ressource");
 				// check required fields
-				if (!extracted.ContainsKey("lib") || !extracted.ContainsKey("code"))
+				if (!extracted.ContainsKey("lib"))
 					throw new WebException(400, "Missing arguments");
 
 				using (DB db = await DB.CreateAsync(dbUrl))
@@ -106,8 +106,7 @@ namespace Laclasse.Directory
 
 				var json = await c.Request.ReadAsJsonAsync();
 				var extracted = json.ExtractFields(
-					"lib", "url_access_get", "site_web", "code", "url_logout", "type_ressource",
-					"nom_court");
+					"name", "url", "site_web", "type_ressource");
 				JsonValue jsonResult = null;
 				if (extracted.Count > 0)
 				{
@@ -146,14 +145,11 @@ namespace Laclasse.Directory
 			return new JsonObject
 			{
 				["id"] = (int)resource["id"],
-				["lib"] = (string)resource["lib"],
-				["url_access_get"] = (string)resource["url_access_get"],
+				["name"] = (string)resource["name"],
+				["url"] = (string)resource["url"],
 				["site_web"] = (string)resource["site_web"],
 				["date_modified"] = (DateTime?)resource["date_modified"],
-				["code"] = (string)resource["code"],
-				["url_logout"] = (string)resource["url_logout"],
-				["type_ressource"] = (string)resource["type_ressource"],
-				["nom_court"] = (string)resource["nom_court"]
+				["type_ressource"] = (string)resource["type_ressource"]
 			};
 		}
 
@@ -170,7 +166,5 @@ namespace Laclasse.Directory
 			var resource = (await db.SelectAsync("SELECT * FROM ressources_num WHERE id=?", id)).First();
 			return (resource == null) ? null : ResourceToJson(resource);
 		}
-
-
 	}
 }

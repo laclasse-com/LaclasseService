@@ -146,7 +146,7 @@ namespace Laclasse.Directory
 							throw new WebException(500, "email_backend not found");
 
 						c.Response.StatusCode = 200;
-						c.Response.Headers["Auth-User"] = user["id_ent"] + "@" + emailBackend["adresse"];
+						c.Response.Headers["Auth-User"] = user["id"] + "@" + emailBackend["adresse"];
 						c.Response.Headers["Auth-Status"] = "OK";
 
 						c.Response.Headers["Auth-Server"] = (string)emailBackend["adresse_ip"];
@@ -203,7 +203,7 @@ namespace Laclasse.Directory
 			{
 				if ((bool)p["actif"])
 				{
-					ENTPersonStructRattachRNE = p["etablissement_code_uai"];
+					ENTPersonStructRattachRNE = p["etablissement_id"];
 					if (ProfilIdToSdet3.ContainsKey(p["profil_id"]))
 						categories = ProfilIdToSdet3[p["profil_id"]];
 					if (p["profil_id"] == "ELV")
@@ -215,23 +215,13 @@ namespace Laclasse.Directory
 					ENTPersonProfils = "";
 				else
 					ENTPersonProfils += ",";
-				ENTPersonProfils += p["profil_id"] + ":" + p["etablissement_code_uai"];
-			}
-
-			var ENTPersonRoles = "";
-			foreach (var r in (JsonArray)user["roles"])
-			{
-				if (ENTPersonRoles != "")
-					ENTPersonRoles += ",";
-				ENTPersonRoles += r["role_id"] + ":" + r["etablissement_code_uai"] +
-					":" + r["priority"] + ":" + r["libelle"] + ":" +
-					r["etablissement_nom"];
+				ENTPersonProfils += p["profil_id"] + ":" + p["etablissement_id"];
 			}
 
 			return new JsonObject
 			{
-				["uid"] = user["id_ent"],
-				["user"] = user["id_ent"],
+				["uid"] = user["id"],
+				["user"] = user["id"],
 				["login"] = user["login"],
 				["nom"] = user["nom"],
 				["prenom"] = user["prenom"],
@@ -240,7 +230,6 @@ namespace Laclasse.Directory
 				["ENTPersonProfils"] = ENTPersonProfils,
 				["ENTPersonStructRattach"] = ENTPersonStructRattachRNE,
 				["ENTPersonStructRattachRNE"] = ENTPersonStructRattachRNE,
-				["ENTPersonRoles"] = ENTPersonRoles,
 				["categories"] = categories,
 				["LaclasseNom"] = user["nom"],
 				["LaclassePrenom"] = user["prenom"]

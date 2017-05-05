@@ -107,7 +107,7 @@ namespace Laclasse.Directory
 			PutAsync["/{id}"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
-				var extracted = json.ExtractFields("libelle", "description", "url", "password");
+				var extracted = json.ExtractFields("name", "url", "password");
 				if (extracted.Count == 0)
 					return;
 				using (DB db = await DB.CreateAsync(dbUrl))
@@ -156,8 +156,7 @@ namespace Laclasse.Directory
 			return new JsonObject
 			{
 				["id"] = (string)item["id"],
-				["libelle"] = (string)item["libelle"],
-				["description"] = (string)item["description"],
+				["name"] = (string)item["name"],
 				["url"] = (string)item["url"],
 				["password"] = (string)item["password"]
 			};
@@ -187,7 +186,7 @@ namespace Laclasse.Directory
 
 		public async Task<JsonValue> CreateApplicationAsync(DB db, JsonValue json)
 		{
-			var extracted = json.ExtractFields("id", "libelle", "description", "url", "password");
+			var extracted = json.ExtractFields("id", "name", "url", "password");
 			// check required fields
 			if (!extracted.ContainsKey("id") || !extracted.ContainsKey("url"))
 				throw new WebException(400, "Bad protocol. 'id' and 'url' are needed");

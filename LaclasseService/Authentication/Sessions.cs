@@ -27,6 +27,7 @@
 //
 
 using System;
+using System.Text;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Runtime.Remoting.Messaging;
@@ -64,23 +65,33 @@ namespace Laclasse.Authentication
 			string sessionId;
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				bool duplicate = false;
+
+				var sb = new StringBuilder();
+				foreach (var b in BitConverter.GetBytes(DateTime.Now.Ticks))
+					sb.Append(b.ToString("X2"));
+
+				bool duplicate;
+				int tryCount = 0;
 				do
 				{
-					sessionId = StringExt.RandomString(10);
+					duplicate = false;
+					sessionId = sb + StringExt.RandomString(10);
 					try
 					{
-						var count = await db.InsertAsync("INSERT INTO session (id,user) VALUES (?,?)", sessionId, user);
-						if (count != 1)
-							throw new Exception("Session create fails");
+						if (await db.InsertAsync("INSERT INTO session (id,user) VALUES (?,?)", sessionId, user) != 1)
+							sessionId = null;
 					}
 					catch (MySql.Data.MySqlClient.MySqlException e)
 					{
-						// if the sessionId is already taken, try another
-						duplicate = e.Number == 1062;
+						sessionId = null;
+						// if the ticketId is already taken, try another
+						duplicate = (e.Number == 1062);
+						tryCount++;
 					}
 				}
-				while (duplicate);
+				while (duplicate && (tryCount < 10));
+				if (sessionId == null)
+					throw new Exception("Session create fails. Impossible generate a sessionId");
 			}
 			return sessionId;
 		}

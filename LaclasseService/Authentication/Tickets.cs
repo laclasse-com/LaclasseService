@@ -27,6 +27,7 @@
 //
 
 using System;
+using System.Text;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Runtime.Remoting.Messaging;
@@ -49,23 +50,32 @@ namespace Laclasse.Authentication
 			string ticketId;
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				bool duplicate = false;
+				var sb = new StringBuilder();
+				foreach (var b in BitConverter.GetBytes(DateTime.Now.Ticks))
+					sb.Append(b.ToString("X2"));
+
+				bool duplicate;
+				int tryCount = 0;
 				do
 				{
-					ticketId = "ST-"+StringExt.RandomString(10);
+					duplicate = false;
+					ticketId = "ST-" + sb + StringExt.RandomString(13);
 					try
 					{
-						var count = await db.InsertAsync("INSERT INTO ticket (id,session) VALUES (?,?)", ticketId, session);
-						if (count != 1)
-							throw new Exception("Ticket create fails");
+						if (await db.InsertAsync("INSERT INTO ticket (id,session) VALUES (?,?)", ticketId, session) != 1)
+							ticketId = null;
 					}
 					catch (MySql.Data.MySqlClient.MySqlException e)
 					{
+						ticketId = null;
 						// if the ticketId is already taken, try another
-						duplicate = e.Number == 1062;
+						duplicate = (e.Number == 1062);
+						tryCount++;
 					}
 				}
-				while (duplicate);
+				while (duplicate && (tryCount < 10));
+				if (ticketId  == null)
+					throw new Exception("Ticket create fails. Impossible generate a ticketId");
 			}
 			return ticketId;
 		}

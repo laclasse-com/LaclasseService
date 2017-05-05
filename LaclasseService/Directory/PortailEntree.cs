@@ -44,7 +44,7 @@ namespace Laclasse.Directory
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
-			GetAsync["/etablissement/{uai}"] = async (p, c) =>
+			GetAsync["/{uai}/tuiles"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
@@ -54,7 +54,7 @@ namespace Laclasse.Directory
 					else
 					{
 						var jsonResult = new JsonArray();
-						foreach (var item in await db.SelectAsync("SELECT * FROM entree_portail WHERE etab_id=?", (int)etab["id"]))
+						foreach (var item in await db.SelectAsync("SELECT * FROM entree_portail WHERE etablissement_id=?", (int)etab["id"]))
 						{
 							jsonResult.Add(PortailEntreeToJson(item));
 						}
@@ -64,7 +64,7 @@ namespace Laclasse.Directory
 				}
 			};
 
-			PostAsync["/"] = async (p, c) =>
+			PostAsync["/{uai}/tuiles"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
 				if (json is JsonArray)
@@ -85,10 +85,10 @@ namespace Laclasse.Directory
 				}
 			};
 
-			PutAsync["/{id:int}"] = async (p, c) =>
+			PutAsync["/{uai}/tuiles/{id:int}"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
-				var extracted = json.ExtractFields("libelle", "description", "color", "index");
+				var extracted = json.ExtractFields("name", "description", "color", "index");
 				if (extracted.Count == 0)
 					return;
 				using (DB db = await DB.CreateAsync(dbUrl))
@@ -104,7 +104,7 @@ namespace Laclasse.Directory
 				}
 			};
 
-			DeleteAsync["/{id:int}"] = async (p, c) =>
+			DeleteAsync["/{uai}/tuiles/{id:int}"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
@@ -121,13 +121,12 @@ namespace Laclasse.Directory
 			return new JsonObject
 			{
 				["id"] = (int)item["id"],
-				["etab_id"] = (int)item["etab_id"],
+				["etablissement_id"] = (int)item["etablissement_id"],
 				["application_id"] = (string)item["application_id"],
 				["type"] = (string)item["type"],
-				["libelle"] = (string)item["libelle"],
+				["name"] = (string)item["name"],
 				["description"] = (string)item["description"],
 				["url"] = (string)item["url"],
-				["active"] = (bool)item["active"],
 				["index"] = (int)item["index"],
 				["color"] = (string)item["color"],
 				["icon"] = (string)item["icon"]
@@ -151,18 +150,10 @@ namespace Laclasse.Directory
 		public async Task<JsonValue> CreatePortailEntreeAsync(DB db, JsonValue json)
 		{
 			// check required fields
-			json.RequireFields("etab_code_uai", "index", "type");
+			json.RequireFields("etablissement_id", "index", "type");
 			var extracted = json.ExtractFields(
-				"etab_code_uai", "index", "type", "application_id", "libelle", "description",
+				"etablissement_id", "index", "type", "application_id", "name", "description",
 				"url", "icon", "color");
-
-			// get the etab id
-			var res = await db.ExecuteScalarAsync("SELECT id FROM etablissement WHERE code_uai=?", (string)extracted["etab_code_uai"]);
-			if (res == null)
-				throw new WebException(400, $"Unknown etab with uai: " + extracted["etab_code_uai"]);
-
-			extracted["etab_id"] = (int)res;
-			extracted.Remove("etab_code_uai");
 
 			JsonValue jsonResult = null;
 			if (await db.InsertRowAsync("entree_portail", extracted) == 1)

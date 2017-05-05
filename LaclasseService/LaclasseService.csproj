@@ -58,7 +58,7 @@
     <Compile Include="Directory\Emails.cs" />
     <Compile Include="WebException.cs" />
     <Compile Include="Directory\Users.cs" />
-    <Compile Include="Directory\Groups.cs" />
+    <Compile Include="Directory\Groupes.cs" />
     <Compile Include="Directory\Etablissements.cs" />
     <Compile Include="Directory\Matieres.cs" />
     <Compile Include="Directory\Sso.cs" />
@@ -78,7 +78,7 @@
     <Compile Include="Authentication\ContextExtensions.cs" />
     <Compile Include="Directory\PortailFlux.cs" />
     <Compile Include="Directory\PortailNews.cs" />
-    <Compile Include="Directory\Roles.cs" />
+    <Compile Include="Directory\TypesEtablissements.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

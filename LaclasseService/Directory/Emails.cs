@@ -64,7 +64,7 @@ namespace Laclasse.Directory
 
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					var emails = await db.SelectAsync("SELECT * FROM email WHERE adresse=?", (string)json["mail"]);
+					var emails = await db.SelectAsync("SELECT * FROM email WHERE address=?", (string)json["mail"]);
 					c.Response.StatusCode = 200;
 					c.Response.Content = new JsonObject
 					{
@@ -91,8 +91,8 @@ namespace Laclasse.Directory
 				aliasEmail = beginEmail + endEmail;
 
 				var emails = (await db.SelectAsync(
-					"SELECT adresse FROM email WHERE SUBSTRING(adresse,1,?)=? AND type='Ent'",
-					beginEmail.Length, beginEmail)).Select((arg) => (string)arg["adresse"]);
+					"SELECT address FROM email WHERE SUBSTRING(address,1,?)=? AND type='Ent'",
+					beginEmail.Length, beginEmail)).Select((arg) => (string)arg["address"]);
 				while (emails.Contains(aliasEmail))
 				{
 					aliasEmail = beginEmail + (++aliasIndex).ToString() + endEmail;
@@ -117,8 +117,8 @@ namespace Laclasse.Directory
 				res.Add(new JsonObject
 				{
 					["id"] = (int)email["id"],
-					["adresse"] = (string)email["adresse"],
-					["principal"] = (bool)email["principal"],
+					["address"] = (string)email["address"],
+					["primary"] = (bool)email["primary"],
 					["type"] = (string)email["type"]
 				});
 			}

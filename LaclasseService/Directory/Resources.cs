@@ -49,7 +49,7 @@ namespace Laclasse.Directory
 				var res = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					foreach (var resource in await db.SelectAsync("SELECT * FROM ressources_num"))
+					foreach (var resource in await db.SelectAsync("SELECT * FROM resource"))
 					{
 						res.Add(ResourceToJson(resource));
 					}
@@ -76,14 +76,14 @@ namespace Laclasse.Directory
 
 				var json = await c.Request.ReadAsJsonAsync();
 				var extracted = json.ExtractFields(
-					"name", "url", "site_web", "type_ressource");
+					"name", "url", "site_web", "resource");
 				// check required fields
 				if (!extracted.ContainsKey("lib"))
 					throw new WebException(400, "Missing arguments");
 
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					int res = await db.InsertRowAsync("ressources_num", extracted);
+					int res = await db.InsertRowAsync("resource", extracted);
 					if (res == 1)
 					{
 						var jsonResult = await GetResourceAsync(db, (int)await db.LastInsertIdAsync());
@@ -106,13 +106,13 @@ namespace Laclasse.Directory
 
 				var json = await c.Request.ReadAsJsonAsync();
 				var extracted = json.ExtractFields(
-					"name", "url", "site_web", "type_ressource");
+					"name", "url", "site_web", "type");
 				JsonValue jsonResult = null;
 				if (extracted.Count > 0)
 				{
 					using (DB db = await DB.CreateAsync(dbUrl))
 					{
-						if ((await db.UpdateRowAsync("ressources_num", "id", p["id"], extracted)) > 0)
+						if ((await db.UpdateRowAsync("resource", "id", p["id"], extracted)) > 0)
 							jsonResult = await GetResourceAsync(db, (int)p["id"]);
 					}
 				}
@@ -131,7 +131,7 @@ namespace Laclasse.Directory
 
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					int count = await db.DeleteAsync("DELETE FROM ressources_num WHERE id=?", (int)p["id"]);
+					int count = await db.DeleteAsync("DELETE FROM resource WHERE id=?", (int)p["id"]);
 					if (count == 0)
 						c.Response.StatusCode = 404;
 					else
@@ -148,8 +148,8 @@ namespace Laclasse.Directory
 				["name"] = (string)resource["name"],
 				["url"] = (string)resource["url"],
 				["site_web"] = (string)resource["site_web"],
-				["date_modified"] = (DateTime?)resource["date_modified"],
-				["type_ressource"] = (string)resource["type_ressource"]
+				["mtime"] = (DateTime?)resource["mtime"],
+				["type"] = (string)resource["type"]
 			};
 		}
 
@@ -163,7 +163,7 @@ namespace Laclasse.Directory
 
 		public async Task<JsonValue> GetResourceAsync(DB db, int id)
 		{
-			var resource = (await db.SelectAsync("SELECT * FROM ressources_num WHERE id=?", id)).First();
+			var resource = (await db.SelectAsync("SELECT * FROM resource WHERE id=?", id)).First();
 			return (resource == null) ? null : ResourceToJson(resource);
 		}
 	}

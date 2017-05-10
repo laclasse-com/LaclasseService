@@ -37,7 +37,7 @@ namespace Laclasse.Directory
 	{
 		readonly string dbUrl;
 
-		public PortailEntree(string dbUrl, Etablissements etabs)
+		public PortailEntree(string dbUrl, Structures structures)
 		{
 			this.dbUrl = dbUrl;
 
@@ -48,13 +48,13 @@ namespace Laclasse.Directory
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					var etab = await etabs.GetEtablissementAsync(db, (string)p["uai"]);
+					var etab = await structures.GetStructureAsync(db, (string)p["uai"]);
 					if (etab == null)
 						c.Response.StatusCode = 404;
 					else
 					{
 						var jsonResult = new JsonArray();
-						foreach (var item in await db.SelectAsync("SELECT * FROM entree_portail WHERE etablissement_id=?", (int)etab["id"]))
+						foreach (var item in await db.SelectAsync("SELECT * FROM entree_portail WHERE structure_id=?", (string)etab["id"]))
 						{
 							jsonResult.Add(PortailEntreeToJson(item));
 						}
@@ -121,7 +121,7 @@ namespace Laclasse.Directory
 			return new JsonObject
 			{
 				["id"] = (int)item["id"],
-				["etablissement_id"] = (int)item["etablissement_id"],
+				["structure_id"] = (string)item["structure_id"],
 				["application_id"] = (string)item["application_id"],
 				["type"] = (string)item["type"],
 				["name"] = (string)item["name"],
@@ -150,9 +150,9 @@ namespace Laclasse.Directory
 		public async Task<JsonValue> CreatePortailEntreeAsync(DB db, JsonValue json)
 		{
 			// check required fields
-			json.RequireFields("etablissement_id", "index", "type");
+			json.RequireFields("structure_id", "index", "type");
 			var extracted = json.ExtractFields(
-				"etablissement_id", "index", "type", "application_id", "name", "description",
+				"structure_id", "index", "type", "application_id", "name", "description",
 				"url", "icon", "color");
 
 			JsonValue jsonResult = null;

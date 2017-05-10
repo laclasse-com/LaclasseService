@@ -6,6 +6,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,9 +33,19 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Runtime.Remoting.Messaging;
 using Erasme.Http;
+using Erasme.Json;
 
 namespace Laclasse.Authentication
 {
+	public class Session
+	{
+		public string id;
+		public DateTime start;
+		public TimeSpan duration;
+		public string application;
+		public string user;
+	}
+
 	public class Sessions : HttpRouting
 	{
 		readonly string dbUrl;
@@ -49,13 +60,19 @@ namespace Laclasse.Authentication
 
 			GetAsync["/current"] = async (p, c) =>
 			{
-				var user = await GetAuthenticatedUserAsync(c);
-				if (user == null)
+				var session = await GetCurrentSessionAsync(c);
+				if (session == null)
 					c.Response.StatusCode = 404;
 				else
 				{
 					c.Response.StatusCode = 200;
-					c.Response.Content = user;
+					c.Response.Content = new JsonObject
+					{
+						["id"] = session.id,
+						["start"] = session.start,
+						["duration"] = session.duration.TotalSeconds,
+						["user"] = session.user,
+					};
 				}
 			};
 		}
@@ -114,35 +131,43 @@ namespace Laclasse.Authentication
 			}
 		}
 
-		public async Task<string> GetSessionAsync(string sessionId)
+		public async Task<Session> GetSessionAsync(string sessionId)
 		{
 			await CleanAsync();
-			string user = null;
+			Session session = null;
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
 				var item = (await db.SelectAsync("SELECT * FROM session WHERE id=?", sessionId)).SingleOrDefault();
 				if (item != null)
-					user = (string)item["user"];
+				{
+					session = new Session
+					{
+						id = (string)item["id"],
+						start = (DateTime)item["start"],
+						duration = TimeSpan.FromSeconds(sessionTimeout),
+						user = (string)item["user"]
+					};
+				}
 			}
-			return user;
+			return session;
 		}
 
 		public async Task DeleteSessionAsync(string sessionId)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				await db.DeleteAsync("DELETE FROM session WHERE id=?", sessionId);
-			}
+		}
+
+		public async Task<Session> GetCurrentSessionAsync(HttpContext context)
+		{
+			return (context.Request.Cookies.ContainsKey(cookieName)) ?
+				await GetSessionAsync(context.Request.Cookies[cookieName]) : null;
 		}
 
 		public async Task<string> GetAuthenticatedUserAsync(HttpContext context)
 		{
-			string user = null;
-			if (context.Request.Cookies.ContainsKey(cookieName))
-			{
-				user = await GetSessionAsync(context.Request.Cookies[cookieName]);
-			}
-			return user;
+			var session = await GetCurrentSessionAsync(context);
+			return session == null ? null : session.user;
 		}
 	}
 }

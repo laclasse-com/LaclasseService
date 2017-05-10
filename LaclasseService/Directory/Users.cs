@@ -42,20 +42,20 @@ namespace Laclasse.Directory
 		readonly string dbUrl;
 		readonly Emails emails;
 		readonly Profils profils;
-		readonly Groupes groupes;
-		readonly Etablissements etabs;
+		readonly Groups groups;
+		readonly Structures structures;
 		readonly Resources resources;
 		readonly string masterPassword;
 
-		public Users(string dbUrl, Emails emails, Profils profils, Groupes groupes, Etablissements etabs,
+		public Users(string dbUrl, Emails emails, Profils profils, Groups groups, Structures structures,
 		             Resources resources, string storageDir, string masterPassword)
 		{
 			this.dbUrl = dbUrl;
 			this.emails = emails;
 			this.profils = profils;
-			this.groupes = groupes;
-			this.etabs = etabs;
-			this.etabs.users = this;
+			this.groups = groups;
+			this.structures = structures;
+			this.structures.users = this;
 			this.resources = resources;
 			this.masterPassword = masterPassword;
 
@@ -226,13 +226,13 @@ namespace Laclasse.Directory
 				using (DB db = await DB.CreateAsync(dbUrl, true))
 				{
 					var count = await db.UpdateAsync(
-						"UPDATE profil_user SET actif=TRUE WHERE user_id=? AND profil_id=? AND etablissement_id=?",
+						"UPDATE profil_user SET actif=TRUE WHERE user_id=? AND profil_id=? AND structure_id=?",
 						uid, profil_id, uai);
 					if (count < 1)
 						throw new WebException(404, $"Profil not found");
 					
 					await db.UpdateAsync(
-						"UPDATE profil_user SET actif=FALSE WHERE user_id=? AND (profil_id != ? OR etablissement_id != ?)",
+						"UPDATE profil_user SET actif=FALSE WHERE user_id=? AND (profil_id != ? OR structure_id != ?)",
 						uid, profil_id, uai);
 
 					c.Response.StatusCode = 200;
@@ -258,51 +258,50 @@ namespace Laclasse.Directory
 				["id_sconet"] = (int?)item["id_sconet"],
 				["id_jointure_aaf"] = (long?)item["id_jointure_aaf"],
 				["login"] = (string)item["login"],
-				["nom"] = (string)item["nom"],
-				["prenom"] = (string)item["prenom"],
-				["sexe"] = (string)item["sexe"],
-				["date_naissance"] = (DateTime?)item["date_naissance"],
-				["adresse"] = (string)item["adresse"],
-				["ville"] = (string)item["ville"],
-				["sexe"] = (string)item["sexe"],
-				["code_postal"] = (string)item["code_postal"],
-				["date_creation"] = (DateTime?)item["date_creation"],
-				["date_derniere_connexion"] = (DateTime?)item["date_derniere_connexion"],
+				["lastname"] = (string)item["lastname"],
+				["firstname"] = (string)item["firstname"],
+				["gender"] = (string)item["gender"],
+				["birthdate"] = (DateTime?)item["birthdate"],
+				["address"] = (string)item["address"],
+				["city"] = (string)item["city"],
+				["zip_code"] = (string)item["zip_code"],
+				["ctime"] = (DateTime?)item["ctime"],
+				["atime"] = (DateTime?)item["atime"],
 				["default_password"] = (bool)item["change_password"],
 				["default_password_value"] = ((bool)item["change_password"]) ? (string)item["id"] : null,
 				["super_admin"] = (bool)item["super_admin"],
 				["avatar"] = avatar,
-				["telephones"] = await GetUserTelephonesAsync(db, id),
+				["phones"] = await GetUserPhonesAsync(db, id),
 				["emails"] = await emails.GetUserEmailsAsync(db, (string)item["id"])
 			};
 			if (expand)
 			{
 				var profilsJson = await profils.GetUserProfilsAsync(db, id);
 				var profilActif = (from p in profilsJson where p["actif"] select p).SingleOrDefault();
-				var groupsJson = await groupes.GetUserGroupesAsync(db, id);
+				var groupsJson = await groups.GetUserGroupsAsync(db, id);
 
-				var groupsList = new List<JsonValue>();
+/*				var groupsList = new List<JsonValue>();
 				foreach (var g in groupsJson)
 				{
 					if (g.ContainsKey("regroupement_libre_id"))
-						groupsList.Add(await groupes.GetGroupFreeAsync(g["regroupement_libre_id"]));
+						groupsList.Add(await groups.GetGroupFreeAsync(g["regroupement_libre_id"]));
 					else
-						groupsList.Add(await groupes.GetGroupAsync(g["regroupement_id"]));
-				}
+						groupsList.Add(await groups.GetGroupAsync(g["regroupement_id"]));
+				}*/
 
-				var classes = from g in groupsList where g["type_regroupement_id"] == "CLS" select g;
-				var groupes_eleves = from g in groupsList where g["type_regroupement_id"] == "GRP" select g;
-				var groupes_libres = from g in groupsList where g["type_regroupement_id"] == "GPL" select g;
+/*				var classes = from g in groupsList where g["type_regroupement_id"] == "CLS" select g;
+				var groups_eleves = from g in groupsList where g["type_regroupement_id"] == "GRP" select g;
+				var groups_libres = from g in groupsList where g["type_regroupement_id"] == "GPL" select g;*/
 
 				var relations_parents = await GetUserRelationsParentsAsync(db, id);
 				var relations_enfants = await GetUserRelationsEnfantsAsync(db, id);
 
-				result["profil_actif"] = profilActif;
+//				result["profil_actif"] = profilActif;
 				result["profils"] = profilsJson;
-				result["groupes"] = groupsJson;
-				result["classes"] = new JsonArray(classes);
-				result["groupes_libres"] = new JsonArray(groupes_libres);
-				result["groupes_eleves"] = new JsonArray(groupes_eleves);
+				result["groups"] = groupsJson;
+/*				result["classes"] = new JsonArray(classes);
+				result["groupes_libres"] = new JsonArray(groups_libres);
+				result["groupes_eleves"] = new JsonArray(groups_eleves);*/
 				result["relations_enfants"] = relations_enfants;
 				result["relations_parents"] = relations_parents;
 				result["email_backend_id"] = (int)item["email_backend_id"];
@@ -363,13 +362,13 @@ namespace Laclasse.Directory
 		{
 			var result = new SearchResult();
 			var allowedFields = new List<string> {
-				"id", "login", "prenom", "nom", "sexe", "adresse", "ville", "code_postal",
-				"id_sconet", "change_password", "profils.profil_id", "profils.etablissement_id",
+				"id", "login", "firstname", "lastname", "gender", "address", "city", "zip_code",
+				"id_sconet", "change_password", "profils.profil_id", "profils.structure_id",
 				"emails.adresse", "emails.type"
 			};
 
 			if ((orderBy == null) || (!allowedFields.Contains(orderBy)))
-				orderBy = "nom";
+				orderBy = "lastname";
 
 			string filter = "";
 			var tables = new Dictionary<string, Dictionary<string, List<string>>>();
@@ -559,16 +558,16 @@ namespace Laclasse.Directory
 			return res;
 		}
 
-		public async Task<JsonArray> GetUserTelephonesAsync(DB db, string id)
+		public async Task<JsonArray> GetUserPhonesAsync(DB db, string id)
 		{
 			var telephones = new JsonArray();
-			foreach (var tel in await db.SelectAsync("SELECT * FROM telephone WHERE user_id=?", id))
+			foreach (var tel in await db.SelectAsync("SELECT * FROM phone WHERE user_id=?", id))
 			{
 				telephones.Add(new JsonObject
 				{
 					["id"] = (int)tel["id"],
-					["numero"] = (string)tel["numero"],
-					["type_telephone_id"] = (string)tel["type_telephone_id"]
+					["number"] = (string)tel["number"],
+					["phone_type_id"] = (string)tel["phone_type_id"]
 				});
 			}
 			return telephones;
@@ -585,10 +584,10 @@ namespace Laclasse.Directory
 		public async Task<JsonValue> CreateUserAsync(DB db, JsonValue json)
 		{
 			var extracted = json.ExtractFields(
-				"id_sconet", "password", "nom", "prenom", "sexe", "date_naissance", "adresse",
-				"code_postal", "ville", "date_derniere_connexion"
+				"id_sconet", "password", "lastname", "firstname", "gender", "birthdate", "address",
+				"zip_code", "city", "atime"
 			);
-			extracted.RequireFields("nom", "prenom");
+			extracted.RequireFields("lastname", "firstname");
 			// hash the password
 			if (extracted.ContainsKey("password"))
 				extracted["password"] = BCrypt.Net.BCrypt.HashPassword((string)extracted["password"], 5);
@@ -616,8 +615,8 @@ namespace Laclasse.Directory
 		public async Task<JsonValue> ModifyUserAsync(DB db, string id, JsonValue json)
 		{
 			var extracted = json.ExtractFields(
-				"id_sconet", "password", "nom", "prenom", "sexe", "date_naissance", "adresse",
-				"code_postal", "ville", "date_derniere_connexion", "avatar"
+				"id_sconet", "password", "lastname", "firstname", "gender", "birthdate", "address",
+				"zip_code", "city", "atime", "avatar"
 			);
 			// hash the password
 			if (extracted.ContainsKey("password"))
@@ -740,9 +739,12 @@ namespace Laclasse.Directory
 			if (item != null)
 			{
 				if ((password == masterPassword) ||
-				        BCrypt.Net.BCrypt.Verify(password, (string)item["password"]))
+						BCrypt.Net.BCrypt.Verify(password, (string)item["password"]))
+				{
 					user = (string)item["id"];
-				// TODO: update date_derniere_connexion
+					// update date_derniere_connexion
+					await db.UpdateAsync("UPDATE user SET atime = NOW() WHERE id=?", user);
+				}
 			}
 			return user;
 		}

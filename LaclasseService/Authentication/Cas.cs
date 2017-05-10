@@ -56,16 +56,16 @@ namespace Laclasse.Authentication
 		readonly Tickets tickets;
 		readonly Sessions sessions;
 		readonly Users users;
-		readonly Etablissements etablissements;
+		readonly Structures structures;
 		readonly string cookieName;
 
-		public Cas(string dbUrl, Sessions sessions, Users users, Etablissements etablissements,
+		public Cas(string dbUrl, Sessions sessions, Users users, Structures structures,
 				   string cookieName, double ticketTimeout, JsonValue aafSsoSetup)
 		{
 			this.dbUrl = dbUrl;
 			this.sessions = sessions;
 			this.users = users;
-			this.etablissements = etablissements;
+			this.structures = structures;
 			this.cookieName = cookieName;
 			tickets = new Tickets(dbUrl, ticketTimeout);
 
@@ -148,15 +148,12 @@ namespace Laclasse.Authentication
 				if (c.Request.Cookies.ContainsKey(cookieName))
 					await sessions.DeleteSessionAsync(c.Request.Cookies[cookieName]);
 
-				// TODO: clean all cookies
-				/*foreach (var cookie in c.Request.Cookies.Keys)
-				{
-					
-				}*/
+				// clean all cookies
+				foreach (var cookie in c.Request.Cookies.Keys)
+					c.Response.Cookies.Add(new Cookie { Name = cookie, Expires = (DateTime.Now - TimeSpan.FromDays(365)), Path = "/" });
 
 				c.Response.StatusCode = 302;
 				c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
-				c.Response.Headers["set-cookie"] = cookieName + "=; Expires= " + (DateTime.Now - TimeSpan.FromDays(365)).ToString("R") + "; Path=/";
 				c.Response.Headers["location"] = destination;
 			};
 
@@ -174,8 +171,8 @@ namespace Laclasse.Authentication
 				}
 
 				var ticketId = c.Request.QueryString["ticket"];
-				var session = await tickets.GetAsync(ticketId);
-				if (session == null)
+				var sessionId = await tickets.GetAsync(ticketId);
+				if (sessionId == null)
 				{
 					c.Response.StatusCode = 200;
 					c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
@@ -186,8 +183,8 @@ namespace Laclasse.Authentication
 				else
 				{
 					await tickets.DeleteAsync(ticketId);
-					var user = await sessions.GetSessionAsync(session);
-					if (user == null)
+					var session = await sessions.GetSessionAsync(sessionId);
+					if (session == null)
 					{
 						c.Response.StatusCode = 200;
 						c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
@@ -199,7 +196,7 @@ namespace Laclasse.Authentication
 					{
 						c.Response.StatusCode = 200;
 						c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-						c.Response.Content = ServiceResponseSuccess(await GetUserSsoAttributesAsync(user));
+						c.Response.Content = ServiceResponseSuccess(await GetUserSsoAttributesAsync(session.user));
 					}
 				}
 			};
@@ -236,8 +233,8 @@ namespace Laclasse.Authentication
 				var ticketId = nodes[0].InnerText;
 				Console.WriteLine($"Extracted Ticket: {ticketId}");
 
-				var session = await tickets.GetAsync(ticketId);
-				if (session == null)
+				var sessionId = await tickets.GetAsync(ticketId);
+				if (sessionId == null)
 				{
 					Console.WriteLine($"samlValidate Ticket {ticketId} not found.");
 					c.Response.StatusCode = 200;
@@ -246,8 +243,8 @@ namespace Laclasse.Authentication
 				else
 				{
 					await tickets.DeleteAsync(ticketId);
-					var user = await sessions.GetSessionAsync(session);
-					if (user == null)
+					var session = await sessions.GetSessionAsync(sessionId);
+					if (session == null)
 					{
 						Console.WriteLine($"samlValidate Ticket {ticketId} has a timed out session.");
 						c.Response.StatusCode = 200;
@@ -261,7 +258,7 @@ namespace Laclasse.Authentication
 						// send SAML response
 						c.Response.StatusCode = 200;
 						c.Response.Content = new XmlContent(SoapSamlResponse(
-							c.SelfURL(), doc, await GetUserSsoAttributesAsync(user), "user", service));
+							c.SelfURL(), doc, await GetUserSsoAttributesAsync(session.user), "user", service));
 					}
 				}
 			};
@@ -494,7 +491,7 @@ namespace Laclasse.Authentication
 			{
 				if ((bool)p["actif"])
 				{
-					ENTPersonStructRattachRNE = p["etablissement_code_uai"];
+					ENTPersonStructRattachRNE = p["structure_id"];
 					if (ProfilIdToSdet3.ContainsKey(p["profil_id"]))
 						categories = ProfilIdToSdet3[p["profil_id"]];
 					if (p["profil_id"] == "ELV")
@@ -506,17 +503,7 @@ namespace Laclasse.Authentication
 					ENTPersonProfils = "";
 				else
 					ENTPersonProfils += ",";
-				ENTPersonProfils += p["profil_id"] + ":" + p["etablissement_code_uai"];
-			}
-
-			var ENTPersonRoles = "";
-			foreach (var r in (JsonArray)user["roles"])
-			{
-				if (ENTPersonRoles != "")
-					ENTPersonRoles += ",";
-				ENTPersonRoles += r["role_id"] + ":" + r["etablissement_code_uai"] +
-					":" + r["priority"] + ":" + r["libelle"] + ":" +
-					r["etablissement_nom"];
+				ENTPersonProfils += p["profil_id"] + ":" + p["structure_id"];
 			}
 
 			return new Dictionary<string, string>
@@ -524,17 +511,16 @@ namespace Laclasse.Authentication
 				["uid"] = user["id"],
 				["user"] = user["id"],
 				["login"] = user["login"],
-				["nom"] = user["nom"],
-				["prenom"] = user["prenom"],
-				["dateNaissance"] = (user["date_naissance"] == null) ? null : DateTime.Parse(user["date_naissance"]).ToString("yyyy-MM-dd"),
-				["codePostal"] = (user["code_postal"] == null) ? null : (string)user["code_postal"],
+				["nom"] = user["lastname"],
+				["prenom"] = user["firstname"],
+				["dateNaissance"] = (user["birthdate"] == null) ? null : DateTime.Parse(user["birthdate"]).ToString("yyyy-MM-dd"),
+				["codePostal"] = (user["zip_code"] == null) ? null : (string)user["zip_code"],
 				["ENTPersonProfils"] = ENTPersonProfils,
 				["ENTPersonStructRattach"] = ENTPersonStructRattachRNE,
 				["ENTPersonStructRattachRNE"] = ENTPersonStructRattachRNE,
-				["ENTPersonRoles"] = ENTPersonRoles,
 				["categories"] = categories,
-				["LaclasseNom"] = user["nom"],
-				["LaclassePrenom"] = user["prenom"]
+				["LaclasseNom"] = user["lastname"],
+				["LaclassePrenom"] = user["firstname"]
 			};
 		}
 
@@ -1061,11 +1047,11 @@ namespace Laclasse.Authentication
 			// if parents
 			if ((type == "1") || (type == "2"))
 			{
-				// search by 'nom', 'prenom' and etablissement 'uai'
+				// search by 'firstname', 'lastname' and structure 'id'
 				var queryFields = new Dictionary<string, List<string>>();
-				queryFields["nom"] = new List<string>(new string[] { lastname });
-				queryFields["prenom"] = new List<string>(new string[] { firstname });
-				queryFields["profils.etablissement_id"] = new List<string>(new string[] { uai });
+				queryFields["lastname"] = new List<string>(new string[] { lastname });
+				queryFields["firstname"] = new List<string>(new string[] { firstname });
+				queryFields["profils.structure_id"] = new List<string>(new string[] { uai });
 				queryFields["profils.profil_id"] = new List<string>(new string[] { "TUT" });
 				var usersResult = (await users.SearchUserAsync(queryFields)).Data;
 				if (usersResult.Count == 1)
@@ -1092,9 +1078,9 @@ namespace Laclasse.Authentication
 					return usersResult[0];
 
 				queryFields = new Dictionary<string, List<string>>();
-				queryFields["nom"] = new List<string>(new string[] { lastname });
-				queryFields["prenom"] = new List<string>(new string[] { firstname });
-				queryFields["profils.etablissement_id"] = new List<string>(new string[] { uai });
+				queryFields["lastname"] = new List<string>(new string[] { lastname });
+				queryFields["firstname"] = new List<string>(new string[] { firstname });
+				queryFields["profils.structure_id"] = new List<string>(new string[] { uai });
 				queryFields["profils.profil_id"] = new List<string>(new string[] { "ELV" });
 				usersResult = (await users.SearchUserAsync(queryFields)).Data;
 				if (usersResult.Count == 1)

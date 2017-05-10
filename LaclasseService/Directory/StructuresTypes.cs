@@ -1,4 +1,4 @@
-﻿// TypesEtablissements.cs
+﻿// StructuresTypes.cs
 //
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
@@ -30,26 +30,23 @@ using Erasme.Json;
 
 namespace Laclasse.Directory
 {
-	public class TypesEtablissements: HttpRouting
+	public class StructuresTypes: HttpRouting
 	{
-		readonly string dbUrl;
-
-		public TypesEtablissements(string dbUrl)
+		public StructuresTypes(string dbUrl)
 		{
 			GetAsync["/"] = async (p, c) =>
 			{
 				var json = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					foreach (var item in await db.SelectAsync("SELECT * FROM type_etablissement"))
+					foreach (var item in await db.SelectAsync("SELECT * FROM structure_type"))
 					{
 						json.Add(new JsonObject
 						{
 							["id"] = (int)item["id"],
-							["nom"] = (string)item["nom"],
-							["type_contrat"] = (string)item["type_contrat"],
-							["libelle"] = (string)item["libelle"],
-							["type_struct_aaf"] = (string)item["type_struct_aaf"]
+							["name"] = (string)item["name"],
+							["contrat_type"] = (string)item["contrat_type"],
+							["aaf_type"] = (string)item["aaf_type"]
 						});
 					}
 				}

@@ -98,23 +98,23 @@ namespace Laclasse.Directory
 				res.Add(new JsonObject
 				{
 					["profil_id"] = (string)profil["profil_id"],
-					["etablissement_id"] = (string)profil["etablissement_id"],
+					["structure_id"] = (string)profil["structure_id"],
 					["actif"] = (profil["actif"] != null) && Convert.ToBoolean(profil["actif"])
 				});
 			}
 			return res;
 		}
 
-		public async Task<JsonArray> GetEtablissementProfilsAsync(DB db, string id)
+		public async Task<JsonArray> GetStructureProfilsAsync(DB db, string id)
 		{
 			var res = new JsonArray();
 			foreach (var profil in await db.SelectAsync(
-				"SELECT * FROM profil_user WHERE etablissement_id=?", id))
+				"SELECT * FROM profil_user WHERE structure_id=?", id))
 			{
 				res.Add(new JsonObject
 				{
 					["profil_id"] = (string)profil["profil_id"],
-					["user_id"] = (int)profil["user_id"]
+					["user_id"] = (string)profil["user_id"]
 				});
 			}
 			return res;

@@ -36,6 +36,13 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
+	[Model(Table = "matiere", PrimaryKey = "id")]
+	public class Matiere : Model
+	{
+		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } } 
+		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+	}
+
 	public class Matieres : HttpRouting
 	{
 		readonly string dbUrl;
@@ -49,7 +56,7 @@ namespace Laclasse.Directory
 				var res = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					foreach (var item in await db.SelectAsync("SELECT * FROM matiere_enseignee"))
+					foreach (var item in await db.SelectAsync("SELECT * FROM matiere"))
 					{
 						res.Add(MatiereToJson(item));
 					}
@@ -73,29 +80,13 @@ namespace Laclasse.Directory
 			PostAsync["/"] = async (p, c) =>
 			{
 				await c.EnsureIsAuthenticatedAsync();
-
-				var json = await c.Request.ReadAsJsonAsync();
-				var extracted = json.ExtractFields("id", "libelle_court", "libelle_long");
-				// check required fields
-				if (!extracted.ContainsKey("id"))
-					throw new WebException(400, "Bad protocol. 'id' field is needed");
-
-				using (DB db = await DB.CreateAsync(dbUrl))
+				var jsonResult = await CreateMatiereAsync(await c.Request.ReadAsJsonAsync());
+				if (jsonResult == null)
+					c.Response.StatusCode = 500;
+				else
 				{
-					int res = await db.InsertRowAsync("matiere_enseignee", extracted);
-					if (res == 1)
-					{
-						var jsonResult = await GetMatiereAsync(db, json["id"]);
-						if (jsonResult != null)
-						{
-							c.Response.StatusCode = 200;
-							c.Response.Content = jsonResult;
-						}
-						else
-							c.Response.StatusCode = 500;
-					}
-					else
-						c.Response.StatusCode = 500;
+					c.Response.StatusCode = 200;
+					c.Response.Content = jsonResult;
 				}
 			};
 
@@ -103,35 +94,20 @@ namespace Laclasse.Directory
 			{
 				await c.EnsureIsAuthenticatedAsync();
 
-				var json = await c.Request.ReadAsJsonAsync();
-				var extracted = json.ExtractFields("libelle_court", "libelle_long");
-				if (extracted.Count == 0)
-					return;
-				using (DB db = await DB.CreateAsync(dbUrl))
+				var jsonResult = await ModifyMatiereAsync((string)p["id"], await c.Request.ReadAsJsonAsync());
+				if (jsonResult != null)
 				{
-					int count = await db.UpdateRowAsync("matiere_enseignee", "id", p["id"], extracted);
-					if (count > 0)
-					{
-						c.Response.StatusCode = 200;
-						c.Response.Content = await GetMatiereAsync(db, (string)p["id"]);
-					}
-					else
-						c.Response.StatusCode = 404;
+					c.Response.StatusCode = 200;
+					c.Response.Content = jsonResult;
 				}
+				else
+					c.Response.StatusCode = 404;
 			};
 
 			DeleteAsync["/{id}"] = async (p, c) =>
 			{
 				await c.EnsureIsAuthenticatedAsync();
-
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int count = await db.DeleteAsync("DELETE FROM matiere_enseignee WHERE id=?", (string)p["id"]);
-					if (count == 0)
-						c.Response.StatusCode = 404;
-					else
-						c.Response.StatusCode = 200;
-				}
+				c.Response.StatusCode = await DeleteMatiereAsync((string)p["id"]) ? 200 : 404;
 			};
 		}
 
@@ -139,15 +115,8 @@ namespace Laclasse.Directory
 		{
 			return new JsonObject
 			{
-				["id"] = (int)item["id"],
-				["libelle"] = (string)item["libelle"],
-				["description"] = (string)item["description"],
-				["date_last_maj_aaf"] = (DateTime?)item["date_last_maj_aaf"],
-				["libelle_aaf"] = (string)item["libelle_aaf"],
-				["type_regroupement_id"] = (string)item["type_regroupement_id"],
-				["code_mef_aaf"] = (string)item["code_mef_aaf"],
-				["etablissement_id"] = (int?)item["etablissement_id"],
-				["date_creation"] = (DateTime)item["date_creation"]
+				["id"] = (string)item["id"],
+				["name"] = (string)item["name"]
 			};
 		}
 
@@ -161,8 +130,54 @@ namespace Laclasse.Directory
 
 		public async Task<JsonValue> GetMatiereAsync(DB db, string id)
 		{
-			var item = (await db.SelectAsync("SELECT * FROM matiere_enseignee WHERE id=?", id)).SingleOrDefault();
+			var item = (await db.SelectAsync("SELECT * FROM matiere WHERE id=?", id)).SingleOrDefault();
 			return (item == null) ? null : MatiereToJson(item);
+		}
+
+		public async Task<JsonValue> CreateMatiereAsync(JsonValue json)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+			{
+				return await CreateMatiereAsync(db, json);
+			}
+		}
+
+		public async Task<JsonValue> CreateMatiereAsync(DB db, JsonValue json)
+		{
+			json.RequireFields("id", "name");
+			var extracted = json.ExtractFields("id", "name");
+
+			return (await db.InsertRowAsync("matiere", extracted) == 1) ? 
+				await GetMatiereAsync(db, (string)extracted["id"]) : null;
+		}
+
+		public async Task<JsonValue> ModifyMatiereAsync(string id, JsonValue json)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+			{
+				return await ModifyMatiereAsync(db, id, json);
+			}
+		}
+
+		public async Task<JsonValue> ModifyMatiereAsync(DB db, string id, JsonValue json)
+		{
+			var extracted = json.ExtractFields("name");
+			if (extracted.Count > 0)
+				await db.UpdateRowAsync("matiere", "id", id, extracted);
+			return await GetMatiereAsync(db, id);
+		}
+
+		public async Task<bool> DeleteMatiereAsync(string id)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+			{
+				return await DeleteMatiereAsync(db, id);
+			}
+		}
+
+		public async Task<bool> DeleteMatiereAsync(DB db, string id)
+		{
+			return (await db.DeleteAsync("DELETE FROM matiere WHERE id=?", id)) != 0;
 		}
 	}
 }

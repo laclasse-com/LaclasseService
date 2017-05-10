@@ -59,7 +59,7 @@ namespace Laclasse.Directory
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
 					var jsonResult = new JsonArray();
-					foreach (var item in await db.SelectAsync("SELECT * FROM flux_portail WHERE etablissement_id=?", (string)p["uai"]))
+					foreach (var item in await db.SelectAsync("SELECT * FROM flux_portail WHERE structure_id=?", (string)p["uai"]))
 					{
 						jsonResult.Add(PortailFluxToJson(item));
 					}
@@ -137,7 +137,7 @@ namespace Laclasse.Directory
 			return new JsonObject
 			{
 				["id"] = (int)item["id"],
-				["etablissement_id"] = (int)item["etablissement_id"],
+				["structure_id"] = (int)item["structure_id"],
 				["nb"] = (int)item["nb"],
 				["url"] = (string)item["url"],
 				["name"] = (string)item["name"]
@@ -169,13 +169,13 @@ namespace Laclasse.Directory
 		public async Task<JsonValue> CreatePortailFluxAsync(DB db, JsonValue json)
 		{
 			// check required fields
-			json.RequireFields("etablissement_id", "url", "name");
-			var extracted = json.ExtractFields("etablissement_id", "url", "nb", "name");
+			json.RequireFields("structure_id", "url", "name");
+			var extracted = json.ExtractFields("structure_id", "url", "nb", "name");
 
 			// get the etab id
-//			var res = await db.ExecuteScalarAsync("SELECT id FROM etablissement WHERE code_uai=?", (string)extracted["etab_code_uai"]);
+//			var res = await db.ExecuteScalarAsync("SELECT id FROM structure WHERE id=?", (string)extracted["structure_id"]);
 //			if (res == null)
-//				throw new WebException(400, $"Unknown etab with uai: " + extracted["etab_code_uai"]);
+//				throw new WebException(400, $"Unknown etab with uai: " + extracted["structure_id"]);
 
 //			extracted["etab_id"] = (int)res;
 //			extracted.Remove("etab_code_uai");

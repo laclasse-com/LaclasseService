@@ -56,8 +56,8 @@ namespace Laclasse.Directory
 			{
 				var json = await c.Request.ReadAsJsonAsync();
 				// check required fields
-				json.RequireFields("application_id", "user_id", "etablissement_id", "profil_id", "url");
-				var extracted = json.ExtractFields("application_id", "user_id", "etablissement_id", "profil_id", "url", "params");
+				json.RequireFields("application_id", "user_id", "structure_id", "profil_id", "url");
+				var extracted = json.ExtractFields("application_id", "user_id", "structure_id", "profil_id", "url", "params");
 				// append the sender IP address
 				string ip = "unknown";
 				if (c.Request.RemoteEndPoint is IPEndPoint)
@@ -69,7 +69,7 @@ namespace Laclasse.Directory
 
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					if(await db.InsertRowAsync("logs", extracted) == 1)
+					if(await db.InsertRowAsync("log", extracted) == 1)
 					{
 						c.Response.StatusCode = 200;
 						c.Response.Content = await GetLogAsync(db, (int)await db.LastInsertIdAsync());
@@ -95,7 +95,7 @@ namespace Laclasse.Directory
 						c.Request.QueryStringArray["uids"].Count > 0)
 						filter += " AND " + db.InFilter("uid", c.Request.QueryStringArray["uids"]);
 					var items = await db.SelectAsync(
-						$"SELECT * FROM logs WHERE timestamp >= ? AND timestamp <= ? {filter}",
+						$"SELECT * FROM log WHERE timestamp >= ? AND timestamp <= ? {filter}",
 						DateTime.Parse(c.Request.QueryString["from"]),
 						DateTime.Parse(c.Request.QueryString["until"]));
 					foreach (var item in items)
@@ -117,7 +117,7 @@ namespace Laclasse.Directory
 				["ip"] = (string)item["ip"],
 				["application_id"] = (string)item["application_id"],
 				["user_id"] = (string)item["user_id"],
-				["etablissement_id"] = (string)item["etablissement_id"],
+				["structure_id"] = (string)item["structure_id"],
 				["profil_id"] = (string)item["profil_id"],
 				["url"] = (string)item["url"],
 				["params"] = (string)item["params"],
@@ -135,7 +135,7 @@ namespace Laclasse.Directory
 
 		public async Task<JsonObject> GetLogAsync(DB db, int id)
 		{
-			var item = (await db.SelectAsync("SELECT * FROM logs WHERE id=?", id)).First();
+			var item = (await db.SelectAsync("SELECT * FROM log WHERE id=?", id)).First();
 			return (item == null) ? null : LogToJson(item);
 		}
 	}

@@ -28,6 +28,7 @@ using System;
 using System.IO;
 using System.Xml;
 using Erasme.Http;
+using Erasme.Json;
 
 namespace Laclasse.Directory
 {
@@ -35,8 +36,29 @@ namespace Laclasse.Directory
 	{
 		public PortailNews(string dbUrl)
 		{
+			GetAsync["/{uid}/news"] = async (p, c) =>
+			{
+				using (DB db = await DB.CreateAsync(dbUrl))
+				{
+					var json = new JsonArray();
 
-			GetAsync["/{uid}"] = async (p, c) =>
+					foreach (var item in await db.SelectAsync("SELECT * FROM news WHERE user_id=?", (string)p["uid"]))
+					{
+						var jsonItem = new JsonObject();
+						json.Add(jsonItem);
+
+						jsonItem["content"] = (string)item["description"];
+						jsonItem["title"] = (string)item["title"];
+						jsonItem["pubDate"] = ((DateTime)item["pubDate"]).ToString("R");
+						jsonItem["link"] = null;
+						jsonItem["image"] = null;
+					}
+					c.Response.StatusCode = 200;
+					c.Response.Content = json;
+				}
+			};
+
+			GetAsync["/{uid}/rss"] = async (p, c) =>
 			{
 
 				using (DB db = await DB.CreateAsync(dbUrl))
@@ -66,7 +88,7 @@ namespace Laclasse.Directory
 					description.InnerText = "News feed for " + p["uid"];
 					channel.AppendChild(description);
 
-					foreach (var item in await db.SelectAsync("SELECT * FROM news WHERE user_id=?", p["uid"]))
+					foreach (var item in await db.SelectAsync("SELECT * FROM news WHERE user_id=?", (string)p["uid"]))
 					{
 						var xmlItem = dom.CreateElement("item");
 						channel.AppendChild(xmlItem);

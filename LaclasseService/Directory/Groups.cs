@@ -35,12 +35,12 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	public class Groupes : HttpRouting
+	public class Groups : HttpRouting
 	{
 		readonly string dbUrl;
 		readonly Niveaux niveaux;
 
-		public Groupes(string dbUrl, Niveaux niveaux)
+		public Groups(string dbUrl, Niveaux niveaux)
 		{
 			this.dbUrl = dbUrl;
 			this.niveaux = niveaux;
@@ -79,42 +79,21 @@ namespace Laclasse.Directory
 		async Task<JsonObject> GroupToJsonAsync(DB db, Dictionary<string, object> group)
 		{
 			var id = (int)group["id"];
-			var teachersCount = (long)await db.ExecuteScalarAsync("SELECT COUNT(*) FROM enseigne_dans_regroupement WHERE regroupement_id=?", id);
-			var studentsCount = (long)await db.ExecuteScalarAsync("SELECT COUNT(*) FROM eleve_dans_regroupement WHERE regroupement_id=?", id);
-			var code_mef_aaf = (string)group["code_mef_aaf"];
-			var mef_libelle = await niveaux.GetNiveauLibelleAsync(db, code_mef_aaf);
+			var niveau_id = (string)group["niveau_id"];
+			var niveau_name = await niveaux.GetNiveauLibelleAsync(db, niveau_id);
 
 			return new JsonObject
 			{
 				["id"] = id,
-				["libelle"] = (string)group["libelle"],
+				["name"] = (string)group["name"],
 				["description"] = (string)group["description"],
-				["date_last_maj_aaf"] = (DateTime?)group["date_last_maj_aaf"],
-				["libelle_aaf"] = (string)group["libelle_aaf"],
-				["type_regroupement_id"] = (string)group["type_regroupement_id"],
-				["code_mef_aaf"] = code_mef_aaf,
-				["mef_libelle"] = mef_libelle,
-				["etablissement_id"] = (string)group["etablissement_id"],
-				["date_creation"] = (DateTime)group["date_creation"],
-				["profs"] = teachersCount,
-				["eleves"] = studentsCount
-			};
-		}
-
-		async Task<JsonObject> GroupFreeToJsonAsync(DB db, Dictionary<string, object> group)
-		{
-			var id = (int)group["id"];
-			var membersCount = (long)await db.ExecuteScalarAsync("SELECT COUNT(*) FROM membre_regroupement_libre WHERE regroupement_libre_id=?", id);
-
-			return new JsonObject
-			{
-				["id"] = (int)group["id"],
-				["type_regroupement_id"] = "GPL",
-				["libelle"] = (string)group["libelle"],
-				["created_at"] = (DateTime?)group["created_at"],
-				["created_by"] = (string)group["created_by"],
-				["membres"] = membersCount,
-				["is_public"] = (bool)group["is_public"]
+				["aaf_mtime"] = (DateTime?)group["aaf_mtime"],
+				["aaf_name"] = (string)group["aaf_name"],
+				["group_type_id"] = (string)group["group_type_id"],
+				["niveau_id"] = niveau_id,
+				["niveau_name"] = niveau_name,
+				["structure_id"] = (string)group["structure_id"],
+				["ctime"] = (DateTime)group["ctime"]
 			};
 		}
 
@@ -128,22 +107,8 @@ namespace Laclasse.Directory
 
 		public async Task<JsonValue> GetGroupAsync(DB db, int id)
 		{
-			var group = (await db.SelectAsync("SELECT * FROM regroupement WHERE id=?", id)).First();
+			var group = (await db.SelectAsync("SELECT * FROM `group` WHERE id=?", id)).First();
 			return (group == null) ? null : await GroupToJsonAsync(db, group);
-		}
-
-		public async Task<JsonValue> GetGroupFreeAsync(int id)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-			{
-				return await GetGroupFreeAsync(db, id);
-			}
-		}
-
-		public async Task<JsonValue> GetGroupFreeAsync(DB db, int id)
-		{
-			var group = (await db.SelectAsync("SELECT * FROM regroupement_libre WHERE id=?", id)).First();
-			return (group == null) ? null : await GroupFreeToJsonAsync(db, group);
 		}
 
 		public async Task<JsonValue> CreateGroupAsync(JsonValue json)
@@ -158,15 +123,11 @@ namespace Laclasse.Directory
 		{
 			JsonValue jsonResult = null;
 			var extracted = json.ExtractFields(
-				"libelle", "description", "libelle_aaf", "type_regroupement_id",
-				"code_mef_aaf", "etablissement_id");
+				"name", "description", "name", "group_type_id", "niveau_id", "structure_id");
 			// check required fields
-			if (!extracted.ContainsKey("libelle") || !extracted.ContainsKey("libelle"))
-				throw new WebException(400, "Bad protocol. 'libelle' and 'type_regroupement_id' are needed");
-			if(((string)extracted["type_regroupement_id"] != "GRP") && ((string)extracted["type_regroupement_id"] != "CLS"))
-				throw new WebException(400, "Bad protocol. 'type_regroupement_id' values are (CLS|GRP|GPL)");
-			
-			int res = await db.InsertRowAsync("regroupement", extracted);
+			extracted.RequireFields("name", "group_type_id");
+
+			int res = await db.InsertRowAsync("group", extracted);
 			if (res == 1)
 				jsonResult = await GetGroupAsync(db, (int)await db.LastInsertIdAsync());
 			return jsonResult;
@@ -182,32 +143,35 @@ namespace Laclasse.Directory
 
 		public async Task<bool> DeleteGroupAsync(DB db, int id)
 		{
-			return (await db.DeleteAsync("DELETE FROM regroupement WHERE id=?", id)) != 0;
+			return (await db.DeleteAsync("DELETE FROM `group` WHERE id=?", id)) != 0;
 		}
 
-		public async Task<JsonArray> GetUserGroupesAsync(string id)
+		public async Task<JsonArray> GetUserGroupsAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetUserGroupesAsync(db, id);
+				return await GetUserGroupsAsync(db, id);
 			}
 		}
 
-		public async Task<JsonArray> GetUserGroupesAsync(DB db, string id)
+		public async Task<JsonArray> GetUserGroupsAsync(DB db, string id)
 		{
 			var res = new JsonArray();
-			foreach (var inGroup in await db.SelectAsync("SELECT * FROM enseigne_dans_regroupement WHERE user_id=?", id))
+			foreach (var item in await db.SelectAsync("SELECT * FROM `group_user` WHERE user_id=?", id))
 			{
 				res.Add(new JsonObject
 				{
-					["type"] = "ENS",
-					["regroupement_id"] = (int)inGroup["regroupement_id"],
-					["matiere_enseignee_id"] = (string)inGroup["matiere_enseignee_id"],
-					["prof_principal"] = (string)inGroup["prof_principal"]
+					["id"] = (int)item["id"],
+					["type"] = (string)item["type"],
+					["group_id"] = (int)item["group_id"],
+					["matiere_id"] = (string)item["matiere_id"],
+					["ctime"] = (DateTime)item["ctime"],
+					["aaf_mtime"] = (DateTime?)item["aaf_mtime"],
+					["pending_validation"] = (bool)item["pending_validation"]
 				});
 			}
 
-			foreach (var inGroup in await db.SelectAsync("SELECT * FROM eleve_dans_regroupement WHERE user_id=?", id))
+/*			foreach (var inGroup in await db.SelectAsync("SELECT * FROM eleve_dans_regroupement WHERE user_id=?", id))
 			{
 				res.Add(new JsonObject
 				{
@@ -225,45 +189,26 @@ namespace Laclasse.Directory
 					["regroupement_libre_id"] = (int)inGroup["regroupement_libre_id"],
 					["joined_at"] = (DateTime?)inGroup["joined_at"]
 				});
-			}
+			}*/
 			return res;
 		}
 
-		public async Task<JsonArray> GetEtablissementGroupesAsync(string id)
+		public async Task<JsonArray> GetStructureGroupsAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetEtablissementGroupesAsync(db, id);
+				return await GetStructureGroupsAsync(db, id);
 			}
 		}
 
-		public async Task<JsonArray> GetEtablissementGroupesAsync(DB db, string id)
+		public async Task<JsonArray> GetStructureGroupsAsync(DB db, string id)
 		{
 			var res = new JsonArray();
-			foreach (var group in await db.SelectAsync("SELECT * FROM regroupement WHERE etablissement_id=?", id))
+			foreach (var group in await db.SelectAsync("SELECT * FROM `group` WHERE structure_id=?", id))
 			{
 				res.Add(await GroupToJsonAsync(db, group));
 			}
 			return res;
 		}
-
-		public async Task<JsonArray> GetGroupesFreeAsync()
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-			{
-				return await GetGroupesFreeAsync(db);
-			}
-		}
-
-		public async Task<JsonArray> GetGroupesFreeAsync(DB db)
-		{
-			var res = new JsonArray();
-			foreach (var item in await db.SelectAsync("SELECT * FROM regroupement_libre"))
-			{
-				res.Add(await GroupFreeToJsonAsync(db, item));
-			}
-			return res;
-		}
-
 	}
 }

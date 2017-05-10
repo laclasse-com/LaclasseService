@@ -105,30 +105,32 @@ namespace Laclasse
 			var mapper = new PathMapper();
 			server.Add(mapper);
 			mapper.Add("/api/sessions", sessions);
+			var matieres = new Matieres(dbUrl);
+			mapper.Add("/api/matieres", matieres);
 			var niveaux = new Niveaux(dbUrl);
 			mapper.Add("/api/niveaux", niveaux);
 			var applications = new Applications(dbUrl);
 			mapper.Add("/api/applications", applications);
 			var resources = new Resources(dbUrl);
-			mapper.Add("/api/ressources", resources);
+			mapper.Add("/api/resources", resources);
 			var profils = new Profils(dbUrl);
 			mapper.Add("/api/profils", profils);
 			var emails = new Emails(dbUrl);
 			mapper.Add("/api/emails", emails);
-			var groupes = new Groupes(dbUrl, niveaux);
-			mapper.Add("/api/groupes", groupes);
-			mapper.Add("/api/types_etablissements", new TypesEtablissements(dbUrl));
-			var etabs = new Etablissements(dbUrl, groupes, resources, profils);
-			mapper.Add("/api/etablissements", etabs);
+			var groups = new Groups(dbUrl, niveaux);
+			mapper.Add("/api/groups", groups);
+			mapper.Add("/api/structures_types", new StructuresTypes(dbUrl));
+			var structures = new Structures(dbUrl, groups, resources, profils);
+			mapper.Add("/api/structures", structures);
 			var users = new Users(
-				dbUrl, emails, profils, groupes, etabs, resources, setup["server"]["storage"],
+				dbUrl, emails, profils, groups, structures, resources, setup["server"]["storage"],
 				setup["authentication"]["masterPassword"]);
 			mapper.Add("/api/users", users);
 			mapper.Add("/api/app/users", users);
 			mapper.Add("/api/sso", new Sso(dbUrl, users));
-			mapper.Add("/api/etablissements", new PortailEntree(dbUrl, etabs));
-			mapper.Add("/api/etablissements", new PortailFlux(dbUrl));
-			mapper.Add("/api/portail/news", new PortailNews(dbUrl));
+			mapper.Add("/api/structures", new PortailEntree(dbUrl, structures));
+			mapper.Add("/api/structures", new PortailFlux(dbUrl));
+			mapper.Add("/api/users", new PortailNews(dbUrl));
 			mapper.Add("/api/logs", new Logs(dbUrl));
 
 			mapper.Add("/api/avatar/user", new StaticFiles(
@@ -136,7 +138,7 @@ namespace Laclasse
 				setup["http"]["defaultCacheDuration"]));
 
 			mapper.Add("/sso", new Cas(
-				dbUrl, sessions, users, etabs, setup["authentication"]["session"]["cookie"],
+				dbUrl, sessions, users, structures, setup["authentication"]["session"]["cookie"],
 				setup["authentication"]["cas"]["ticketTimeout"],
 				setup["authentication"]["aafSso"]));
 
@@ -149,6 +151,16 @@ namespace Laclasse
 			contextInjector.Inject("sessions", sessions);
 			contextInjector.Inject("applications", applications);
 			contextInjector.Inject("publicUrl", (string)setup["server"]["publicUrl"]);
+
+			//var n1 = new Niveau { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };
+			//var n2 = new Niveau { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };
+
+			//Console.WriteLine("Test n1 et n2: " + (n1 != n2));
+
+			//return;
+			//var sync = new Laclasse.Aaf.Synchronizer(dbUrl, matieres, niveaux);
+			//sync.Synchronize().Wait();
+			//return;
 
 			server.Start();
 			Console.WriteLine("Press 'Q' to stop...");

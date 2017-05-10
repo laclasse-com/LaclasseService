@@ -203,7 +203,7 @@ namespace Laclasse.Directory
 			{
 				if ((bool)p["actif"])
 				{
-					ENTPersonStructRattachRNE = p["etablissement_id"];
+					ENTPersonStructRattachRNE = p["structure_id"];
 					if (ProfilIdToSdet3.ContainsKey(p["profil_id"]))
 						categories = ProfilIdToSdet3[p["profil_id"]];
 					if (p["profil_id"] == "ELV")
@@ -215,7 +215,7 @@ namespace Laclasse.Directory
 					ENTPersonProfils = "";
 				else
 					ENTPersonProfils += ",";
-				ENTPersonProfils += p["profil_id"] + ":" + p["etablissement_id"];
+				ENTPersonProfils += p["profil_id"] + ":" + p["structure_id"];
 			}
 
 			return new JsonObject
@@ -223,16 +223,16 @@ namespace Laclasse.Directory
 				["uid"] = user["id"],
 				["user"] = user["id"],
 				["login"] = user["login"],
-				["nom"] = user["nom"],
-				["prenom"] = user["prenom"],
-				["dateNaissance"] = (user["date_naissance"] == null) ? null : DateTime.Parse(user["date_naissance"]).ToString("yyyy-MM-dd"),
-				["codePostal"] = user["code_postal"],
+				["nom"] = user["lastname"],
+				["prenom"] = user["firstname"],
+				["dateNaissance"] = (user["birthdate"] == null) ? null : DateTime.Parse(user["birthdate"]).ToString("yyyy-MM-dd"),
+				["codePostal"] = user["zip_code"],
 				["ENTPersonProfils"] = ENTPersonProfils,
 				["ENTPersonStructRattach"] = ENTPersonStructRattachRNE,
 				["ENTPersonStructRattachRNE"] = ENTPersonStructRattachRNE,
 				["categories"] = categories,
-				["LaclasseNom"] = user["nom"],
-				["LaclassePrenom"] = user["prenom"]
+				["LaclasseNom"] = user["lastname"],
+				["LaclassePrenom"] = user["firstname"]
 			};
 		}
 

@@ -58,8 +58,8 @@
     <Compile Include="Directory\Emails.cs" />
     <Compile Include="WebException.cs" />
     <Compile Include="Directory\Users.cs" />
-    <Compile Include="Directory\Groupes.cs" />
-    <Compile Include="Directory\Etablissements.cs" />
+    <Compile Include="Directory\Groups.cs" />
+    <Compile Include="Directory\Structures.cs" />
     <Compile Include="Directory\Matieres.cs" />
     <Compile Include="Directory\Sso.cs" />
     <Compile Include="Server.cs" />
@@ -78,7 +78,8 @@
     <Compile Include="Authentication\ContextExtensions.cs" />
     <Compile Include="Directory\PortailFlux.cs" />
     <Compile Include="Directory\PortailNews.cs" />
-    <Compile Include="Directory\TypesEtablissements.cs" />
+    <Compile Include="Aaf\Synchronizer.cs" />
+    <Compile Include="Directory\StructuresTypes.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -91,6 +92,7 @@
   <ItemGroup>
     <Folder Include="Directory\" />
     <Folder Include="Authentication\" />
+    <Folder Include="Aaf\" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="laclasse.conf" />

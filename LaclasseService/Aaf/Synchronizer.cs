@@ -14,14 +14,14 @@ namespace Laclasse.Aaf
 	{
 		static string BaseDir = "/home/daniel/Programmation/laclassev4/aaf/20170327";
 		readonly string dbUrl;
-		Matieres matieres;
-//		Niveaux niveaux;
+		Subjects subjects;
+//		Grades grades;
 
-		public Synchronizer(string dbUrl, Matieres matieres, Niveaux niveaux)
+		public Synchronizer(string dbUrl, Subjects subjects, Grades grades)
 		{
 			this.dbUrl = dbUrl;
-			this.matieres = matieres;
-//			this.niveaux = niveaux;
+			this.subjects = subjects;
+//			this.grades = grades;
 		}
 
 		public async Task Synchronize()
@@ -30,20 +30,20 @@ namespace Laclasse.Aaf
 			Console.WriteLine(dir.GetFiles());
 			var files = dir.GetFiles("*_MatiereEducNat_*.xml"); //ENT_0690078K_Complet_20170327_MatiereEducNat_0000.xml
 			foreach (var file in files)
-				await SyncMatieres(file);
+				await SyncSubjects(file);
 
 			files = dir.GetFiles("*_MefEducNat_*.xml"); //ENT_0690078K_Complet_20170327_MefEducNat_0000.xml
 			foreach (var file in files)
-				await SyncNiveaux(file);
+				await SyncGrades(file);
 
 			files = dir.GetFiles("*EtabEducNat_*.xml"); //ENT_0690078K_Complet_20170327_EtabEducNat_0000.xml
 			foreach (var file in files)
 				await SyncStructures(file);
 		}
 
-		public async Task SyncMatieres(FileInfo file)
+		public async Task SyncSubjects(FileInfo file)
 		{
-			Console.WriteLine("MATIERES SYNCHRONIZE");
+			Console.WriteLine("SUBJECTS SYNCHRONIZE");
 
 			var doc = new XmlDocument();
 			doc.XmlResolver = null;
@@ -52,7 +52,7 @@ namespace Laclasse.Aaf
 			var nodes = doc.SelectNodes("//addRequest");
 			Console.WriteLine("addRequest count: " + nodes.Count);
 
-			var aafMatieres = new Dictionary<string, string>();
+			var aafSubjects = new Dictionary<string, string>();
 
 			foreach (XmlNode node in nodes)
 			{
@@ -68,56 +68,56 @@ namespace Laclasse.Aaf
 				}
 				if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(ENTMatJointure) &&
 				   !string.IsNullOrEmpty(ENTLibelleMatiere) && (ENTMatJointure == id))
-					aafMatieres[id] = ENTLibelleMatiere;
+					aafSubjects[id] = ENTLibelleMatiere;
 			}
 
-			var entMatieres = new Dictionary<string, string>();
+			var entSubjects = new Dictionary<string, string>();
 			using (var db = await DB.CreateAsync(dbUrl))
 			{
-				var items = await db.SelectAsync("SELECT * FROM matiere");
+				var items = await db.SelectAsync("SELECT * FROM subject");
 				foreach (var item in items)
 				{
-					entMatieres[(string)item["id"]] = (string)item["name"];
+					entSubjects[(string)item["id"]] = (string)item["name"];
 				}
 
-				foreach (var id in aafMatieres.Keys)
+				foreach (var id in aafSubjects.Keys)
 				{
-					if (entMatieres.ContainsKey(id))
+					if (entSubjects.ContainsKey(id))
 					{
-						if (entMatieres[id] != aafMatieres[id])
+						if (entSubjects[id] != aafSubjects[id])
 						{
-							Console.WriteLine($"MATIERE CHANGED {id} {entMatieres[id]} => {aafMatieres[id]}");
-							await matieres.ModifyMatiereAsync(db, id, new JsonObject
+							Console.WriteLine($"SUBJECT CHANGED {id} {entSubjects[id]} => {aafSubjects[id]}");
+							await subjects.ModifySubjectAsync(db, id, new JsonObject
 							{
-								["name"] = aafMatieres[id]
+								["name"] = aafSubjects[id]
 							});
 						}
 					}
 					else
 					{
-						Console.WriteLine($"MATIERE NEW {id} {aafMatieres[id]}");
-						await matieres.CreateMatiereAsync(db, new JsonObject
+						Console.WriteLine($"SUBJECT NEW {id} {aafSubjects[id]}");
+						await subjects.CreateSubjectAsync(db, new JsonObject
 						{
 							["id"] = id,
-							["name"] = aafMatieres[id]
+							["name"] = aafSubjects[id]
 						});
 					}
 				}
 
-				foreach (var id in entMatieres.Keys)
+				foreach (var id in entSubjects.Keys)
 				{
-					if (!aafMatieres.ContainsKey(id))
+					if (!aafSubjects.ContainsKey(id))
 					{
-						Console.WriteLine($"MATIERE REMOVE {id} {entMatieres[id]}");
-						await matieres.DeleteMatiereAsync(id);
+						Console.WriteLine($"SUBJECT REMOVE {id} {entSubjects[id]}");
+						await subjects.DeleteSubjectAsync(id);
 					}
 				}
 			}
 		}
 
-		public async Task SyncNiveaux(FileInfo file)
+		public async Task SyncGrades(FileInfo file)
 		{
-			Console.WriteLine("NIVEAUX SYNCHRONIZE");
+			Console.WriteLine("GRADES SYNCHRONIZE");
 			var doc = new XmlDocument();
 			doc.XmlResolver = null;
 			doc.Load(file.ToString());
@@ -125,7 +125,7 @@ namespace Laclasse.Aaf
 			var nodes = doc.SelectNodes("//addRequest");
 			Console.WriteLine("addRequest count: " + nodes.Count);
 
-			var aafNiveaux = new Dictionary<string, Niveau>();
+			var aafGrades = new Dictionary<string, Grade>();
 
 			foreach (XmlNode node in nodes)
 			{
@@ -156,7 +156,7 @@ namespace Laclasse.Aaf
 					!string.IsNullOrEmpty(ENTLibelleMef) && !string.IsNullOrEmpty(ENTMEFRattach) &&
 					!string.IsNullOrEmpty(ENTMEFSTAT11) && (ENTMefJointure == id))
 				{
-					aafNiveaux[id] = new Niveau
+					aafGrades[id] = new Grade
 					{
 						id = id,
 						name = ENTLibelleMef,
@@ -166,36 +166,36 @@ namespace Laclasse.Aaf
 				}
 			}
 
-			var entNiveaux = new Dictionary<string, Niveau>();
+			var entGrades = new Dictionary<string, Grade>();
 			using (var db = await DB.CreateAsync(dbUrl))
 			{
-				var items = await db.SelectAsync<Niveau>("SELECT * FROM niveau");
+				var items = await db.SelectAsync<Grade>("SELECT * FROM grade");
 				foreach (var item in items)
-					entNiveaux[item.id] = item;
+					entGrades[item.id] = item;
 
-				foreach (var id in aafNiveaux.Keys)
+				foreach (var id in aafGrades.Keys)
 				{
-					if (entNiveaux.ContainsKey(id))
+					if (entGrades.ContainsKey(id))
 					{
-						if (entNiveaux[id] != aafNiveaux[id])
+						if (entGrades[id] != aafGrades[id])
 						{
-							Console.WriteLine($"NIVEAU CHANGED {id} {entNiveaux[id].name} => {aafNiveaux[id].name}");
-							await entNiveaux[id].DiffWithId(aafNiveaux[id]).UpdateAsync(db);
+							Console.WriteLine($"GRADE CHANGED {id} {entGrades[id].name} => {aafGrades[id].name}");
+							await entGrades[id].DiffWithId(aafGrades[id]).UpdateAsync(db);
 						}
 					}
 					else
 					{
-						Console.WriteLine($"NIVEAU NEW {id} {aafNiveaux[id].name}");
-						await aafNiveaux[id].InsertAsync(db);
+						Console.WriteLine($"GRADE NEW {id} {aafGrades[id].name}");
+						await aafGrades[id].InsertAsync(db);
 					}
 				}
 
-				foreach (var id in entNiveaux.Keys)
+				foreach (var id in entGrades.Keys)
 				{
-					if (!aafNiveaux.ContainsKey(id))
+					if (!aafGrades.ContainsKey(id))
 					{
-						Console.WriteLine($"NIVEAU REMOVE {id} {entNiveaux[id].name}");
-						await entNiveaux[id].DeleteAsync(db);
+						Console.WriteLine($"GRADE REMOVE {id} {entGrades[id].name}");
+						await entGrades[id].DeleteAsync(db);
 					}
 				}
 			}

@@ -199,7 +199,7 @@ namespace Laclasse.Directory
 			string ENTPersonStructRattachRNE = null;
 			string ENTPersonProfils = null;
 			string categories = null;
-			foreach (var p in (JsonArray)user["profils"])
+			foreach (var p in (JsonArray)user["profiles"])
 			{
 				if ((bool)p["actif"])
 				{
@@ -215,7 +215,7 @@ namespace Laclasse.Directory
 					ENTPersonProfils = "";
 				else
 					ENTPersonProfils += ",";
-				ENTPersonProfils += p["profil_id"] + ":" + p["structure_id"];
+				ENTPersonProfils += p["type"] + ":" + p["structure_id"];
 			}
 
 			return new JsonObject

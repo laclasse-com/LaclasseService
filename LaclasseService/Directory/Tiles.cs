@@ -1,4 +1,4 @@
-﻿// PortailEntree.cs
+﻿// Tiles.cs
 // 
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
@@ -33,18 +33,18 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	public class PortailEntree : HttpRouting
+	public class Tiles : HttpRouting
 	{
 		readonly string dbUrl;
 
-		public PortailEntree(string dbUrl, Structures structures)
+		public Tiles(string dbUrl, Structures structures)
 		{
 			this.dbUrl = dbUrl;
 
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
-			GetAsync["/{uai}/tuiles"] = async (p, c) =>
+			GetAsync["/{uai}/tiles"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
@@ -54,7 +54,7 @@ namespace Laclasse.Directory
 					else
 					{
 						var jsonResult = new JsonArray();
-						foreach (var item in await db.SelectAsync("SELECT * FROM entree_portail WHERE structure_id=?", (string)etab["id"]))
+						foreach (var item in await db.SelectAsync("SELECT * FROM tile WHERE structure_id=?", (string)etab["id"]))
 						{
 							jsonResult.Add(PortailEntreeToJson(item));
 						}
@@ -64,7 +64,7 @@ namespace Laclasse.Directory
 				}
 			};
 
-			PostAsync["/{uai}/tuiles"] = async (p, c) =>
+			PostAsync["/{uai}/tiles"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
 				if (json is JsonArray)
@@ -85,7 +85,7 @@ namespace Laclasse.Directory
 				}
 			};
 
-			PutAsync["/{uai}/tuiles/{id:int}"] = async (p, c) =>
+			PutAsync["/{uai}/tiles/{id:int}"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
 				var extracted = json.ExtractFields("name", "description", "color", "index");
@@ -93,7 +93,7 @@ namespace Laclasse.Directory
 					return;
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					int count = await db.UpdateRowAsync("entree_portail", "id", (int)p["id"], extracted);
+					int count = await db.UpdateRowAsync("tile", "id", (int)p["id"], extracted);
 					if (count > 0)
 					{
 						c.Response.StatusCode = 200;
@@ -104,11 +104,11 @@ namespace Laclasse.Directory
 				}
 			};
 
-			DeleteAsync["/{uai}/tuiles/{id:int}"] = async (p, c) =>
+			DeleteAsync["/{uai}/tiles/{id:int}"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					if (await db.DeleteAsync("DELETE FROM entree_portail WHERE id=?", (int)p["id"]) == 1)
+					if (await db.DeleteAsync("DELETE FROM tile WHERE id=?", (int)p["id"]) == 1)
 						c.Response.StatusCode = 200;
 					else
 						c.Response.StatusCode = 404;
@@ -135,7 +135,7 @@ namespace Laclasse.Directory
 
 		public async Task<JsonValue> GetPortailEntreeAsync(DB db, int id)
 		{
-			var item = (await db.SelectAsync("SELECT * FROM entree_portail WHERE id=?", id)).SingleOrDefault();
+			var item = (await db.SelectAsync("SELECT * FROM tile WHERE id=?", id)).SingleOrDefault();
 			return (item == null) ? null : PortailEntreeToJson(item);
 		}
 
@@ -156,7 +156,7 @@ namespace Laclasse.Directory
 				"url", "icon", "color");
 
 			JsonValue jsonResult = null;
-			if (await db.InsertRowAsync("entree_portail", extracted) == 1)
+			if (await db.InsertRowAsync("tile", extracted) == 1)
 				jsonResult = await GetPortailEntreeAsync(db, (int)await db.LastInsertIdAsync());
 			return jsonResult;
 		}

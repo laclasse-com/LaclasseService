@@ -24,7 +24,7 @@
 // THE SOFTWARE.
 //
 
-using System;
+using System.Linq;
 using Erasme.Http;
 using Erasme.Json;
 
@@ -52,6 +52,25 @@ namespace Laclasse.Directory
 				}
 				c.Response.StatusCode = 200;
 				c.Response.Content = json;
+			};
+
+			GetAsync["/{id:int}"] = async (p, c) =>
+			{
+				using (DB db = await DB.CreateAsync(dbUrl))
+				{
+					var item = (await db.SelectAsync("SELECT * FROM structure_type WHERE id=?", (int)p["id"])).SingleOrDefault();
+					if (item != null)
+					{
+						c.Response.StatusCode = 200;
+						c.Response.Content = new JsonObject
+						{
+							["id"] = (int)item["id"],
+							["name"] = (string)item["name"],
+							["contrat_type"] = (string)item["contrat_type"],
+							["aaf_type"] = (string)item["aaf_type"]
+						};
+					}
+				}
 			};
 		}
 	}

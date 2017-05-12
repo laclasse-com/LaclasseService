@@ -105,30 +105,30 @@ namespace Laclasse
 			var mapper = new PathMapper();
 			server.Add(mapper);
 			mapper.Add("/api/sessions", sessions);
-			var matieres = new Matieres(dbUrl);
-			mapper.Add("/api/matieres", matieres);
-			var niveaux = new Niveaux(dbUrl);
-			mapper.Add("/api/niveaux", niveaux);
+			var subjects = new Subjects(dbUrl);
+			mapper.Add("/api/subjects", subjects);
+			var grades = new Grades(dbUrl);
+			mapper.Add("/api/grades", grades);
 			var applications = new Applications(dbUrl);
 			mapper.Add("/api/applications", applications);
 			var resources = new Resources(dbUrl);
 			mapper.Add("/api/resources", resources);
-			var profils = new Profils(dbUrl);
-			mapper.Add("/api/profils", profils);
+			var profiles = new Profiles(dbUrl);
+			mapper.Add("/api/profiles", profiles);
 			var emails = new Emails(dbUrl);
 			mapper.Add("/api/emails", emails);
-			var groups = new Groups(dbUrl, niveaux);
+			var groups = new Groups(dbUrl, grades);
 			mapper.Add("/api/groups", groups);
 			mapper.Add("/api/structures_types", new StructuresTypes(dbUrl));
-			var structures = new Structures(dbUrl, groups, resources, profils);
+			var structures = new Structures(dbUrl, groups, resources, profiles);
 			mapper.Add("/api/structures", structures);
 			var users = new Users(
-				dbUrl, emails, profils, groups, structures, resources, setup["server"]["storage"],
+				dbUrl, emails, profiles, groups, structures, setup["server"]["storage"],
 				setup["authentication"]["masterPassword"]);
 			mapper.Add("/api/users", users);
 			mapper.Add("/api/app/users", users);
 			mapper.Add("/api/sso", new Sso(dbUrl, users));
-			mapper.Add("/api/structures", new PortailEntree(dbUrl, structures));
+			mapper.Add("/api/structures", new Tiles(dbUrl, structures));
 			mapper.Add("/api/structures", new PortailFlux(dbUrl));
 			mapper.Add("/api/users", new PortailNews(dbUrl));
 			mapper.Add("/api/logs", new Logs(dbUrl));
@@ -152,13 +152,13 @@ namespace Laclasse
 			contextInjector.Inject("applications", applications);
 			contextInjector.Inject("publicUrl", (string)setup["server"]["publicUrl"]);
 
-			//var n1 = new Niveau { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };
-			//var n2 = new Niveau { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };
+			//var n1 = new Grade { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };
+			//var n2 = new Grade { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };
 
 			//Console.WriteLine("Test n1 et n2: " + (n1 != n2));
 
 			//return;
-			//var sync = new Laclasse.Aaf.Synchronizer(dbUrl, matieres, niveaux);
+			//var sync = new Laclasse.Aaf.Synchronizer(dbUrl, subjects, grades);
 			//sync.Synchronize().Wait();
 			//return;
 

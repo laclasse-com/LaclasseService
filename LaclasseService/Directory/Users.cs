@@ -41,22 +41,25 @@ namespace Laclasse.Directory
 	{
 		readonly string dbUrl;
 		readonly Emails emails;
-		readonly Profils profils;
+		readonly Profiles profiles;
 		readonly Groups groups;
 		readonly Structures structures;
-		readonly Resources resources;
 		readonly string masterPassword;
 
-		public Users(string dbUrl, Emails emails, Profils profils, Groups groups, Structures structures,
-		             Resources resources, string storageDir, string masterPassword)
+		readonly static List<string> searchAllowedFields = new List<string> {
+			"id", "login", "firstname", "lastname", "gender", "address", "city", "zip_code",
+			"id_sconet", "profiles.type", "profiles.structure_id", "emails.adresse", "emails.type"
+		};
+
+		public Users(string dbUrl, Emails emails, Profiles profiles, Groups groups, Structures structures,
+		             string storageDir, string masterPassword)
 		{
 			this.dbUrl = dbUrl;
 			this.emails = emails;
-			this.profils = profils;
+			this.profiles = profiles;
 			this.groups = groups;
 			this.structures = structures;
 			this.structures.users = this;
-			this.resources = resources;
 			this.masterPassword = masterPassword;
 
 			var avatarDir = Path.Combine(storageDir, "avatar");
@@ -89,16 +92,23 @@ namespace Laclasse.Directory
 					orderBy = c.Request.QueryString["sort_col"];
 				if (c.Request.QueryString.ContainsKey("sort_dir") && (c.Request.QueryString["sort_dir"] == "desc"))
 					orderDir = OrderDirection.Descending;
-					
-				var usersResult = await SearchUserAsync(query, offset, count, orderBy, orderDir);
+				
+				var parsedQuery = query.QueryParser();
+				foreach (var key in c.Request.QueryString.Keys)
+					if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
+						parsedQuery[key] = new List<string> { c.Request.QueryString[key] };
+				foreach (var key in c.Request.QueryStringArray.Keys)
+					if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
+						parsedQuery[key] = c.Request.QueryStringArray[key];
+				var usersResult = await SearchUserAsync(parsedQuery, offset, count, orderBy, orderDir);
 				c.Response.StatusCode = 200;
 				if (count > 0)
 					c.Response.Content = new JsonObject
-					{
+				{
 					["total"] = usersResult.Total,
 					["page"] = (usersResult.Offset / count) + 1,
 					["data"] = usersResult.Data
-					};
+				};
 				else
 					c.Response.Content = usersResult.Data;
 			};
@@ -164,6 +174,24 @@ namespace Laclasse.Directory
 					c.Response.StatusCode = 404;
 			};
 
+			DeleteAsync["/"] = async (p, c) =>
+			{
+				var json = await c.Request.ReadAsJsonAsync();
+				var jsonArray = json as JsonArray;
+				if (jsonArray != null)
+				{
+					using (DB db = await DB.CreateAsync(dbUrl))
+					{
+						foreach (var item in jsonArray)
+						{
+							if (item.JsonType == JsonType.String)
+								await DeleteUserAsync(db, (string)item.Value);
+						}
+					}
+					c.Response.StatusCode = 200;
+				}
+			};
+
 			PostAsync["/{uid:uid}/upload/avatar"] = async (p, c) =>
 			{
 				var uid = (string)p["uid"];
@@ -214,31 +242,145 @@ namespace Laclasse.Directory
 				}
 			};
 
-			PutAsync["/{uid:uid}/profil_actif"] = async (p, c) =>
+			PutAsync["/{uid:uid}/profiles/{id:int}"] = async (p, c) =>
 			{
-				if (!c.Request.QueryString.ContainsKey("profil_id") || !c.Request.QueryString.ContainsKey("uai"))
-					throw new WebException(400, "Bad protocol");
-
+				var json = await c.Request.ReadAsJsonAsync();
 				var uid = (string)p["uid"];
-				var profil_id = c.Request.QueryString["profil_id"];
-				var uai = c.Request.QueryString["uai"];
-								
-				using (DB db = await DB.CreateAsync(dbUrl, true))
-				{
-					var count = await db.UpdateAsync(
-						"UPDATE profil_user SET actif=TRUE WHERE user_id=? AND profil_id=? AND structure_id=?",
-						uid, profil_id, uai);
-					if (count < 1)
-						throw new WebException(404, $"Profil not found");
-					
-					await db.UpdateAsync(
-						"UPDATE profil_user SET actif=FALSE WHERE user_id=? AND (profil_id != ? OR structure_id != ?)",
-						uid, profil_id, uai);
 
-					c.Response.StatusCode = 200;
-					c.Response.Content = await GetUserAsync(uid);
+				if ((json is JsonObject) && (((JsonObject)json).ContainsKey("active")) &&
+				    (json["active"].JsonType == JsonType.Boolean) && (json["active"] == true))
+				{
+					using (DB db = await DB.CreateAsync(dbUrl, true))
+					{
+						var count = await db.UpdateAsync(
+							"UPDATE user_profile SET active=TRUE WHERE user_id=? AND id=?",
+							uid, (int)p["id"]);
+						if (count < 1)
+							throw new WebException(404, $"Profil not found");
+
+						await db.UpdateAsync(
+							"UPDATE user_profile SET active=FALSE WHERE user_id=? AND id != ?",
+							uid, (int)p["id"]);
+
+						c.Response.StatusCode = 200;
+						c.Response.Content = await GetUserAsync(db, uid);
+					}
 				}
 			};
+
+			PostAsync["/{uid:uid}/profiles"] = async (p, c) =>
+			{
+				var json = await c.Request.ReadAsJsonAsync();
+				json.RequireFields("type", "structure_id");
+				var extracted = json.ExtractFields("type", "structure_id");
+				var uid = (string)p["uid"];
+				extracted["user_id"] = uid;
+
+				using (DB db = await DB.CreateAsync(dbUrl, true))
+				{
+					var count = await db.InsertRowAsync("user_profile", extracted);
+					if (count < 1)
+						throw new WebException(404, $"Profile create fails");
+					await EnsureUserHasActiveProfileAsync(db, uid);
+
+					c.Response.StatusCode = 200;
+					c.Response.Content = await GetUserAsync(db, uid);
+				}
+			};
+
+			DeleteAsync["/{uid:uid}/profiles/{id:int}"] = async (p, c) =>
+			{
+				using (DB db = await DB.CreateAsync(dbUrl, true))
+				{
+					var count = await db.DeleteAsync("DELETE FROM user_profile WHERE id=? AND user_id=?", (int)p["id"], (string)p["uid"]);
+					if (count < 1)
+						throw new WebException(404, $"Profile not found");
+
+					await EnsureUserHasActiveProfileAsync(db, (string)p["uid"]);
+					c.Response.StatusCode = 200;
+					c.Response.Content = await GetUserAsync(db, (string)p["uid"]);
+				}
+			};
+
+			PostAsync["/{uid:uid}/emails"] = async (p, c) =>
+			{
+				var json = await c.Request.ReadAsJsonAsync();
+				if (json is JsonObject)
+				{
+					if (await emails.CreateUserEmailAsync((string)p["uid"], json) == null)
+						throw new WebException(500, "Email create fails");
+					c.Response.StatusCode = 200;
+					c.Response.Content = await GetUserAsync((string)p["uid"]);
+				}
+			};
+
+			DeleteAsync["/{uid:uid}/emails"] = async (p, c) =>
+			{
+				var jsonArray = await c.Request.ReadAsJsonAsync() as JsonArray;
+				if (jsonArray != null)
+				{
+					bool allDone = true;
+					using (DB db = await DB.CreateAsync(dbUrl, true))
+					{
+						foreach (var email in jsonArray)
+						{
+							allDone &= await emails.DeleteUserEmailAsync(db, (string)p["uid"], (int)email.Value);
+							if (!allDone)
+								break;
+						}
+					}
+					c.Response.StatusCode = 200;
+					c.Response.Content = await GetUserAsync((string)p["uid"]);
+				}
+			};
+
+			DeleteAsync["/{uid:uid}/emails/{id:int}"] = async (p, c) =>
+			{
+				await emails.DeleteUserEmailAsync((string)p["uid"], (int)p["id"]);
+				c.Response.StatusCode = 200;
+				c.Response.Content = await GetUserAsync((string)p["uid"]);
+			};
+
+////
+			PostAsync["/{uid:uid}/phones"] = async (p, c) =>
+			{
+				var json = await c.Request.ReadAsJsonAsync();
+				if (json is JsonObject)
+				{
+					if (await CreateUserPhoneAsync((string)p["uid"], json) == null)
+						throw new WebException(500, "Phone create fails");
+					c.Response.StatusCode = 200;
+					c.Response.Content = await GetUserAsync((string)p["uid"]);
+				}
+			};
+
+			DeleteAsync["/{uid:uid}/phones"] = async (p, c) =>
+			{
+				var jsonArray = await c.Request.ReadAsJsonAsync() as JsonArray;
+				if (jsonArray != null)
+				{
+					bool allDone = true;
+					using (DB db = await DB.CreateAsync(dbUrl, true))
+					{
+						foreach (var phone in jsonArray)
+						{
+							allDone &= await DeleteUserPhoneAsync(db, (string)p["uid"], (int)phone.Value);
+							if (!allDone)
+								break;
+						}
+					}
+					c.Response.StatusCode = 200;
+					c.Response.Content = await GetUserAsync((string)p["uid"]);
+				}
+			};
+
+			DeleteAsync["/{uid:uid}/phones/{id:int}"] = async (p, c) =>
+			{
+				await DeleteUserPhoneAsync((string)p["uid"], (int)p["id"]);
+				c.Response.StatusCode = 200;
+				c.Response.Content = await GetUserAsync((string)p["uid"]);
+			};
+
 		}
 
 		public async Task<JsonObject> UserToJsonAsync(DB db, Dictionary<string, object> item, bool expand = true)
@@ -267,17 +409,19 @@ namespace Laclasse.Directory
 				["zip_code"] = (string)item["zip_code"],
 				["ctime"] = (DateTime?)item["ctime"],
 				["atime"] = (DateTime?)item["atime"],
-				["default_password"] = (bool)item["change_password"],
-				["default_password_value"] = ((bool)item["change_password"]) ? (string)item["id"] : null,
 				["super_admin"] = (bool)item["super_admin"],
 				["avatar"] = avatar,
 				["phones"] = await GetUserPhonesAsync(db, id),
 				["emails"] = await emails.GetUserEmailsAsync(db, (string)item["id"])
 			};
+			var encodedPassword = (string)item["password"];
+			if ((encodedPassword != null) && (encodedPassword.StartsWith("clear:", StringComparison.InvariantCulture)))
+				result["password"] = encodedPassword.Substring(6);
+
 			if (expand)
 			{
-				var profilsJson = await profils.GetUserProfilsAsync(db, id);
-				var profilActif = (from p in profilsJson where p["actif"] select p).SingleOrDefault();
+				var profilesJson = await profiles.GetUserProfilesAsync(db, id);
+//				var profilActif = (from p in profilesJson where p["actif"] select p).SingleOrDefault();
 				var groupsJson = await groups.GetUserGroupsAsync(db, id);
 
 /*				var groupsList = new List<JsonValue>();
@@ -293,17 +437,17 @@ namespace Laclasse.Directory
 				var groups_eleves = from g in groupsList where g["type_regroupement_id"] == "GRP" select g;
 				var groups_libres = from g in groupsList where g["type_regroupement_id"] == "GPL" select g;*/
 
-				var relations_parents = await GetUserRelationsParentsAsync(db, id);
-				var relations_enfants = await GetUserRelationsEnfantsAsync(db, id);
+				var parents = await GetUserParentsAsync(db, id);
+				var children = await GetUserChildrenAsync(db, id);
 
 //				result["profil_actif"] = profilActif;
-				result["profils"] = profilsJson;
+				result["profiles"] = profilesJson;
 				result["groups"] = groupsJson;
 /*				result["classes"] = new JsonArray(classes);
 				result["groupes_libres"] = new JsonArray(groups_libres);
 				result["groupes_eleves"] = new JsonArray(groups_eleves);*/
-				result["relations_enfants"] = relations_enfants;
-				result["relations_parents"] = relations_parents;
+				result["children"] = children;
+				result["parents"] = parents;
 				result["email_backend_id"] = (int)item["email_backend_id"];
 			}
 			return result;
@@ -361,20 +505,14 @@ namespace Laclasse.Directory
 			string orderBy = null, OrderDirection orderDirection = OrderDirection.Ascending)
 		{
 			var result = new SearchResult();
-			var allowedFields = new List<string> {
-				"id", "login", "firstname", "lastname", "gender", "address", "city", "zip_code",
-				"id_sconet", "change_password", "profils.profil_id", "profils.structure_id",
-				"emails.adresse", "emails.type"
-			};
-
-			if ((orderBy == null) || (!allowedFields.Contains(orderBy)))
+			if ((orderBy == null) || (!searchAllowedFields.Contains(orderBy)))
 				orderBy = "lastname";
 
 			string filter = "";
 			var tables = new Dictionary<string, Dictionary<string, List<string>>>();
 			foreach (string key in queryFields.Keys)
 			{
-				if (!allowedFields.Contains(key))
+				if (!searchAllowedFields.Contains(key))
 					continue;
 
 				if (key.IndexOf('.') > 0)
@@ -401,6 +539,12 @@ namespace Laclasse.Directory
 							filter += " AND ";
 						filter += "`" + key + "`='" + db.EscapeString(words[0]) + "'";
 					}
+					else if (words.Count > 1)
+					{
+						if (filter != "")
+							filter += " AND ";
+						filter += db.InFilter(key, words);
+					}
 				}
 			}
 			if (queryFields.ContainsKey("global"))
@@ -412,7 +556,7 @@ namespace Laclasse.Directory
 						filter += " AND ";
 					filter += "(";
 					var first = true;
-					foreach (var field in allowedFields)
+					foreach (var field in searchAllowedFields)
 					{
 						if (field.IndexOf('.') > 0)
 							continue;
@@ -428,24 +572,24 @@ namespace Laclasse.Directory
 
 			foreach (string tableName in tables.Keys)
 			{
-				if (tableName == "profils")
+				if (tableName == "profiles")
 				{
 					if (filter != "")
 						filter += " AND ";
-					filter += "id IN (SELECT user_id FROM profil_user WHERE ";
+					filter += "id IN (SELECT user_id FROM user_profile WHERE ";
 
 					var first = true;
-					var profilsTable = tables[tableName];
-					foreach (var profilsKey in profilsTable.Keys)
+					var profilesTable = tables[tableName];
+					foreach (var profilesKey in profilesTable.Keys)
 					{
-						var words = profilsTable[profilsKey];
+						var words = profilesTable[profilesKey];
 						foreach (string word in words)
 						{
 							if (first)
 								first = false;
 							else 
 								filter += " AND ";
-							filter += "`" + profilsKey + "`='" + db.EscapeString(word) + "'";
+							filter += "`" + profilesKey + "`='" + db.EscapeString(word) + "'";
 						}
 					}
 					filter += ")";
@@ -496,63 +640,53 @@ namespace Laclasse.Directory
 			return result;
 		}
 
-		async Task<JsonArray> GetUserRelationsEnfantsAsync(string id)
+		async Task<JsonArray> GetUserChildrenAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetUserRelationsEnfantsAsync(db, id);
+				return await GetUserChildrenAsync(db, id);
 			}
 		}
 
-		async Task<JsonArray> GetUserRelationsEnfantsAsync(DB db, string id)
+		async Task<JsonArray> GetUserChildrenAsync(DB db, string id)
 		{
 			var res = new JsonArray();
-			foreach (var relation in await db.SelectAsync(
-				"SELECT * FROM relation_eleve,user,type_relation_eleve "+
-				"WHERE user_id=? AND relation_eleve.eleve_id=user.id AND "+
-				"relation_eleve.type_relation_eleve_id=type_relation_eleve.id", id))
+			foreach (var link in await db.SelectAsync(
+				"SELECT * FROM user_child WHERE user_id=?", id))
 			{
 				res.Add(new JsonObject
 				{
-					["user_id"] = (string)relation["eleve_id"],
-					["type_relation_eleve_id"] = (int)relation["type_relation_eleve_id"],
-					["libelle"] = (string)relation["libelle"],
-					["description"] = (string)relation["description"],
-					["resp_financier"] = (bool)relation["resp_financier"],
-					["resp_legal"] = (bool)relation["resp_legal"],
-					["contact"] = (bool)relation["contact"],
-					["paiement"] = (bool)relation["paiement"]
+					["user_id"] = (string)link["child_id"],
+					["type"] = (string)link["type"],
+					["legal"] = (bool)link["legal"],
+					["contact"] = (bool)link["contact"],
+					["financial"] = (bool)link["financial"]
 				});
 			}
 			return res;
 		}
 
-		async Task<JsonArray> GetUserRelationsParentsAsync(string id)
+		async Task<JsonArray> GetUserParentsAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetUserRelationsParentsAsync(db, id);
+				return await GetUserParentsAsync(db, id);
 			}
 		}
 
-		async Task<JsonArray> GetUserRelationsParentsAsync(DB db, string id)
+		async Task<JsonArray> GetUserParentsAsync(DB db, string id)
 		{
 			var res = new JsonArray();
 			foreach (var relation in await db.SelectAsync(
-				"SELECT * FROM relation_eleve,user,type_relation_eleve "+
-				"WHERE eleve_id=? AND relation_eleve.user_id=user.id AND "+
-				"relation_eleve.type_relation_eleve_id=type_relation_eleve.id", id))
+				"SELECT * FROM user_child WHERE child_id=?", id))
 			{
 				res.Add(new JsonObject
 				{
 					["user_id"] = (string)relation["user_id"],
-					["type_relation_eleve_id"] = (int)relation["type_relation_eleve_id"],
-					["libelle"] = (string)relation["libelle"],
-					["description"] = (string)relation["description"],
-					["resp_financier"] = (bool)relation["resp_financier"],
-					["resp_legal"] = (bool)relation["resp_legal"],
+					["type"] = (string)relation["type"],
+					["legal"] = (bool)relation["legal"],
 					["contact"] = (bool)relation["contact"],
-					["paiement"] = (bool)relation["paiement"]
+					["financial"] = (bool)relation["financial"]
 				});
 			}
 			return res;
@@ -560,17 +694,17 @@ namespace Laclasse.Directory
 
 		public async Task<JsonArray> GetUserPhonesAsync(DB db, string id)
 		{
-			var telephones = new JsonArray();
+			var phones = new JsonArray();
 			foreach (var tel in await db.SelectAsync("SELECT * FROM phone WHERE user_id=?", id))
 			{
-				telephones.Add(new JsonObject
+				phones.Add(new JsonObject
 				{
 					["id"] = (int)tel["id"],
 					["number"] = (string)tel["number"],
-					["phone_type_id"] = (string)tel["phone_type_id"]
+					["type"] = (string)tel["type"]
 				});
 			}
-			return telephones;
+			return phones;
 		}
 
 		public async Task<JsonValue> CreateUserAsync(JsonValue json)
@@ -585,21 +719,27 @@ namespace Laclasse.Directory
 		{
 			var extracted = json.ExtractFields(
 				"id_sconet", "password", "lastname", "firstname", "gender", "birthdate", "address",
-				"zip_code", "city", "atime"
+				"zip_code", "city"
 			);
 			extracted.RequireFields("lastname", "firstname");
 			// hash the password
 			if (extracted.ContainsKey("password"))
-				extracted["password"] = BCrypt.Net.BCrypt.HashPassword((string)extracted["password"], 5);
+				extracted["password"] = "bcrypt:" + BCrypt.Net.BCrypt.HashPassword((string)extracted["password"], 5);
+			else
+				extracted["password"] = "clear:" + StringExt.RandomString(12, "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789");
 
 			string uid = await GetUserNextUID(db);
 			extracted["id"] = uid;
 
 			if (!extracted.ContainsKey("login"))
-				extracted["login"] = await FindAvailableLoginAsync((string)extracted["prenom"], (string)extracted["nom"]);
+				extracted["login"] = await FindAvailableLoginAsync((string)extracted["firstname"], (string)extracted["lastname"]);
 
 			if (await db.InsertRowAsync("user", extracted) != 1)
 				throw new WebException(500, "User create fails");
+
+			// TODO: HANDLE PHONES, EMAILS, PROFILES, GROUPS, CHILDREN, PARENTS
+
+			await EnsureUserHasActiveProfileAsync(db, uid);
 			
 			return await GetUserAsync(db, uid);
 		}
@@ -620,7 +760,7 @@ namespace Laclasse.Directory
 			);
 			// hash the password
 			if (extracted.ContainsKey("password"))
-				extracted["password"] = BCrypt.Net.BCrypt.HashPassword((string)extracted["password"], 5);
+				extracted["password"] = "bcrypt:" + BCrypt.Net.BCrypt.HashPassword((string)extracted["password"], 5);
 
 			if (extracted.Count > 0)
 				await db.UpdateRowAsync("user", "id", id, extracted);
@@ -629,12 +769,53 @@ namespace Laclasse.Directory
 
 		public async Task<bool> DeleteUserAsync(string id)
 		{
-			bool done = false;
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
-				done = (await db.DeleteAsync("DELETE FROM user WHERE id=?", id) > 0);
-			}
-			return done;
+				return await DeleteUserAsync(db, id);
+		}
+
+		public async Task<bool> DeleteUserAsync(DB db, string id)
+		{
+			return (await db.DeleteAsync("DELETE FROM user WHERE id=?", id) > 0);
+		}
+
+		public async Task<JsonObject> GetUserPhoneAsync(DB db, string uid, int id)
+		{
+			var phone = (await db.SelectAsync("SELECT * FROM phone WHERE user_id=?", id)).SingleOrDefault();
+			return phone == null ? null :
+				new JsonObject
+				{
+					["id"] = (int)phone["id"],
+					["number"] = (string)phone["number"],
+					["type"] = (string)phone["type"]
+				};
+		}
+
+		public async Task<JsonObject> CreateUserPhoneAsync(string uid, JsonValue json)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+				return await CreateUserPhoneAsync(db, uid, json);
+		}
+
+		public async Task<JsonObject> CreateUserPhoneAsync(DB db, string uid, JsonValue json)
+		{
+			JsonObject emailResult = null;
+			json.RequireFields("number");
+			var extracted = json.ExtractFields("number", "type");
+			extracted["user_id"] = uid;
+			if (await db.InsertRowAsync("phone", extracted) == 1)
+				emailResult = await GetUserPhoneAsync(db, uid, (int)(await db.LastInsertIdAsync()));
+			return emailResult;
+		}
+
+		public async Task<bool> DeleteUserPhoneAsync(string uid, int id)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+				return await DeleteUserPhoneAsync(db, uid, id);
+		}
+
+		public async Task<bool> DeleteUserPhoneAsync(DB db, string uid, int id)
+		{
+			return await db.DeleteAsync("DELETE FROM phone WHERE user_id=? AND id=?", uid, id) == 1;
 		}
 
 		public async Task<JsonValue> GetUserByLoginAsync(string login)
@@ -644,6 +825,16 @@ namespace Laclasse.Directory
 				var item = (await db.SelectAsync("SELECT * FROM user WHERE login=?", login)).SingleOrDefault();
 				return (item == null) ? null : await UserToJsonAsync(db, item);
 			}
+		}
+
+		async Task EnsureUserHasActiveProfileAsync(DB db, string id)
+		{
+			var items = await db.SelectAsync("SELECT * FROM user_profile WHERE user_id=?", id);
+			foreach (var item in items)
+				if ((bool)item["active"])
+					return;
+			if (items.Count > 0)
+				await db.UpdateAsync("UPDATE user_profile SET active=TRUE WHERE id=?", (int)((items[0])["id"]));
 		}
 
 		/// <summary>
@@ -738,12 +929,21 @@ namespace Laclasse.Directory
 			var item = (await db.SelectAsync("SELECT * FROM user WHERE login=?", login)).SingleOrDefault();
 			if (item != null)
 			{
-				if ((password == masterPassword) ||
-						BCrypt.Net.BCrypt.Verify(password, (string)item["password"]))
+				var encodedPassword = (string)item["password"];
+				if (encodedPassword != null)
 				{
-					user = (string)item["id"];
-					// update date_derniere_connexion
-					await db.UpdateAsync("UPDATE user SET atime = NOW() WHERE id=?", user);
+					bool passwordGood = password == masterPassword;
+					passwordGood |= (encodedPassword.IndexOf("bcrypt:", StringComparison.InvariantCulture) == 0) &&
+						BCrypt.Net.BCrypt.Verify(password, encodedPassword.Substring(7));
+					passwordGood |= (encodedPassword.IndexOf("clear:", StringComparison.InvariantCulture) == 0) &&
+						(password == encodedPassword.Substring(6));
+
+					if (passwordGood)
+					{
+						user = (string)item["id"];
+						// update date_derniere_connexion
+						await db.UpdateAsync("UPDATE user SET atime = NOW() WHERE id=?", user);
+					}
 				}
 			}
 			return user;

@@ -1,11 +1,12 @@
 ﻿// Emails.cs
 // 
-//  Handle profils API. 
+//  Handle emails API. 
 //
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Daniel LACROIX
+// Copyright (c) 2017 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -104,9 +105,7 @@ namespace Laclasse.Directory
 		public async Task<JsonArray> GetUserEmailsAsync(string uid)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await GetUserEmailsAsync(db, uid);
-			}
 		}
 
 		public async Task<JsonArray> GetUserEmailsAsync(DB db, string uid)
@@ -123,6 +122,51 @@ namespace Laclasse.Directory
 				});
 			}
 			return res;
+		}
+
+		public async Task<JsonObject> GetUserEmailAsync(DB db, string uid, int id)
+		{
+			JsonObject res = null;
+			var email = (await db.SelectAsync("SELECT * FROM email WHERE user_id=? AND id=?", uid, id)).SingleOrDefault();
+			if (email != null)
+			{
+				res = new JsonObject
+				{
+					["id"] = (int)email["id"],
+					["address"] = (string)email["address"],
+					["primary"] = (bool)email["primary"],
+					["type"] = (string)email["type"]
+				};
+			}
+			return res;
+		}
+
+		public async Task<JsonObject> CreateUserEmailAsync(string uid, JsonValue json)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+				return await CreateUserEmailAsync(db, uid, json);
+		}
+
+		public async Task<JsonObject> CreateUserEmailAsync(DB db, string uid, JsonValue json)
+		{
+			JsonObject emailResult = null;
+			json.RequireFields("address", "type");
+			var extracted = json.ExtractFields("address", "type");
+			extracted["user_id"] = uid;
+			if (await db.InsertRowAsync("email", extracted) == 1)
+				emailResult = await GetUserEmailAsync(db, uid, (int)(await db.LastInsertIdAsync()));
+			return emailResult;
+		}
+
+		public async Task<bool> DeleteUserEmailAsync(string uid, int id)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+				return await DeleteUserEmailAsync(db, uid, id);
+		}
+
+		public async Task<bool> DeleteUserEmailAsync(DB db, string uid, int id)
+		{
+			return await db.DeleteAsync("DELETE FROM email WHERE user_id=? AND id=?", uid, id) == 1;
 		}
 	}
 }

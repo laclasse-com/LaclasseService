@@ -1,6 +1,6 @@
-﻿// Profils.cs
+﻿// Profiles.cs
 // 
-//  Handle profils API. 
+//  Handle profiles API. 
 //
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
@@ -34,11 +34,11 @@ using Erasme.Json;
 
 namespace Laclasse.Directory
 {
-	public class Profils : HttpRouting
+	public class Profiles : HttpRouting
 	{
 		readonly string dbUrl;
 
-		public Profils(string dbUrl)
+		public Profiles(string dbUrl)
 		{
 			this.dbUrl = dbUrl;
 
@@ -47,12 +47,12 @@ namespace Laclasse.Directory
 				var res = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					foreach (var app in await db.SelectAsync("SELECT * FROM profil_national"))
+					foreach (var app in await db.SelectAsync("SELECT * FROM profile_type"))
 					{
 						res.Add(new JsonObject
 						{
 							["id"] = (string)app["id"],
-							["description"] = (string)app["description"],
+							["name"] = (string)app["name"],
 							["code_national"] = (string)app["code_national"]
 						});
 					}
@@ -80,41 +80,43 @@ namespace Laclasse.Directory
 			};
 		}
 
-		public async Task<JsonArray> GetUserProfilsAsync(string id)
+		public async Task<JsonArray> GetUserProfilesAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetUserProfilsAsync(db, id);
+				return await GetUserProfilesAsync(db, id);
 			}
 		}
 
-		public async Task<JsonArray> GetUserProfilsAsync(DB db, string id)
+		public async Task<JsonArray> GetUserProfilesAsync(DB db, string id)
 		{
 			var res = new JsonArray();
-			foreach (var profil in await db.SelectAsync(
-				"SELECT * FROM profil_user "+
+			foreach (var profile in await db.SelectAsync(
+				"SELECT * FROM user_profile "+
 				"WHERE user_id=?", id))
 			{
 				res.Add(new JsonObject
 				{
-					["profil_id"] = (string)profil["profil_id"],
-					["structure_id"] = (string)profil["structure_id"],
-					["actif"] = (profil["actif"] != null) && Convert.ToBoolean(profil["actif"])
+					["id"] = (int)profile["id"],
+					["type"] = (string)profile["type"],
+					["structure_id"] = (string)profile["structure_id"],
+					["active"] = (profile["active"] != null) && Convert.ToBoolean(profile["active"])
 				});
 			}
 			return res;
 		}
 
-		public async Task<JsonArray> GetStructureProfilsAsync(DB db, string id)
+		public async Task<JsonArray> GetStructureProfilesAsync(DB db, string id)
 		{
 			var res = new JsonArray();
-			foreach (var profil in await db.SelectAsync(
-				"SELECT * FROM profil_user WHERE structure_id=?", id))
+			foreach (var profile in await db.SelectAsync(
+				"SELECT * FROM user_profile WHERE structure_id=?", id))
 			{
 				res.Add(new JsonObject
 				{
-					["profil_id"] = (string)profil["profil_id"],
-					["user_id"] = (string)profil["user_id"]
+					["id"] = (int)profile["id"],
+					["type"] = (string)profile["type"],
+					["user_id"] = (string)profile["user_id"]
 				});
 			}
 			return res;

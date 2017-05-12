@@ -32,6 +32,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
@@ -48,6 +49,15 @@ namespace Laclasse.Authentication
 		public string error;
 		public string title;
 		public string message;
+	}
+
+	public class SsoClient
+	{
+		public int id;
+		public string name;
+		public string identity_attribute;
+		public List<string> urls;
+		public List<string> attributes;
 	}
 
 	public class Cas : HttpRouting
@@ -170,6 +180,7 @@ namespace Laclasse.Authentication
 					return;
 				}
 
+				var service = c.Request.QueryString["service"];
 				var ticketId = c.Request.QueryString["ticket"];
 				var sessionId = await tickets.GetAsync(ticketId);
 				if (sessionId == null)
@@ -179,26 +190,48 @@ namespace Laclasse.Authentication
 					c.Response.Content = ServiceResponseFailure(
 						"INVALID_TICKET",
 						$"Ticket {ticketId} is not recognized.");
+					return;
 				}
-				else
+				await tickets.DeleteAsync(ticketId);
+				var session = await sessions.GetSessionAsync(sessionId);
+				if (session == null)
 				{
-					await tickets.DeleteAsync(ticketId);
-					var session = await sessions.GetSessionAsync(sessionId);
-					if (session == null)
-					{
-						c.Response.StatusCode = 200;
-						c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-						c.Response.Content = ServiceResponseFailure(
-							"INVALID_SESSION",
-							$"Ticket {ticketId} has a timed out session.");
-					}
-					else
-					{
-						c.Response.StatusCode = 200;
-						c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-						c.Response.Content = ServiceResponseSuccess(await GetUserSsoAttributesAsync(session.user));
-					}
+					c.Response.StatusCode = 200;
+					c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
+					c.Response.Content = ServiceResponseFailure(
+						"INVALID_SESSION",
+						$"Ticket {ticketId} has a timed out session.");
+					return;
 				}
+
+				var userAttributes = await GetUserSsoAttributesAsync(session.user);
+				if (userAttributes == null)
+				{
+					c.Response.StatusCode = 200;
+					c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
+					c.Response.Content = ServiceResponseFailure(
+						"INVALID_SESSION",
+						$"Ticket {ticketId} user not found");
+					return;
+				}
+
+				var client = await GetClientFromServiceAsync(service);
+				if (client == null)
+				{
+					c.Response.StatusCode = 200;
+					c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
+					c.Response.Content = ServiceResponseFailure(
+						"INVALID_SESSION",
+						$"Ticket {ticketId}, service not allowed");
+					return;
+				}
+
+				var attributes = FilterAttributesFromClient(client, userAttributes);
+				attributes["user"] = userAttributes[client.identity_attribute];
+
+				c.Response.StatusCode = 200;
+				c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
+				c.Response.Content = ServiceResponseSuccess(attributes);
 			};
 
 			PostAsync["/samlValidate"] = async (p, c) =>
@@ -239,28 +272,43 @@ namespace Laclasse.Authentication
 					Console.WriteLine($"samlValidate Ticket {ticketId} not found.");
 					c.Response.StatusCode = 200;
 					c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
+					return;
 				}
-				else
-				{
-					await tickets.DeleteAsync(ticketId);
-					var session = await sessions.GetSessionAsync(sessionId);
-					if (session == null)
-					{
-						Console.WriteLine($"samlValidate Ticket {ticketId} has a timed out session.");
-						c.Response.StatusCode = 200;
-						c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
-					}
-					else
-					{
-						// TODO: need the check if the service is accepted.
-						// TODO: need to filter the user's attributes and the nameIdentifier
 
-						// send SAML response
-						c.Response.StatusCode = 200;
-						c.Response.Content = new XmlContent(SoapSamlResponse(
-							c.SelfURL(), doc, await GetUserSsoAttributesAsync(session.user), "user", service));
-					}
+				await tickets.DeleteAsync(ticketId);
+				var session = await sessions.GetSessionAsync(sessionId);
+				if (session == null)
+				{
+					Console.WriteLine($"samlValidate Ticket {ticketId} has a timed out session.");
+					c.Response.StatusCode = 200;
+					c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
+					return;
 				}
+
+				// need the check if the service is accepted.
+				var client = await GetClientFromServiceAsync(service);
+				if (client == null)
+				{
+					Console.WriteLine($"samlValidate Ticket {ticketId} service not allowed");
+					c.Response.StatusCode = 200;
+					c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
+					return;
+				}
+
+				// filter the user's attributes and the nameIdentifier
+				var userAttributes = await GetUserSsoAttributesAsync(session.user);
+				if (userAttributes == null)
+				{
+					Console.WriteLine($"samlValidate Ticket {ticketId} user not found");
+					c.Response.StatusCode = 200;
+					c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
+					return;
+				}
+
+				// send SAML response
+				c.Response.StatusCode = 200;
+				c.Response.Content = new XmlContent(SoapSamlResponse(
+					c.SelfURL(), doc, FilterAttributesFromClient(client, userAttributes), client.identity_attribute, service));
 			};
 
 			Get["/parentPortalIdp"] = (p, c) =>
@@ -487,14 +535,14 @@ namespace Laclasse.Authentication
 			string ENTPersonStructRattachRNE = null;
 			string ENTPersonProfils = null;
 			string categories = null;
-			foreach (var p in (JsonArray)user["profils"])
+			foreach (var p in (JsonArray)user["profiles"])
 			{
-				if ((bool)p["actif"])
+				if ((bool)p["active"])
 				{
 					ENTPersonStructRattachRNE = p["structure_id"];
-					if (ProfilIdToSdet3.ContainsKey(p["profil_id"]))
-						categories = ProfilIdToSdet3[p["profil_id"]];
-					if (p["profil_id"] == "ELV")
+					if (ProfilIdToSdet3.ContainsKey(p["type"]))
+						categories = ProfilIdToSdet3[p["type"]];
+					if (p["type"] == "ELV")
 					{
 					}
 				}
@@ -503,7 +551,7 @@ namespace Laclasse.Authentication
 					ENTPersonProfils = "";
 				else
 					ENTPersonProfils += ",";
-				ENTPersonProfils += p["profil_id"] + ":" + p["structure_id"];
+				ENTPersonProfils += p["type"] + ":" + p["structure_id"];
 			}
 
 			return new Dictionary<string, string>
@@ -612,8 +660,9 @@ namespace Laclasse.Authentication
 			{
 				var casAttribute = dom.CreateElement("cas:" + attribute, cas);
 				casAttribute.InnerText = attributes[attribute];
+				var casAttribute2 = casAttribute.CloneNode(true);
 				casAttributes.AppendChild(casAttribute);
-				authenticationSuccess.AppendChild(casAttribute);
+				authenticationSuccess.AppendChild(casAttribute2);
 			}
 
 			using (var stringWriter = new StringWriter())
@@ -1051,8 +1100,8 @@ namespace Laclasse.Authentication
 				var queryFields = new Dictionary<string, List<string>>();
 				queryFields["lastname"] = new List<string>(new string[] { lastname });
 				queryFields["firstname"] = new List<string>(new string[] { firstname });
-				queryFields["profils.structure_id"] = new List<string>(new string[] { uai });
-				queryFields["profils.profil_id"] = new List<string>(new string[] { "TUT" });
+				queryFields["profiles.structure_id"] = new List<string>(new string[] { uai });
+				queryFields["profiles.type"] = new List<string>(new string[] { "TUT" });
 				var usersResult = (await users.SearchUserAsync(queryFields)).Data;
 				if (usersResult.Count == 1)
 					return usersResult[0];
@@ -1060,9 +1109,11 @@ namespace Laclasse.Authentication
 				// seach find the corresponding student with the 'id_sconet'
 				foreach (var user in usersResult)
 				{
-					foreach (var child in (JsonArray)user["enfants"])
+					foreach (var child in (JsonArray)user["children"])
 					{
-						if (child["id_sconet"] == int.Parse(id_sconet))
+						var childJson = await users.GetUserAsync(child["user_id"]);
+
+						if (childJson["id_sconet"] == int.Parse(id_sconet))
 							return user;
 					}
 				}
@@ -1080,13 +1131,76 @@ namespace Laclasse.Authentication
 				queryFields = new Dictionary<string, List<string>>();
 				queryFields["lastname"] = new List<string>(new string[] { lastname });
 				queryFields["firstname"] = new List<string>(new string[] { firstname });
-				queryFields["profils.structure_id"] = new List<string>(new string[] { uai });
-				queryFields["profils.profil_id"] = new List<string>(new string[] { "ELV" });
+				queryFields["profiles.structure_id"] = new List<string>(new string[] { uai });
+				queryFields["profiles.type"] = new List<string>(new string[] { "ELV" });
 				usersResult = (await users.SearchUserAsync(queryFields)).Data;
 				if (usersResult.Count == 1)
 					return usersResult[0];
 			}
 			return null;
+		}
+
+		public async Task<IEnumerable<SsoClient>> GetClientsAsync()
+		{
+			var clients = new Dictionary<int, SsoClient>();
+
+			using (DB db = await DB.CreateAsync(dbUrl))
+			{
+				var items = await db.SelectAsync("SELECT * FROM sso_client");
+				foreach (var item in items)
+				{
+					var client = new SsoClient
+					{
+						id = (int)item["id"],
+						name = (string)item["name"],
+						identity_attribute = (string)item["identity_attribute"],
+						urls = new List<string>(),
+						attributes = new List<string>()
+					};
+					clients[client.id] = client;
+				}
+
+				items = await db.SelectAsync("SELECT * FROM sso_client_url");
+				foreach (var item in items)
+				{
+					var client_id = (int)item["sso_client_id"];
+					if (clients.ContainsKey(client_id))
+						clients[client_id].urls.Add((string)item["url"]);
+				}
+
+				items = await db.SelectAsync("SELECT * FROM sso_client_attribute");
+					    foreach (var item in items)
+				{
+					var client_id = (int)item["sso_client_id"];
+					if (clients.ContainsKey(client_id))
+						clients[client_id].attributes.Add((string)item["attribute"]);
+				}
+			}
+			return clients.Values;
+		}
+
+		public async Task<SsoClient> GetClientFromServiceAsync(string service)
+		{
+			var clients = await GetClientsAsync();
+			foreach (var client in clients)
+			{
+				foreach (var url in client.urls)
+					if (Regex.IsMatch(service, url))
+						return client;
+			}
+			return null;
+		}
+
+		public Dictionary<string, string> FilterAttributesFromClient(
+			SsoClient client, Dictionary<string, string> userAttributes)
+		{
+			var attributes = new Dictionary<string, string>();
+			foreach (var attr in client.attributes)
+			{
+				if (userAttributes.ContainsKey(attr))
+					attributes[attr] = userAttributes[attr];
+			}
+			return attributes;
 		}
 	}
 }

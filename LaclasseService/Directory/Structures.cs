@@ -52,8 +52,7 @@ namespace Laclasse.Directory
 		public DateTime? aaf_mtime { get { return GetField<DateTime?>("aaf_mtime", null); } set { SetField("aaf_mtime", value); } }
 		public string domain { get { return GetField<string>("domain", null); } set { SetField("domain", value); } }
 		public string public_ip { get { return GetField<string>("public_ip", null); } set { SetField("public_ip", value); } }
-		public int structure_type_id { get { return GetField("structure_type_id", 0); } set { SetField("structure_type_id", value); } }
-		public string logo { get { return GetField<string>("logo", null); } set { SetField("logo", value); } }
+		public int type { get { return GetField("type", 0); } set { SetField("type", value); } }
 		public bool aaf_sync_activated { get { return GetField("aaf_sync_activated", false); } set { SetField("aaf_sync_activated", value); } }
 		public string private_ip { get { return GetField<string>("private_ip", null); } set { SetField("private_ip", value); } }
 		public string educnat_marking_id { get { return GetField<string>("educnat_marking_id", null); } set { SetField("educnat_marking_id", value); } }
@@ -64,53 +63,85 @@ namespace Laclasse.Directory
 	{
 		readonly string dbUrl;
 		readonly Groups groups;
-		readonly Profils profils;
+		readonly Profiles profiles;
 		// Users register itself
 		internal Users users;
 
-		public Structures(string dbUrl, Groups groups, Resources resources, Profils profils)
+		readonly static List<string> searchAllowedFields = new List<string> {
+			"id", "name", "address", "city", "zip_code", "profiles.type", "profiles.user_id"
+		};
+
+		public Structures(string dbUrl, Groups groups, Resources resources, Profiles profiles)
 		{
 			this.dbUrl = dbUrl;
 			this.groups = groups;
-			this.profils = profils;
+			this.profiles = profiles;
 
 			// register a type
-			Types["uai"] = (val) => (Regex.IsMatch(val, "^[0-9]{7,7}[A-Z]$")) ? val : null;
+			//Types["uai"] = (val) => (Regex.IsMatch(val, "^[0-9]{7,7}[A-Z]$")) ? val : null;
+			Types["uai"] = (val) => (Regex.IsMatch(val, "^[0-9A-Z]+$")) ? val : null;
 
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
 			GetAsync["/"] = async (p, c) =>
 			{
-				int offset = 0;
-				int count = -1;
-				var query = "";
-				if (c.Request.QueryString.ContainsKey("query"))
-					query = c.Request.QueryString["query"];
-				if (c.Request.QueryString.ContainsKey("limit"))
-				{
-					count = int.Parse(c.Request.QueryString["limit"]);
-					if (c.Request.QueryString.ContainsKey("page"))
-						offset = Math.Max(0, (int.Parse(c.Request.QueryString["page"]) - 1) * count);
-				}
-				var orderBy = "name";
-				if (c.Request.QueryString.ContainsKey("sort_col"))
-					orderBy = c.Request.QueryString["sort_col"];
-				var sortDir = SortDirection.Ascending;
-				if (c.Request.QueryString.ContainsKey("sort_dir") && (c.Request.QueryString["sort_dir"] == "desc"))
-					sortDir = SortDirection.Descending;
 
-				var result = await SearchStructureAsync(query, orderBy, sortDir, offset, count);
-				c.Response.StatusCode = 200;
-				if (count > 0)
-					c.Response.Content = new JsonObject
+				Console.WriteLine("DANIEL CONTAINS ID: " + c.Request.QueryStringArray.ContainsKey("id"));
+
+				if (c.Request.QueryStringArray.ContainsKey("id"))
+				{
+					var result = new JsonArray();
+					using (DB db = await DB.CreateAsync(dbUrl))
 					{
-						["total"] = result.Total,
-						["page"] = (result.Offset / count) + 1,
-						["data"] = result.Data
-					};
+						var items = await db.SelectAsync("SELECT * FROM structure WHERE " + db.InFilter("id", c.Request.QueryStringArray["id"]));
+						foreach (var item in items)
+							result.Add(await StructureToJsonAsync(db, item));
+						
+						c.Response.StatusCode = 200;
+						c.Response.Content = result;
+					}
+				}
 				else
-					c.Response.Content = result.Data;
+				{
+					int offset = 0;
+					int count = -1;
+					var query = "";
+					if (c.Request.QueryString.ContainsKey("query"))
+						query = c.Request.QueryString["query"];
+					if (c.Request.QueryString.ContainsKey("limit"))
+					{
+						count = int.Parse(c.Request.QueryString["limit"]);
+						if (c.Request.QueryString.ContainsKey("page"))
+							offset = Math.Max(0, (int.Parse(c.Request.QueryString["page"]) - 1) * count);
+					}
+					var orderBy = "name";
+					if (c.Request.QueryString.ContainsKey("sort_col"))
+						orderBy = c.Request.QueryString["sort_col"];
+					var sortDir = SortDirection.Ascending;
+					if (c.Request.QueryString.ContainsKey("sort_dir") && (c.Request.QueryString["sort_dir"] == "desc"))
+						sortDir = SortDirection.Descending;
+
+					var parsedQuery = query.QueryParser();
+					foreach (var key in c.Request.QueryString.Keys)
+						if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
+							parsedQuery[key] = new List<string> { c.Request.QueryString[key] };
+					foreach (var key in c.Request.QueryStringArray.Keys)
+						if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
+							parsedQuery[key] = c.Request.QueryStringArray[key];
+
+					var result = await SearchStructureAsync(parsedQuery, orderBy, sortDir, offset, count);
+					c.Response.StatusCode = 200;
+					if (count > 0)
+						c.Response.Content = new JsonObject
+						{
+							["total"] = result.Total,
+							["page"] = (result.Offset / count) + 1,
+							["data"] = result.Data
+						};
+					else
+						c.Response.Content = result.Data;
+				}
 			};
 
 			GetAsync["/{uai:uai}"] = async (p, c) =>
@@ -128,8 +159,22 @@ namespace Laclasse.Directory
 			PostAsync["/"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
-				c.Response.StatusCode = 200;
-				c.Response.Content = await CreateStructureAsync(json);
+				var jsonArray = json as JsonArray;
+				if (jsonArray != null)
+				{
+					var result = new JsonArray();
+					foreach (var etabJson in jsonArray)
+					{
+						result.Add(await CreateStructureAsync(etabJson));
+					}
+					c.Response.StatusCode = 200;
+					c.Response.Content = result;
+				}
+				else
+				{
+					c.Response.StatusCode = 200;
+					c.Response.Content = await CreateStructureAsync(json);
+				}
 			};
 
 			PutAsync["/{uai:uai}"] = async (p, c) =>
@@ -148,7 +193,24 @@ namespace Laclasse.Directory
 					c.Response.StatusCode = 404;
 			};
 
-/*			GetAsync["/{uai:uai}/matieres"] = async (p, c) =>
+			DeleteAsync["/"] = async (p, c) =>
+			{				
+				var json = await c.Request.ReadAsJsonAsync();
+				var jsonArray = json as JsonArray;
+				if (jsonArray != null)
+				{
+					using (DB db = await DB.CreateAsync(dbUrl))
+					{
+						bool allDone = true;
+						foreach (string uai in jsonArray)
+							allDone &= await DeleteStructureAsync(uai);
+						c.Response.StatusCode = allDone ? 200 : 404;
+					}
+				}
+			};
+
+
+/*			GetAsync["/{uai:uai}/subjects"] = async (p, c) =>
 			{
 				var json = new JsonArray();
 				// TODO
@@ -228,7 +290,7 @@ namespace Laclasse.Directory
 				c.Response.Content = await groups.GetGroupsFreeAsync();
 			};*/
 
-			GetAsync["/{uai:uai}/users"] = async (p, c) =>
+			/*GetAsync["/{uai:uai}/users"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
@@ -244,7 +306,7 @@ namespace Laclasse.Directory
 							offset = Math.Max(0, (int.Parse(c.Request.QueryString["page"]) - 1) * count);
 					}
 					var queryFields = query.QueryParser();
-					queryFields["profils.structure_id"] = new List<string>(new string[] { (string)p["uai"] });
+					queryFields["profiles.structure_id"] = new List<string>(new string[] { (string)p["uai"] });
 					var usersResult = await users.SearchUserAsync(queryFields, offset, count);
 					c.Response.StatusCode = 200;
 					if (count > 0)
@@ -257,7 +319,7 @@ namespace Laclasse.Directory
 					else
 						c.Response.Content = usersResult.Data;
 				}
-			};
+			};*/
 		}
 
 		async Task<JsonObject> StructureToJsonAsync(DB db, Dictionary<string, object> item)
@@ -267,7 +329,7 @@ namespace Laclasse.Directory
 			//var classes = from g in jsonGroups where g["type_regroupement_id"] == "CLS" select g;
 			//var groupes_eleves = from g in jsonGroups where g["type_regroupement_id"] == "GRP" select g;
 			//var groupes_libres = from g in jsonGroups where g["type_regroupement_id"] == "GPL" select g;
-			var jsonProfils = await profils.GetStructureProfilsAsync(db, id);
+			var jsonProfiles = await profiles.GetStructureProfilesAsync(db, id);
 
 			return new JsonObject
 			{
@@ -279,13 +341,17 @@ namespace Laclasse.Directory
 				["phone"] = (string)item["phone"],
 				["fax"] = (string)item["fax"],
 				["aaf_mtime"] = (DateTime?)item["aaf_mtime"],
-				["structure_type_id"] = (int)item["structure_type_id"],
+				["type"] = (int)item["type"],
+				["siren"] = (string)item["siren"],
+				["longitude"] = (double?)item["longitude"],
+				["latitude"] = (double?)item["latitude"],
+				["domain"] = (string)item["domain"],
 				["resources"] = await GetStructureResourcesAsync(db, id),
 				["groups"] = jsonGroups,
 				//["classes"] = new JsonArray(classes),
 				//["groupes_eleves"] = new JsonArray(groupes_eleves),
 				//["groupes_libres"] = new JsonArray(groupes_libres),
-				["profils"] = jsonProfils
+				["profiles"] = jsonProfiles
 			};
 		}
 
@@ -318,13 +384,11 @@ namespace Laclasse.Directory
 
 		public async Task<JsonValue> CreateStructureAsync(DB db, JsonValue json)
 		{
+			json.RequireFields("id", "name", "type");
 			JsonValue jsonResult = null;
 			var extracted = json.ExtractFields(
-				"id", "name", "structure_type_id", "address", "zip_code");
-			// check required fields
-			if (!extracted.ContainsKey("id") || !extracted.ContainsKey("name") ||
-			        !extracted.ContainsKey("structure_type_id"))
-				return null;
+				"id", "name", "type", "address", "zip_code", "siren", "city", "phone", "fax",
+				"longitude", "latitude", "domain", "public_ip", "private_ip");
 			
 			int res = await db.InsertRowAsync("structure", extracted);
 			if (res == 1)
@@ -344,8 +408,9 @@ namespace Laclasse.Directory
 		{
 			var extracted = json.ExtractFields(
 				"name", "address", "zip_code", "city", "phone", "fax", "aaf_mtime",
-				"structure_type_id"
+				"type", "siren", "longitude", "latitude", "domain", "public_ip", "private_ip"
 			);
+
 			if (extracted.Count > 0)
 				await db.UpdateRowAsync("structure", "id", id, extracted);
 			return await GetStructureAsync(db, id);
@@ -385,18 +450,25 @@ namespace Laclasse.Directory
 		}
 
 		public async Task<SearchResult> SearchStructureAsync(
+			Dictionary<string, List<string>> queryFields, string orderBy = "name",
+			SortDirection sortDir = SortDirection.Ascending, int offset = 0, int count = -1)
+		{ 
+			using (DB db = await DB.CreateAsync(dbUrl))
+			{
+				return await SearchStructureAsync(db, queryFields, orderBy, sortDir, offset, count);
+			}
+		}
+
+		public async Task<SearchResult> SearchStructureAsync(
 			DB db, Dictionary<string, List<string>> queryFields, string orderBy = "name", 
 			SortDirection sortDir = SortDirection.Ascending, int offset = 0, int count = -1)
 		{
 			var result = new SearchResult();
-			var allowedFields = new List<string> {
-				"id", "name", "address", "city", "zip_code"
-			};
 			string filter = "";
 			var tables = new Dictionary<string, Dictionary<string, List<string>>>();
 			foreach (string key in queryFields.Keys)
 			{
-				if (!allowedFields.Contains(key))
+				if (!searchAllowedFields.Contains(key))
 					continue;
 
 				if (key.IndexOf('.') > 0)
@@ -418,20 +490,70 @@ namespace Laclasse.Directory
 				else
 				{
 					var words = queryFields[key];
-					foreach (string word in words)
+					if (words.Count == 1)
 					{
 						if (filter != "")
 							filter += " AND ";
-						filter += "`" + key + "`='" + db.EscapeString(word) + "'";
+						filter += "`" + key + "`='" + db.EscapeString(words[0]) + "'";
+					}
+					else if (words.Count > 1)
+					{
+						if (filter != "")
+							filter += " AND ";
+						filter += db.InFilter(key, words);
 					}
 				}
 			}
-			foreach (string tableName in tables.Keys)
+
+			if (queryFields.ContainsKey("global"))
 			{
-				// TODO
+				var words = queryFields["global"];
+				foreach (string word in words)
+				{
+					if (filter != "")
+						filter += " AND ";
+					filter += "(";
+					var first = true;
+					foreach (var field in searchAllowedFields)
+					{
+						if (field.IndexOf('.') > 0)
+							continue;
+						if (first)
+							first = false;
+						else
+							filter += " OR ";
+						filter += "`" + field + "` LIKE '%" + db.EscapeString(word) + "%'";
+					}
+					filter += ")";
+				}
 			}
 
-			Console.WriteLine(tables.Dump());
+			foreach (string tableName in tables.Keys)
+			{
+				if (tableName == "profiles")
+				{
+					if (filter != "")
+						filter += " AND ";
+					filter += "id IN (SELECT structure_id FROM user_profile WHERE ";
+
+					var first = true;
+					var profilesTable = tables[tableName];
+					foreach (var profilesKey in profilesTable.Keys)
+					{
+						var words = profilesTable[profilesKey];
+						foreach (string word in words)
+						{
+							if (first)
+								first = false;
+							else
+								filter += " AND ";
+							filter += "`" + profilesKey + "`='" + db.EscapeString(word) + "'";
+						}
+					}
+					filter += ")";
+				}
+			}
+
 			if (filter == "")
 				filter = "TRUE";
 			string limit = "";
@@ -439,9 +561,10 @@ namespace Laclasse.Directory
 				limit = $"LIMIT {count} OFFSET {offset}";
 
 			result.Data = new JsonArray();
-			var items = await db.SelectAsync(
-				$"SELECT SQL_CALC_FOUND_ROWS * FROM structure WHERE {filter} "+
-				$"ORDER BY `{orderBy}` "+((sortDir == SortDirection.Ascending)?"ASC":"DESC")+$" {limit}");
+			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM structure WHERE {filter} " +
+				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC") + $" {limit}";
+			Console.WriteLine(sql);
+			var items = await db.SelectAsync(sql);
 			result.Total = (int)await db.FoundRowsAsync();
 
 			foreach (var item in items)

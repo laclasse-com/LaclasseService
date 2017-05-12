@@ -38,12 +38,12 @@ namespace Laclasse.Directory
 	public class Groups : HttpRouting
 	{
 		readonly string dbUrl;
-		readonly Niveaux niveaux;
+		readonly Grades grades;
 
-		public Groups(string dbUrl, Niveaux niveaux)
+		public Groups(string dbUrl, Grades grades)
 		{
 			this.dbUrl = dbUrl;
-			this.niveaux = niveaux;
+			this.grades = grades;
 
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
@@ -67,6 +67,15 @@ namespace Laclasse.Directory
 				c.Response.Content = await CreateGroupAsync(json);
 			};
 
+			PutAsync["/{id:int}"] = async (p, c) =>
+			{
+				Console.WriteLine($"PUT GROUPS ID: {(int)p["id"]}");
+
+				var json = await c.Request.ReadAsJsonAsync();
+				c.Response.StatusCode = 200;
+				c.Response.Content = await ModifyGroupAsync((int)p["id"], json);
+			};
+
 			DeleteAsync["/{id:int}"] = async (p, c) =>
 			{
 				if(await DeleteGroupAsync((int)p["id"]))
@@ -76,25 +85,29 @@ namespace Laclasse.Directory
 			};
 		}
 
-		async Task<JsonObject> GroupToJsonAsync(DB db, Dictionary<string, object> group)
+		async Task<JsonObject> GroupToJsonAsync(DB db, Dictionary<string, object> group, bool expand = true)
 		{
 			var id = (int)group["id"];
-			var niveau_id = (string)group["niveau_id"];
-			var niveau_name = await niveaux.GetNiveauLibelleAsync(db, niveau_id);
+			var grade_id = (string)group["grade_id"];
+			var grade_name = await grades.GetGradeLibelleAsync(db, grade_id);
 
-			return new JsonObject
+			var result = new JsonObject
 			{
 				["id"] = id,
 				["name"] = (string)group["name"],
 				["description"] = (string)group["description"],
 				["aaf_mtime"] = (DateTime?)group["aaf_mtime"],
 				["aaf_name"] = (string)group["aaf_name"],
-				["group_type_id"] = (string)group["group_type_id"],
-				["niveau_id"] = niveau_id,
-				["niveau_name"] = niveau_name,
+				["type"] = (string)group["type"],
+				["grade_id"] = grade_id,
+				["grade_name"] = grade_name,
 				["structure_id"] = (string)group["structure_id"],
 				["ctime"] = (DateTime)group["ctime"]
 			};
+
+			if (expand)
+				result["users"] = await GetGroupUsersAsync(db, id);
+			return result;
 		}
 
 		public async Task<JsonValue> GetGroupAsync(int id)
@@ -123,14 +136,30 @@ namespace Laclasse.Directory
 		{
 			JsonValue jsonResult = null;
 			var extracted = json.ExtractFields(
-				"name", "description", "name", "group_type_id", "niveau_id", "structure_id");
+				"name", "description", "type", "grade_id", "structure_id");
 			// check required fields
-			extracted.RequireFields("name", "group_type_id");
+			extracted.RequireFields("name", "type");
 
 			int res = await db.InsertRowAsync("group", extracted);
 			if (res == 1)
 				jsonResult = await GetGroupAsync(db, (int)await db.LastInsertIdAsync());
 			return jsonResult;
+		}
+
+		public async Task<JsonValue> ModifyGroupAsync(int id, JsonValue json)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+			{
+				return await ModifyGroupAsync(db, id, json);
+			}
+		}
+
+		public async Task<JsonValue> ModifyGroupAsync(DB db, int id, JsonValue json)
+		{
+			var extracted = json.ExtractFields("name", "structure_id", "type");
+			if (extracted.Count > 0)
+				await db.UpdateRowAsync("group", "id", id, extracted);
+			return await GetGroupAsync(db, id);
 		}
 
 		public async Task<bool> DeleteGroupAsync(int id)
@@ -144,6 +173,26 @@ namespace Laclasse.Directory
 		public async Task<bool> DeleteGroupAsync(DB db, int id)
 		{
 			return (await db.DeleteAsync("DELETE FROM `group` WHERE id=?", id)) != 0;
+		}
+
+
+		public async Task<JsonArray> GetGroupUsersAsync(DB db, int id)
+		{
+			var res = new JsonArray();
+			foreach (var item in await db.SelectAsync("SELECT * FROM `group_user` WHERE group_id=?", id))
+			{
+				res.Add(new JsonObject
+				{
+					["id"] = (int)item["id"],
+					["type"] = (string)item["type"],
+					["user_id"] = (string)item["user_id"],
+					["subject_id"] = (string)item["subject_id"],
+					["ctime"] = (DateTime)item["ctime"],
+					["aaf_mtime"] = (DateTime?)item["aaf_mtime"],
+					["pending_validation"] = (bool)item["pending_validation"]
+				});
+			}
+			return res;
 		}
 
 		public async Task<JsonArray> GetUserGroupsAsync(string id)
@@ -164,7 +213,7 @@ namespace Laclasse.Directory
 					["id"] = (int)item["id"],
 					["type"] = (string)item["type"],
 					["group_id"] = (int)item["group_id"],
-					["matiere_id"] = (string)item["matiere_id"],
+					["subject_id"] = (string)item["subject_id"],
 					["ctime"] = (DateTime)item["ctime"],
 					["aaf_mtime"] = (DateTime?)item["aaf_mtime"],
 					["pending_validation"] = (bool)item["pending_validation"]
@@ -206,7 +255,7 @@ namespace Laclasse.Directory
 			var res = new JsonArray();
 			foreach (var group in await db.SelectAsync("SELECT * FROM `group` WHERE structure_id=?", id))
 			{
-				res.Add(await GroupToJsonAsync(db, group));
+				res.Add(await GroupToJsonAsync(db, group, false));
 			}
 			return res;
 		}

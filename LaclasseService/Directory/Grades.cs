@@ -1,11 +1,12 @@
-﻿// Niveaux.cs
+﻿// Grades.cs
 // 
-//  Handle matieres API. 
+//  Handle school grades API. 
 //
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Daniel LACROIX
+// Copyright (c) 2017 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -35,8 +36,8 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "niveau", PrimaryKey = "id")]
-	public class Niveau: Model
+	[Model(Table = "grade", PrimaryKey = "id")]
+	public class Grade: Model
 	{
 		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
 		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
@@ -44,11 +45,11 @@ namespace Laclasse.Directory
 		public string stat { get { return GetField<string>("stat", null); } set { SetField("stat", value); } }
 	}
 
-	public class Niveaux : HttpRouting
+	public class Grades : HttpRouting
 	{
 		readonly string dbUrl;
 
-		public Niveaux(string dbUrl)
+		public Grades(string dbUrl)
 		{
 			this.dbUrl = dbUrl;
 
@@ -57,9 +58,9 @@ namespace Laclasse.Directory
 				var res = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					foreach (var item in await db.SelectAsync("SELECT * FROM niveau"))
+					foreach (var item in await db.SelectAsync("SELECT * FROM grade"))
 					{
-						res.Add(NiveauToJson(item));
+						res.Add(GradeToJson(item));
 					}
 				}
 				c.Response.StatusCode = 200;
@@ -68,7 +69,7 @@ namespace Laclasse.Directory
 
 			GetAsync["/{id}"] = async (p, c) =>
 			{
-				var jsonResult = await GetNiveauAsync((string)p["id"]);
+				var jsonResult = await GetGradeAsync((string)p["id"]);
 				if (jsonResult == null)
 					c.Response.StatusCode = 404;
 				else
@@ -82,7 +83,7 @@ namespace Laclasse.Directory
 			{
 				await c.EnsureIsAuthenticatedAsync();
 
-				var jsonResult = await CreateNiveauAsync(await c.Request.ReadAsJsonAsync());
+				var jsonResult = await CreateGradeAsync(await c.Request.ReadAsJsonAsync());
 				if (jsonResult == null)
 					c.Response.StatusCode = 500;
 				else
@@ -102,11 +103,11 @@ namespace Laclasse.Directory
 					return;
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					int count = await db.UpdateRowAsync("niveau", "id", p["id"], extracted);
+					int count = await db.UpdateRowAsync("grade", "id", p["id"], extracted);
 					if (count > 0)
 					{
 						c.Response.StatusCode = 200;
-						c.Response.Content = await GetNiveauAsync(db, (string)p["id"]);
+						c.Response.Content = await GetGradeAsync(db, (string)p["id"]);
 					}
 					else
 						c.Response.StatusCode = 404;
@@ -119,7 +120,7 @@ namespace Laclasse.Directory
 
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					int count = await db.DeleteAsync("DELETE FROM niveau WHERE id=?", (string)p["id"]);
+					int count = await db.DeleteAsync("DELETE FROM grade WHERE id=?", (string)p["id"]);
 					if (count == 0)
 						c.Response.StatusCode = 404;
 					else
@@ -128,7 +129,7 @@ namespace Laclasse.Directory
 			};
 		}
 
-		JsonObject NiveauToJson(Dictionary<string, object> item)
+		JsonObject GradeToJson(Dictionary<string, object> item)
 		{
 			return new JsonObject
 			{
@@ -139,69 +140,69 @@ namespace Laclasse.Directory
 			};
 		}
 
-		public async Task<JsonValue> GetNiveauAsync(string id)
+		public async Task<JsonValue> GetGradeAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await GetNiveauAsync(db, id);
+				return await GetGradeAsync(db, id);
 			}
 		}
 
-		public async Task<JsonValue> GetNiveauAsync(DB db, string id)
+		public async Task<JsonValue> GetGradeAsync(DB db, string id)
 		{
-			var item = (await db.SelectAsync("SELECT * FROM niveau WHERE id=?", id)).SingleOrDefault();
-			return (item == null) ? null : NiveauToJson(item);
+			var item = (await db.SelectAsync("SELECT * FROM grade WHERE id=?", id)).SingleOrDefault();
+			return (item == null) ? null : GradeToJson(item);
 		}
 
-		public async Task<string> GetNiveauLibelleAsync(DB db, string id)
+		public async Task<string> GetGradeLibelleAsync(DB db, string id)
 		{
-			return (string)await db.ExecuteScalarAsync("SELECT name FROM niveau WHERE id=?", id);
+			return (string)await db.ExecuteScalarAsync("SELECT name FROM grade WHERE id=?", id);
 		}
 
-		public async Task<JsonValue> CreateNiveauAsync(JsonValue json)
+		public async Task<JsonValue> CreateGradeAsync(JsonValue json)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await CreateNiveauAsync(db, json);
+				return await CreateGradeAsync(db, json);
 			}
 		}
 
-		public async Task<JsonValue> CreateNiveauAsync(DB db, JsonValue json)
+		public async Task<JsonValue> CreateGradeAsync(DB db, JsonValue json)
 		{
 			json.RequireFields("id", "name");
 			var extracted = json.ExtractFields("id", "name", "rattach", "stat");
 
-			return (await db.InsertRowAsync("niveau", extracted) == 1) ?
-				await GetNiveauAsync(db, (string)extracted["id"]) : null;
+			return (await db.InsertRowAsync("grade", extracted) == 1) ?
+				await GetGradeAsync(db, (string)extracted["id"]) : null;
 		}
 
-		public async Task<JsonValue> ModifyNiveauAsync(string id, JsonValue json)
+		public async Task<JsonValue> ModifyGradeAsync(string id, JsonValue json)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await ModifyNiveauAsync(db, id, json);
+				return await ModifyGradeAsync(db, id, json);
 			}
 		}
 
-		public async Task<JsonValue> ModifyNiveauAsync(DB db, string id, JsonValue json)
+		public async Task<JsonValue> ModifyGradeAsync(DB db, string id, JsonValue json)
 		{
 			var extracted = json.ExtractFields("name", "rattach", "stat");
 			if (extracted.Count > 0)
-				await db.UpdateRowAsync("niveau", "id", id, extracted);
-			return await GetNiveauAsync(db, id);
+				await db.UpdateRowAsync("grade", "id", id, extracted);
+			return await GetGradeAsync(db, id);
 		}
 
-		public async Task<bool> DeleteNiveauAsync(string id)
+		public async Task<bool> DeleteGradeAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await DeleteNiveauAsync(db, id);
+				return await DeleteGradeAsync(db, id);
 			}
 		}
 
-		public async Task<bool> DeleteNiveauAsync(DB db, string id)
+		public async Task<bool> DeleteGradeAsync(DB db, string id)
 		{
-			return (await db.DeleteAsync("DELETE FROM niveau WHERE id=?", id)) != 0;
+			return (await db.DeleteAsync("DELETE FROM grade WHERE id=?", id)) != 0;
 		}
 	}
 }

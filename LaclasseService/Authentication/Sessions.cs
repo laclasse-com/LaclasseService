@@ -29,7 +29,6 @@
 
 using System;
 using System.Text;
-using System.Linq;
 using System.Threading.Tasks;
 using System.Runtime.Remoting.Messaging;
 using Erasme.Http;
@@ -37,13 +36,16 @@ using Erasme.Json;
 
 namespace Laclasse.Authentication
 {
-	public class Session
+	[Model(Table = "session", PrimaryKey = "id")]
+	public class Session : Model
 	{
-		public string id;
-		public DateTime start;
+		[ModelField]
+		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
+		[ModelField]
+		public string user { get { return GetField<string>("user", null); } set { SetField("user", value); } }
+		[ModelField]
+		public DateTime start { get { return GetField("start", DateTime.Now); } set { SetField("start", value); } }
 		public TimeSpan duration;
-		public string application;
-		public string user;
 	}
 
 	public class Sessions : HttpRouting
@@ -82,7 +84,6 @@ namespace Laclasse.Authentication
 			string sessionId;
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-
 				var sb = new StringBuilder();
 				foreach (var b in BitConverter.GetBytes(DateTime.Now.Ticks))
 					sb.Append(b.ToString("X2"));
@@ -95,7 +96,12 @@ namespace Laclasse.Authentication
 					sessionId = sb + StringExt.RandomString(10);
 					try
 					{
-						if (await db.InsertAsync("INSERT INTO session (id,user) VALUES (?,?)", sessionId, user) != 1)
+						var session = new Session
+						{
+							id = sessionId,
+							user = user
+						};
+						if (!await session.InsertAsync(db))
 							sessionId = null;
 					}
 					catch (MySql.Data.MySqlClient.MySqlException e)
@@ -137,17 +143,9 @@ namespace Laclasse.Authentication
 			Session session = null;
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				var item = (await db.SelectAsync("SELECT * FROM session WHERE id=?", sessionId)).SingleOrDefault();
-				if (item != null)
-				{
-					session = new Session
-					{
-						id = (string)item["id"],
-						start = (DateTime)item["start"],
-						duration = TimeSpan.FromSeconds(sessionTimeout),
-						user = (string)item["user"]
-					};
-				}
+				session = await db.SelectRowAsync<Session>(sessionId);
+				if (session != null)
+					session.duration = TimeSpan.FromSeconds(sessionTimeout);
 			}
 			return session;
 		}

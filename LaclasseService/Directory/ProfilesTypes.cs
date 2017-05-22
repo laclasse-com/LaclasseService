@@ -1,10 +1,11 @@
-﻿// StructuresTypes.cs
+﻿// ProfilesTypes.cs
+// 
+//  Handle profiles types API. 
 //
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Metropole de Lyon
-// Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,43 +26,44 @@
 // THE SOFTWARE.
 //
 
+using System.Threading.Tasks;
 using Erasme.Http;
+using Erasme.Json;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "structure_type", PrimaryKey = "id")]
-	public class StructureType : Model
+	[Model(Table = "profile_type", PrimaryKey = "id")]
+	public class ProfileType : Model
 	{
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
 		[ModelField]
 		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
 		[ModelField]
-		public string contrat_type { get { return GetField<string>("contrat_type", null); } set { SetField("contrat_type", value); } }
-		[ModelField]
-		public string aaf_type { get { return GetField<string>("aaf_type", null); } set { SetField("aaf_type", value); } }
+		public string code_national { get { return GetField<string>("code_national", null); } set { SetField("code_national", value); } }
 	}
 
-	public class StructuresTypes: HttpRouting
+	public class ProfilesTypes : HttpRouting
 	{
-		public StructuresTypes(string dbUrl)
+		public ProfilesTypes(string dbUrl)
 		{
 			GetAsync["/"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await db.SelectAsync<StructureType>("SELECT * FROM structure_type");
+					c.Response.Content = await db.SelectAsync<ProfileType>("SELECT * FROM profile_type");
 				c.Response.StatusCode = 200;
 			};
 
-			GetAsync["/{id:int}"] = async (p, c) =>
+			GetAsync["/{id}"] = async (p, c) =>
 			{
-				StructureType item;
 				using (DB db = await DB.CreateAsync(dbUrl))
-					item = await db.SelectRowAsync<StructureType>((int)p["id"]);
-				if (item != null)
 				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = item;
+					var item = await db.SelectRowAsync<ProfileType>((string)p["id"]);
+					if (item != null)
+					{
+						c.Response.StatusCode = 200;
+						c.Response.Content = item;
+					}
 				}
 			};
 		}

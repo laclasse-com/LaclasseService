@@ -26,9 +26,6 @@
 // THE SOFTWARE.
 //
 
-using System;
-using System.Linq;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Erasme.Json;
@@ -39,7 +36,9 @@ namespace Laclasse.Directory
 	[Model(Table = "subject", PrimaryKey = "id")]
 	public class Subject : Model
 	{
+		[ModelField(Required = true)]
 		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } } 
+		[ModelField]
 		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
 	}
 
@@ -53,16 +52,9 @@ namespace Laclasse.Directory
 
 			GetAsync["/"] = async (p, c) =>
 			{
-				var res = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					foreach (var item in await db.SelectAsync("SELECT * FROM subject"))
-					{
-						res.Add(SubjectToJson(item));
-					}
-				}
+					c.Response.Content = await db.SelectAsync<Subject>("SELECT * FROM subject");
 				c.Response.StatusCode = 200;
-				c.Response.Content = res;
 			};
 
 			GetAsync["/{id}"] = async (p, c) =>
@@ -111,38 +103,24 @@ namespace Laclasse.Directory
 			};
 		}
 
-		JsonObject SubjectToJson(Dictionary<string, object> item)
-		{
-			return new JsonObject
-			{
-				["id"] = (string)item["id"],
-				["name"] = (string)item["name"]
-			};
-		}
-
-		public async Task<JsonValue> GetSubjectAsync(string id)
+		public async Task<Subject> GetSubjectAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await GetSubjectAsync(db, id);
-			}
 		}
 
-		public async Task<JsonValue> GetSubjectAsync(DB db, string id)
+		public async Task<Subject> GetSubjectAsync(DB db, string id)
 		{
-			var item = (await db.SelectAsync("SELECT * FROM subject WHERE id=?", id)).SingleOrDefault();
-			return (item == null) ? null : SubjectToJson(item);
+			return await db.SelectRowAsync<Subject>(id);
 		}
 
-		public async Task<JsonValue> CreateSubjectAsync(JsonValue json)
+		public async Task<Subject> CreateSubjectAsync(JsonValue json)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await CreateSubjectAsync(db, json);
-			}
 		}
 
-		public async Task<JsonValue> CreateSubjectAsync(DB db, JsonValue json)
+		public async Task<Subject> CreateSubjectAsync(DB db, JsonValue json)
 		{
 			json.RequireFields("id", "name");
 			var extracted = json.ExtractFields("id", "name");
@@ -151,15 +129,13 @@ namespace Laclasse.Directory
 				await GetSubjectAsync(db, (string)extracted["id"]) : null;
 		}
 
-		public async Task<JsonValue> ModifySubjectAsync(string id, JsonValue json)
+		public async Task<Subject> ModifySubjectAsync(string id, JsonValue json)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await ModifySubjectAsync(db, id, json);
-			}
 		}
 
-		public async Task<JsonValue> ModifySubjectAsync(DB db, string id, JsonValue json)
+		public async Task<Subject> ModifySubjectAsync(DB db, string id, JsonValue json)
 		{
 			var extracted = json.ExtractFields("name");
 			if (extracted.Count > 0)
@@ -170,9 +146,7 @@ namespace Laclasse.Directory
 		public async Task<bool> DeleteSubjectAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await DeleteSubjectAsync(db, id);
-			}
 		}
 
 		public async Task<bool> DeleteSubjectAsync(DB db, string id)

@@ -1090,7 +1090,7 @@ namespace Laclasse.Authentication
 			var type = tab[0];
 			var lastname = tab[1];
 			var firstname = tab[2];
-			var id_sconet = tab[3];
+			var aaf_struct_rattach_id = tab[3];
 			var uai = tab[4];
 
 			// if parents
@@ -1106,14 +1106,14 @@ namespace Laclasse.Authentication
 				if (usersResult.Count == 1)
 					return usersResult[0];
 
-				// seach find the corresponding student with the 'id_sconet'
+				// seach find the corresponding student with the 'aaf_struct_rattach_id'
 				foreach (var user in usersResult)
 				{
 					foreach (var child in (JsonArray)user["children"])
 					{
 						var childJson = await users.GetUserAsync(child["user_id"]);
 
-						if (childJson["id_sconet"] == int.Parse(id_sconet))
+						if (childJson["aaf_struct_rattach_id"] == int.Parse(aaf_struct_rattach_id))
 							return user;
 					}
 				}
@@ -1123,7 +1123,7 @@ namespace Laclasse.Authentication
 			{
 				// seach find the corresponding user
 				var queryFields = new Dictionary<string, List<string>>();
-				queryFields["id_sconet"] = new List<string>(new string[] { id_sconet });
+				queryFields["aaf_struct_rattach_id"] = new List<string>(new string[] { aaf_struct_rattach_id });
 				var usersResult = (await users.SearchUserAsync(queryFields)).Data;
 				if (usersResult.Count == 1)
 					return usersResult[0];

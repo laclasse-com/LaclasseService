@@ -39,24 +39,49 @@ namespace Laclasse.Directory
 	[Model(Table = "structure", PrimaryKey = "id")]
 	public class Structure : Model
 	{
+		[ModelField(Required = true)]
 		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
+		[ModelField]
 		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		[ModelField]
 		public string siren { get { return GetField<string>("siren", null); } set { SetField("siren", value); } }
+		[ModelField]
 		public string address { get { return GetField<string>("address", null); } set { SetField("address", value); } }
+		[ModelField]
 		public string zip_code { get { return GetField<string>("zip_code", null); } set { SetField("zip_code", value); } }
+		[ModelField]
 		public string city { get { return GetField<string>("city", null); } set { SetField("city", value); } }
+		[ModelField]
 		public string phone { get { return GetField<string>("phone", null); } set { SetField("phone", value); } }
+		[ModelField]
 		public string fax { get { return GetField<string>("fax", null); } set { SetField("fax", value); } }
-		public double longitude { get { return GetField<double>("longitude", 0); } set { SetField("longitude", value); } }
-		public double latitude { get { return GetField<double>("latitude", 0); } set { SetField("latitude", value); } }
+		[ModelField]
+		public double? longitude { get { return GetField<double?>("longitude", null); } set { SetField("longitude", value); } }
+		[ModelField]
+		public double? latitude { get { return GetField<double?>("latitude", null); } set { SetField("latitude", value); } }
+		[ModelField]
 		public DateTime? aaf_mtime { get { return GetField<DateTime?>("aaf_mtime", null); } set { SetField("aaf_mtime", value); } }
+		[ModelField]
 		public string domain { get { return GetField<string>("domain", null); } set { SetField("domain", value); } }
+		[ModelField]
 		public string public_ip { get { return GetField<string>("public_ip", null); } set { SetField("public_ip", value); } }
+		[ModelField(Required = true)]
 		public int type { get { return GetField("type", 0); } set { SetField("type", value); } }
+		[ModelField]
 		public bool aaf_sync_activated { get { return GetField("aaf_sync_activated", false); } set { SetField("aaf_sync_activated", value); } }
+		[ModelField]
 		public string private_ip { get { return GetField<string>("private_ip", null); } set { SetField("private_ip", value); } }
+		[ModelField]
 		public string educnat_marking_id { get { return GetField<string>("educnat_marking_id", null); } set { SetField("educnat_marking_id", value); } }
+		[ModelField]
 		public string url_blog { get { return GetField<string>("url_blog", null); } set { SetField("url_blog", value); } }
+		[ModelField]
+		public int? aaf_jointure_id { get { return GetField<int?>("aaf_jointure_id", null); } set { SetField("aaf_jointure_id", value); } }
+
+		public async Task<ModelList<Group>> GetGroupsAsync(DB db)
+		{
+			return await db.SelectAsync<Group>("SELECT * FROM `group` WHERE structure_id=?", id);
+		}
 	}
 
 	public class Structures : HttpRouting
@@ -232,7 +257,7 @@ namespace Laclasse.Directory
 				c.Response.Content = json;
 			};*/
 
-			GetAsync["/{uai:uai}/resources"] = async (p, c) =>
+			/*GetAsync["/{uai:uai}/resources"] = async (p, c) =>
 			{
 				var json = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
@@ -247,7 +272,7 @@ namespace Laclasse.Directory
 				}
 				c.Response.StatusCode = 200;
 				c.Response.Content = json;
-			};
+			};*/
 
 			PostAsync["/{uai:uai}/resources"] = async (p, c) =>
 			{
@@ -276,12 +301,10 @@ namespace Laclasse.Directory
 			GetAsync["/{uai:uai}/groups"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					var jsonGroups = await groups.GetStructureGroupsAsync(db, (string)p["uai"]);
-					//var classes = from g in jsonGroups where g["type_regroupement_id"] == "GRP" select g;
-					c.Response.StatusCode = 200;
-					c.Response.Content = new JsonArray(jsonGroups);
-				}
+					c.Response.Content = await groups.GetStructureGroupsAsync(db, (string)p["uai"]);
+				//var classes = from g in jsonGroups where g["type_regroupement_id"] == "GRP" select g;
+				c.Response.StatusCode = 200;
+
 			};
 
 /*			GetAsync["/{uai:uai}/groupes_libres"] = async (p, c) =>
@@ -325,11 +348,11 @@ namespace Laclasse.Directory
 		async Task<JsonObject> StructureToJsonAsync(DB db, Dictionary<string, object> item)
 		{
 			var id = (string)item["id"];
-			var jsonGroups = await groups.GetStructureGroupsAsync(db, id);
+			var structGroups = await groups.GetStructureGroupsAsync(db, id);
 			//var classes = from g in jsonGroups where g["type_regroupement_id"] == "CLS" select g;
 			//var groupes_eleves = from g in jsonGroups where g["type_regroupement_id"] == "GRP" select g;
 			//var groupes_libres = from g in jsonGroups where g["type_regroupement_id"] == "GPL" select g;
-			var jsonProfiles = await profiles.GetStructureProfilesAsync(db, id);
+			//var jsonProfiles = await profiles.GetStructureProfilesAsync(db, id);
 
 			return new JsonObject
 			{
@@ -346,12 +369,13 @@ namespace Laclasse.Directory
 				["longitude"] = (double?)item["longitude"],
 				["latitude"] = (double?)item["latitude"],
 				["domain"] = (string)item["domain"],
+				["aaf_jointure_id"] = (int?)item["aaf_jointure_id"],
 				["resources"] = await GetStructureResourcesAsync(db, id),
-				["groups"] = jsonGroups,
+				["groups"] = structGroups,
 				//["classes"] = new JsonArray(classes),
 				//["groupes_eleves"] = new JsonArray(groupes_eleves),
 				//["groupes_libres"] = new JsonArray(groupes_libres),
-				["profiles"] = jsonProfiles
+				//["profiles"] = jsonProfiles
 			};
 		}
 
@@ -372,6 +396,17 @@ namespace Laclasse.Directory
 				res = await StructureToJsonAsync(db, item);
 			}
 			return res;
+		}
+
+		public async Task<Structure> GetStructureByAafJointureIdAsync(int aaf_jointure_id)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+				return await GetStructureByAafJointureIdAsync(db, aaf_jointure_id);
+		}
+
+		public async Task<Structure> GetStructureByAafJointureIdAsync(DB db, int aaf_jointure_id)
+		{
+			return (await db.SelectAsync<Structure>("SELECT * FROM structure WHERE aaf_jointure_id=?", aaf_jointure_id)).SingleOrDefault();
 		}
 
 		public async Task<JsonValue> CreateStructureAsync(JsonValue json)
@@ -407,7 +442,7 @@ namespace Laclasse.Directory
 		public async Task<JsonValue> ModifyStructureAsync(DB db, string id, JsonValue json)
 		{
 			var extracted = json.ExtractFields(
-				"name", "address", "zip_code", "city", "phone", "fax", "aaf_mtime",
+				"name", "address", "zip_code", "city", "phone", "fax", "aaf_mtime", "aaf_jointure_id",
 				"type", "siren", "longitude", "latitude", "domain", "public_ip", "private_ip"
 			);
 

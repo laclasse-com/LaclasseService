@@ -46,6 +46,9 @@
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.Numerics" />
     <Reference Include="System.Security" />
+    <Reference Include="SharpCompress">
+      <HintPath>..\packages\SharpCompress.0.15.2\lib\net45\SharpCompress.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
@@ -80,6 +83,8 @@
     <Compile Include="Directory\PortailNews.cs" />
     <Compile Include="Aaf\Synchronizer.cs" />
     <Compile Include="Directory\StructuresTypes.cs" />
+    <Compile Include="Directory\Ent.cs" />
+    <Compile Include="Directory\ProfilesTypes.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

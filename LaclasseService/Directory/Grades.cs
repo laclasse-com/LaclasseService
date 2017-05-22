@@ -27,8 +27,6 @@
 // THE SOFTWARE.
 //
 
-using System.Linq;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Erasme.Json;
@@ -37,11 +35,15 @@ using Laclasse.Authentication;
 namespace Laclasse.Directory
 {
 	[Model(Table = "grade", PrimaryKey = "id")]
-	public class Grade: Model
+	public class Grade : Model
 	{
+		[ModelField(Required = true)]
 		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
+		[ModelField]
 		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		[ModelField]
 		public string rattach { get { return GetField<string>("rattach", null); } set { SetField("rattach", value); } }
+		[ModelField]
 		public string stat { get { return GetField<string>("stat", null); } set { SetField("stat", value); } }
 	}
 
@@ -55,27 +57,20 @@ namespace Laclasse.Directory
 
 			GetAsync["/"] = async (p, c) =>
 			{
-				var res = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					foreach (var item in await db.SelectAsync("SELECT * FROM grade"))
-					{
-						res.Add(GradeToJson(item));
-					}
-				}
+					c.Response.Content = await db.SelectAsync<Grade>("SELECT * FROM grade");
 				c.Response.StatusCode = 200;
-				c.Response.Content = res;
 			};
 
 			GetAsync["/{id}"] = async (p, c) =>
 			{
-				var jsonResult = await GetGradeAsync((string)p["id"]);
-				if (jsonResult == null)
+				var grade = await GetGradeAsync((string)p["id"]);
+				if (grade == null)
 					c.Response.StatusCode = 404;
 				else
 				{
 					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
+					c.Response.Content = grade;
 				}
 			};
 
@@ -83,13 +78,13 @@ namespace Laclasse.Directory
 			{
 				await c.EnsureIsAuthenticatedAsync();
 
-				var jsonResult = await CreateGradeAsync(await c.Request.ReadAsJsonAsync());
-				if (jsonResult == null)
+				var grade = await CreateGradeAsync(await c.Request.ReadAsJsonAsync());
+				if (grade == null)
 					c.Response.StatusCode = 500;
 				else
 				{
 					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
+					c.Response.Content = grade;
 				}
 			};
 
@@ -129,45 +124,29 @@ namespace Laclasse.Directory
 			};
 		}
 
-		JsonObject GradeToJson(Dictionary<string, object> item)
-		{
-			return new JsonObject
-			{
-				["id"] = (string)item["id"],
-				["name"] = (string)item["name"],
-				["rattach"] = (string)item["rattach"],
-				["stat"] = (string)item["stat"]
-			};
-		}
-
-		public async Task<JsonValue> GetGradeAsync(string id)
+		public async Task<Grade> GetGradeAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await GetGradeAsync(db, id);
-			}
 		}
 
-		public async Task<JsonValue> GetGradeAsync(DB db, string id)
+		public async Task<Grade> GetGradeAsync(DB db, string id)
 		{
-			var item = (await db.SelectAsync("SELECT * FROM grade WHERE id=?", id)).SingleOrDefault();
-			return (item == null) ? null : GradeToJson(item);
+			return await db.SelectRowAsync<Grade>(id);
 		}
 
-		public async Task<string> GetGradeLibelleAsync(DB db, string id)
-		{
-			return (string)await db.ExecuteScalarAsync("SELECT name FROM grade WHERE id=?", id);
-		}
+		//public async Task<string> GetGradeLibelleAsync(DB db, string id)
+		//{
+		//	return (string)await db.ExecuteScalarAsync("SELECT name FROM grade WHERE id=?", id);
+		//}
 
-		public async Task<JsonValue> CreateGradeAsync(JsonValue json)
+		public async Task<Grade> CreateGradeAsync(JsonValue json)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await CreateGradeAsync(db, json);
-			}
 		}
 
-		public async Task<JsonValue> CreateGradeAsync(DB db, JsonValue json)
+		public async Task<Grade> CreateGradeAsync(DB db, JsonValue json)
 		{
 			json.RequireFields("id", "name");
 			var extracted = json.ExtractFields("id", "name", "rattach", "stat");
@@ -176,15 +155,13 @@ namespace Laclasse.Directory
 				await GetGradeAsync(db, (string)extracted["id"]) : null;
 		}
 
-		public async Task<JsonValue> ModifyGradeAsync(string id, JsonValue json)
+		public async Task<Grade> ModifyGradeAsync(string id, JsonValue json)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await ModifyGradeAsync(db, id, json);
-			}
 		}
 
-		public async Task<JsonValue> ModifyGradeAsync(DB db, string id, JsonValue json)
+		public async Task<Grade> ModifyGradeAsync(DB db, string id, JsonValue json)
 		{
 			var extracted = json.ExtractFields("name", "rattach", "stat");
 			if (extracted.Count > 0)
@@ -195,9 +172,7 @@ namespace Laclasse.Directory
 		public async Task<bool> DeleteGradeAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await DeleteGradeAsync(db, id);
-			}
 		}
 
 		public async Task<bool> DeleteGradeAsync(DB db, string id)

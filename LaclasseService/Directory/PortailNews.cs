@@ -32,6 +32,25 @@ using Erasme.Json;
 
 namespace Laclasse.Directory
 {
+	[Model(Table = "news", PrimaryKey = "id")]
+	public class News : Model
+	{
+		[ModelField]
+		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		[ModelField]
+		public string title { get { return GetField<string>("title", null); } set { SetField("title", value); } }
+		[ModelField]
+		public string description { get { return GetField<string>("description", null); } set { SetField("description", value); } }
+		[ModelField]
+		public DateTime pubDate { get { return GetField("pubDate", DateTime.Now); } set { SetField("pubDate", value); } }
+		[ModelField]
+		public string guid { get { return GetField<string>("guid", null); } set { SetField("guid", value); } }
+		[ModelField]
+		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
+		[ModelField]
+		public int? publipostage_id { get { return GetField<int?>("publipostage_id", null); } set { SetField("publipostage_id", value); } }
+	}
+
 	public class PortailNews : HttpRouting
 	{
 		public PortailNews(string dbUrl)

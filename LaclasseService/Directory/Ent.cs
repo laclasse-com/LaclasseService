@@ -1,10 +1,9 @@
-﻿// StructuresTypes.cs
+﻿// Ent.cs
 //
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Metropole de Lyon
-// Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,45 +24,20 @@
 // THE SOFTWARE.
 //
 
-using Erasme.Http;
-
 namespace Laclasse.Directory
 {
-	[Model(Table = "structure_type", PrimaryKey = "id")]
-	public class StructureType : Model
+	[Model(Table = "ent", PrimaryKey = "id")]
+	public class Ent : Model
 	{
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
 		[ModelField]
-		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		public string mail_domaine { get { return GetField<string>("mail_domaine", null); } set { SetField("mail_domaine", value); } }
 		[ModelField]
-		public string contrat_type { get { return GetField<string>("contrat_type", null); } set { SetField("contrat_type", value); } }
+		public long last_id_ent_counter { get { return GetField<long>("last_id_ent_counter", 0); } set { SetField("last_id_ent_counter", value); } }
 		[ModelField]
-		public string aaf_type { get { return GetField<string>("aaf_type", null); } set { SetField("aaf_type", value); } }
-	}
-
-	public class StructuresTypes: HttpRouting
-	{
-		public StructuresTypes(string dbUrl)
-		{
-			GetAsync["/"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await db.SelectAsync<StructureType>("SELECT * FROM structure_type");
-				c.Response.StatusCode = 200;
-			};
-
-			GetAsync["/{id:int}"] = async (p, c) =>
-			{
-				StructureType item;
-				using (DB db = await DB.CreateAsync(dbUrl))
-					item = await db.SelectRowAsync<StructureType>((int)p["id"]);
-				if (item != null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = item;
-				}
-			};
-		}
+		public string ent_letter { get { return GetField<string>("ent_letter", null); } set { SetField("ent_letter", value); } }
+		[ModelField]
+		public int ent_digit { get { return GetField("ent_digit", 0); } set { SetField("ent_digit", value); } }
 	}
 }

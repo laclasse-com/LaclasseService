@@ -113,6 +113,7 @@ namespace Laclasse
 			mapper.Add("/api/applications", applications);
 			var resources = new Resources(dbUrl);
 			mapper.Add("/api/resources", resources);
+			mapper.Add("/api/profiles_types", new ProfilesTypes(dbUrl));
 			var profiles = new Profiles(dbUrl);
 			mapper.Add("/api/profiles", profiles);
 			var emails = new Emails(dbUrl);
@@ -128,7 +129,7 @@ namespace Laclasse
 			mapper.Add("/api/users", users);
 			mapper.Add("/api/app/users", users);
 			mapper.Add("/api/sso", new Sso(dbUrl, users));
-			mapper.Add("/api/structures", new Tiles(dbUrl, structures));
+			mapper.Add("/api/structures", new Tiles(dbUrl));
 			mapper.Add("/api/structures", new PortailFlux(dbUrl));
 			mapper.Add("/api/users", new PortailNews(dbUrl));
 			mapper.Add("/api/logs", new Logs(dbUrl));
@@ -157,8 +158,22 @@ namespace Laclasse
 
 			//Console.WriteLine("Test n1 et n2: " + (n1 != n2));
 
+			// quick check to validate the currents models.
+			// If not compatible with the DB Schema. STOP HERE
+			if (!DB.CheckDBModels(dbUrl))
+				return;
+
+			//var log = Model.CreateFromJson<Log>(new JsonObject { ["url"] = "test", ["timestamp"] = "2015-01-12" });
+			//Console.WriteLine(log.Fields.Dump());
+			//Console.WriteLine(log.Fields["primary"].GetType());
 			//return;
-			//var sync = new Laclasse.Aaf.Synchronizer(dbUrl, subjects, grades);
+
+			//Aaf.Synchronizer.ConvertToZip("/home/daniel/Programmation/laclassev4/aaf/Complet69-ENT2D.20170327-global.tgz", "/tmp/test.zip");
+			//return;
+
+			//var sync = new Aaf.Synchronizer(dbUrl);
+			//sync.TestZip();
+			//return;
 			//sync.Synchronize().Wait();
 			//return;
 

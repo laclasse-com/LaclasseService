@@ -24,8 +24,6 @@
 // THE SOFTWARE.
 //
 
-using System.Linq;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Erasme.Json;
@@ -33,11 +31,36 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
+	[Model(Table = "tile", PrimaryKey = "id")]
+	public class Tile : Model
+	{
+		[ModelField]
+		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		[ModelField(Required = true)]
+		public string structure_id { get { return GetField<string>("structure_id", null); } set { SetField("structure_id", value); } }
+		[ModelField]
+		public string application_id { get { return GetField<string>("application_id", null); } set { SetField("application_id", value); } }
+		[ModelField(Required = true)]
+		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
+		[ModelField]
+		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		[ModelField]
+		public string description { get { return GetField<string>("description", null); } set { SetField("description", value); } }
+		[ModelField]
+		public string url { get { return GetField<string>("url", null); } set { SetField("url", value); } }
+		[ModelField(Required = true)]
+		public int index { get { return GetField("index", 0); } set { SetField("index", value); } }
+		[ModelField]
+		public string color { get { return GetField<string>("color", null); } set { SetField("color", value); } }
+		[ModelField]
+		public string icon { get { return GetField<string>("icon", null); } set { SetField("icon", value); } }
+	}
+
 	public class Tiles : HttpRouting
 	{
 		readonly string dbUrl;
 
-		public Tiles(string dbUrl, Structures structures)
+		public Tiles(string dbUrl)
 		{
 			this.dbUrl = dbUrl;
 
@@ -48,19 +71,8 @@ namespace Laclasse.Directory
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					var etab = await structures.GetStructureAsync(db, (string)p["uai"]);
-					if (etab == null)
-						c.Response.StatusCode = 404;
-					else
-					{
-						var jsonResult = new JsonArray();
-						foreach (var item in await db.SelectAsync("SELECT * FROM tile WHERE structure_id=?", (string)etab["id"]))
-						{
-							jsonResult.Add(PortailEntreeToJson(item));
-						}
-						c.Response.StatusCode = 200;
-						c.Response.Content = jsonResult;
-					}
+					c.Response.StatusCode = 200;
+					c.Response.Content = await db.SelectAsync<Tile>("SELECT * FROM tile WHERE structure_id=?", (string)p["uai"]);
 				}
 			};
 
@@ -73,7 +85,7 @@ namespace Laclasse.Directory
 					using (DB db = await DB.CreateAsync(dbUrl))
 					{
 						foreach (var jsonItem in (JsonArray)json)
-							jsonResult.Add(await CreatePortailEntreeAsync(jsonItem));
+							jsonResult.Add(await CreateTileAsync(jsonItem));
 					}
 					c.Response.StatusCode = 200;
 					c.Response.Content = jsonResult;
@@ -81,7 +93,7 @@ namespace Laclasse.Directory
 				else
 				{
 					c.Response.StatusCode = 200;
-					c.Response.Content = await CreatePortailEntreeAsync(json);
+					c.Response.Content = await CreateTileAsync(json);
 				}
 			};
 
@@ -97,7 +109,7 @@ namespace Laclasse.Directory
 					if (count > 0)
 					{
 						c.Response.StatusCode = 200;
-						c.Response.Content = await GetPortailEntreeAsync(db, json["id"]);
+						c.Response.Content = await GetTileAsync(db, json["id"]);
 					}
 					else
 						c.Response.StatusCode = 404;
@@ -108,7 +120,7 @@ namespace Laclasse.Directory
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					if (await db.DeleteAsync("DELETE FROM tile WHERE id=?", (int)p["id"]) == 1)
+					if (await db.DeleteAsync("DELETE FROM tile WHERE id=? AND structure_id=?", (int)p["id"], (string)p["uai"]) == 1)
 						c.Response.StatusCode = 200;
 					else
 						c.Response.StatusCode = 404;
@@ -116,38 +128,18 @@ namespace Laclasse.Directory
 			};
 		}
 
-		JsonObject PortailEntreeToJson(Dictionary<string, object> item)
+		public async Task<Tile> GetTileAsync(DB db, int id)
 		{
-			return new JsonObject
-			{
-				["id"] = (int)item["id"],
-				["structure_id"] = (string)item["structure_id"],
-				["application_id"] = (string)item["application_id"],
-				["type"] = (string)item["type"],
-				["name"] = (string)item["name"],
-				["description"] = (string)item["description"],
-				["url"] = (string)item["url"],
-				["index"] = (int)item["index"],
-				["color"] = (string)item["color"],
-				["icon"] = (string)item["icon"]
-			};
+			return await db.SelectRowAsync<Tile>(id);
 		}
 
-		public async Task<JsonValue> GetPortailEntreeAsync(DB db, int id)
-		{
-			var item = (await db.SelectAsync("SELECT * FROM tile WHERE id=?", id)).SingleOrDefault();
-			return (item == null) ? null : PortailEntreeToJson(item);
-		}
-
-		public async Task<JsonValue> CreatePortailEntreeAsync(JsonValue json)
+		public async Task<Tile> CreateTileAsync(JsonValue json)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
-				return await CreatePortailEntreeAsync(db, json);
-			}
+				return await CreateTileAsync(db, json);
 		}
 
-		public async Task<JsonValue> CreatePortailEntreeAsync(DB db, JsonValue json)
+		public async Task<Tile> CreateTileAsync(DB db, JsonValue json)
 		{
 			// check required fields
 			json.RequireFields("structure_id", "index", "type");
@@ -155,10 +147,10 @@ namespace Laclasse.Directory
 				"structure_id", "index", "type", "application_id", "name", "description",
 				"url", "icon", "color");
 
-			JsonValue jsonResult = null;
+			Tile tile = null;
 			if (await db.InsertRowAsync("tile", extracted) == 1)
-				jsonResult = await GetPortailEntreeAsync(db, (int)await db.LastInsertIdAsync());
-			return jsonResult;
+				tile = await GetTileAsync(db, (int)await db.LastInsertIdAsync());
+			return tile;
 		}
 	}
 }

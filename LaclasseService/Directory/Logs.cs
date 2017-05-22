@@ -4,6 +4,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,14 +27,35 @@
 
 using System;
 using System.Net;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Erasme.Http;
-using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
+	[Model(Table = "log", PrimaryKey = "id")]
+	public class Log : Model
+	{
+		[ModelField]
+		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		[ModelField(Required = true)]
+		public string ip { get { return GetField<string>("ip", null); } set { SetField("ip", value); } }
+		[ModelField(Required = true)]
+		public string application_id { get { return GetField<string>("application_id", null); } set { SetField("application_id", value); } }
+		[ModelField(Required = true)]
+		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
+		[ModelField(Required = true)]
+		public string structure_id { get { return GetField<string>("structure_id", null); } set { SetField("structure_id", value); } }
+		[ModelField(Required = true)]
+		public string profil_id { get { return GetField<string>("profil_id", null); } set { SetField("profil_id", value); } }
+		[ModelField(Required = true)]
+		public string url { get { return GetField<string>("url", null); } set { SetField("url", value); } }
+		[ModelField]
+		public string parameters { get { return GetField<string>("parameters", null); } set { SetField("parameters", value); } }
+		[ModelField]
+		public DateTime timestamp { get { return GetField("timestamp", DateTime.Now); } set { SetField("timestamp", value); } }
+	}
+
 	public class Logs : HttpRouting
 	{
 		readonly string dbUrl;
@@ -57,7 +79,7 @@ namespace Laclasse.Directory
 				var json = await c.Request.ReadAsJsonAsync();
 				// check required fields
 				json.RequireFields("application_id", "user_id", "structure_id", "profil_id", "url");
-				var extracted = json.ExtractFields("application_id", "user_id", "structure_id", "profil_id", "url", "params");
+				var extracted = json.ExtractFields("application_id", "user_id", "structure_id", "profil_id", "url", "parameters");
 				// append the sender IP address
 				string ip = "unknown";
 				if (c.Request.RemoteEndPoint is IPEndPoint)
@@ -84,7 +106,6 @@ namespace Laclasse.Directory
 				c.Request.QueryString.RequireFields(
 					"until", "from");
 
-				var jsonResult = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
 					string filter = "";
@@ -94,49 +115,24 @@ namespace Laclasse.Directory
 					if (c.Request.QueryStringArray.ContainsKey("uids") &&
 						c.Request.QueryStringArray["uids"].Count > 0)
 						filter += " AND " + db.InFilter("uid", c.Request.QueryStringArray["uids"]);
-					var items = await db.SelectAsync(
+					c.Response.Content = await db.SelectAsync<Log>(
 						$"SELECT * FROM log WHERE timestamp >= ? AND timestamp <= ? {filter}",
 						DateTime.Parse(c.Request.QueryString["from"]),
 						DateTime.Parse(c.Request.QueryString["until"]));
-					foreach (var item in items)
-					{
-						jsonResult.Add(LogToJson(item));
-					}
 				}
 				c.Response.StatusCode = 200;
-				c.Response.Content = jsonResult;
-			};
-
-		}
-
-		JsonObject LogToJson(Dictionary<string, object> item)
-		{
-			return new JsonObject
-			{
-				["id"] = (int)item["id"],
-				["ip"] = (string)item["ip"],
-				["application_id"] = (string)item["application_id"],
-				["user_id"] = (string)item["user_id"],
-				["structure_id"] = (string)item["structure_id"],
-				["profil_id"] = (string)item["profil_id"],
-				["url"] = (string)item["url"],
-				["params"] = (string)item["params"],
-				["timestamp"] = (DateTime)item["timestamp"]
 			};
 		}
 
-		public async Task<JsonObject> GetLogAsync(int id)
+		public async Task<Log> GetLogAsync(int id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await GetLogAsync(db, id);
-			}
 		}
 
-		public async Task<JsonObject> GetLogAsync(DB db, int id)
+		public async Task<Log> GetLogAsync(DB db, int id)
 		{
-			var item = (await db.SelectAsync("SELECT * FROM log WHERE id=?", id)).First();
-			return (item == null) ? null : LogToJson(item);
+			return await db.SelectRowAsync<Log>(id);
 		}
 	}
 }

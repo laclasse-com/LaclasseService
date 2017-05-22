@@ -35,6 +35,64 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
+	[Model(Table = "group", PrimaryKey = "id")]
+	public class Group : Model
+	{
+		[ModelField]
+		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		[ModelField]
+		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		[ModelField]
+		public string description { get { return GetField<string>("description", null); } set { SetField("description", value); } }
+		[ModelField]
+		public DateTime? aaf_mtime { get { return GetField<DateTime?>("aaf_mtime", null); } set { SetField("aaf_mtime", value); } }
+		[ModelField]
+		public string aaf_name { get { return GetField<string>("aaf_name", null); } set { SetField("aaf_name", value); } }
+		[ModelField(Required = true)]
+		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
+		[ModelField]
+		public string structure_id { get { return GetField<string>("structure_id", null); } set { SetField("structure_id", value); } }
+		[ModelField]
+		public DateTime? ctime { get { return GetField<DateTime?>("ctime", null); } set { SetField("ctime", value); } }
+
+		public async Task<ModelList<GroupGrade>> GetGradesAsync(DB db)
+		{
+			return await db.SelectAsync<GroupGrade>("SELECT * FROM `group_grade` WHERE `group_id`=?", id);
+		}
+	}
+
+	[Model(Table = "group_grade", PrimaryKey = "id")]
+	public class GroupGrade : Model
+	{
+		[ModelField]
+		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		[ModelField(Required = true)]
+		public int group_id { get { return GetField("group_id", 0); } set { SetField("group_id", value); } }
+		[ModelField(Required = true)]
+		public string grade_id { get { return GetField<string>("grade_id", null); } set { SetField("grade_id", value); } }
+	}
+
+	[Model(Table = "group_user", PrimaryKey = "id")]
+	public class GroupUser : Model
+	{
+		[ModelField]
+		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		[ModelField]
+		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
+		[ModelField(Required = true)]
+		public int group_id { get { return GetField("group_id", 0); } set { SetField("group_id", value); } }
+		[ModelField(Required = true)]
+		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
+		[ModelField]
+		public string subject_id { get { return GetField<string>("subject_id", null); } set { SetField("subject_id", value); } }
+		[ModelField]
+		public DateTime ctime { get { return GetField("ctime", DateTime.Now); } set { SetField("ctime", value); } }
+		[ModelField]
+		public DateTime? aaf_mtime { get { return GetField<DateTime?>("aaf_mtime", null); } set { SetField("aaf_mtime", value); } }
+		[ModelField]
+		public bool pending_validation { get { return GetField("pending_validation", false); } set { SetField("pending_validation", value); } }
+	}
+
 	public class Groups : HttpRouting
 	{
 		readonly string dbUrl;
@@ -88,8 +146,7 @@ namespace Laclasse.Directory
 		async Task<JsonObject> GroupToJsonAsync(DB db, Dictionary<string, object> group, bool expand = true)
 		{
 			var id = (int)group["id"];
-			var grade_id = (string)group["grade_id"];
-			var grade_name = await grades.GetGradeLibelleAsync(db, grade_id);
+			var groupGrades = await GetGroupGradesAsync(db, id);
 
 			var result = new JsonObject
 			{
@@ -99,10 +156,9 @@ namespace Laclasse.Directory
 				["aaf_mtime"] = (DateTime?)group["aaf_mtime"],
 				["aaf_name"] = (string)group["aaf_name"],
 				["type"] = (string)group["type"],
-				["grade_id"] = grade_id,
-				["grade_name"] = grade_name,
 				["structure_id"] = (string)group["structure_id"],
-				["ctime"] = (DateTime)group["ctime"]
+				["ctime"] = (DateTime)group["ctime"],
+				["grades"] = groupGrades
 			};
 
 			if (expand)
@@ -176,49 +232,20 @@ namespace Laclasse.Directory
 		}
 
 
-		public async Task<JsonArray> GetGroupUsersAsync(DB db, int id)
+		public async Task<ModelList<GroupUser>> GetGroupUsersAsync(DB db, int id)
 		{
-			var res = new JsonArray();
-			foreach (var item in await db.SelectAsync("SELECT * FROM `group_user` WHERE group_id=?", id))
-			{
-				res.Add(new JsonObject
-				{
-					["id"] = (int)item["id"],
-					["type"] = (string)item["type"],
-					["user_id"] = (string)item["user_id"],
-					["subject_id"] = (string)item["subject_id"],
-					["ctime"] = (DateTime)item["ctime"],
-					["aaf_mtime"] = (DateTime?)item["aaf_mtime"],
-					["pending_validation"] = (bool)item["pending_validation"]
-				});
-			}
-			return res;
+			return await db.SelectAsync<GroupUser>("SELECT * FROM `group_user` WHERE group_id=?", id);
 		}
 
 		public async Task<JsonArray> GetUserGroupsAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await GetUserGroupsAsync(db, id);
-			}
 		}
 
-		public async Task<JsonArray> GetUserGroupsAsync(DB db, string id)
+		public async Task<ModelList<GroupUser>> GetUserGroupsAsync(DB db, string id)
 		{
-			var res = new JsonArray();
-			foreach (var item in await db.SelectAsync("SELECT * FROM `group_user` WHERE user_id=?", id))
-			{
-				res.Add(new JsonObject
-				{
-					["id"] = (int)item["id"],
-					["type"] = (string)item["type"],
-					["group_id"] = (int)item["group_id"],
-					["subject_id"] = (string)item["subject_id"],
-					["ctime"] = (DateTime)item["ctime"],
-					["aaf_mtime"] = (DateTime?)item["aaf_mtime"],
-					["pending_validation"] = (bool)item["pending_validation"]
-				});
-			}
+			return await db.SelectAsync<GroupUser>("SELECT * FROM `group_user` WHERE user_id=?", id);
 
 /*			foreach (var inGroup in await db.SelectAsync("SELECT * FROM eleve_dans_regroupement WHERE user_id=?", id))
 			{
@@ -239,25 +266,28 @@ namespace Laclasse.Directory
 					["joined_at"] = (DateTime?)inGroup["joined_at"]
 				});
 			}*/
-			return res;
 		}
 
-		public async Task<JsonArray> GetStructureGroupsAsync(string id)
+		public async Task<ModelList<Group>> GetStructureGroupsAsync(string id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await GetStructureGroupsAsync(db, id);
-			}
 		}
 
-		public async Task<JsonArray> GetStructureGroupsAsync(DB db, string id)
+		public async Task<ModelList<Group>> GetStructureGroupsAsync(DB db, string id)
 		{
-			var res = new JsonArray();
-			foreach (var group in await db.SelectAsync("SELECT * FROM `group` WHERE structure_id=?", id))
-			{
-				res.Add(await GroupToJsonAsync(db, group, false));
-			}
-			return res;
+			return await db.SelectAsync<Group>("SELECT * FROM `group` WHERE structure_id=?", id);
+		}
+
+		public async Task<ModelList<GroupGrade>> GetGroupGradesAsync(int id)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+				return await GetGroupGradesAsync(db, id);
+		}
+
+		public async Task<ModelList<GroupGrade>> GetGroupGradesAsync(DB db, int id)
+		{
+			return await db.SelectAsync<GroupGrade>("SELECT * FROM `group_grade` WHERE `group_id`=?", id);
 		}
 	}
 }

@@ -6,6 +6,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +35,17 @@ using System.Runtime.Remoting.Messaging;
 
 namespace Laclasse.Authentication
 {
+	[Model(Table = "ticket", PrimaryKey = "id")]
+	public class Ticket : Model
+	{
+		[ModelField]
+		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
+		[ModelField]
+		public string session { get { return GetField<string>("session", null); } set { SetField("session", value); } }
+		[ModelField]
+		public DateTime start { get { return GetField("start", DateTime.Now); } set { SetField("start", value); } }
+	}
+
 	public class Tickets
 	{
 		readonly string dbUrl;
@@ -92,9 +104,7 @@ namespace Laclasse.Authentication
 				CallContext.LogicalSetData("Laclasse.Authentication.Tickets.lastClean", now);
 				// delete old tickets
 				using (DB db = await DB.CreateAsync(dbUrl))
-				{
 					await db.DeleteAsync("DELETE FROM ticket WHERE TIMESTAMPDIFF(SECOND, start, NOW()) >= ?", ticketTimeout);
-				}
 			}
 		}
 
@@ -114,9 +124,7 @@ namespace Laclasse.Authentication
 		public async Task DeleteAsync(string ticketId)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				await db.DeleteAsync("DELETE FROM ticket WHERE id=?", ticketId);
-			}
 		}
 	}
 }

@@ -6,6 +6,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Daniel LACROIX
+// Copyright (c) 2017 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,12 +28,16 @@
 //
 
 using System;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using MySql.Data.MySqlClient;
 using Erasme.Json;
+using Erasme.Http;
+using System.Reflection;
 
 namespace Laclasse
 {
@@ -49,6 +54,12 @@ namespace Laclasse
 		public string PrimaryKey;
 	}
 
+	[AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+	public class ModelFieldAttribute : Attribute
+	{
+		public bool Required = false;
+	}
+
 	public class Model
 	{
 		public Dictionary<string, object> Fields = new Dictionary<string, object>();
@@ -60,11 +71,18 @@ namespace Laclasse
 			{
 				result = new T();
 				var obj = (JsonObject)value;
-				foreach (var key in obj.Keys)
+
+				foreach (var property in typeof(T).GetProperties())
 				{
-					var val = obj[key];
-					if (val is JsonPrimitive)
-						result.Fields[key] = val.Value;
+					var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
+					if (fieldAttribute == null)
+						continue;
+					if (obj.ContainsKey(property.Name))
+					{
+						var val = obj[property.Name];
+						if (val is JsonPrimitive)
+							result.Fields[property.Name] = Convert.ChangeType(val.Value, property.PropertyType);
+					}
 				}
 			}
 			return result;
@@ -103,8 +121,15 @@ namespace Laclasse
 			if (obj == null)
 				return false;
 			foreach (var key in obj.Fields.Keys)
-				if (Fields.ContainsKey(key) && !Fields[key].Equals(obj.Fields[key]))
-					return false;
+			{
+				if (Fields.ContainsKey(key))
+				{
+					if ((Fields[key] == null) && (obj.Fields[key] != null))
+						return false;
+					if (!Fields[key].Equals(obj.Fields[key]))
+						return false;
+				}
+			}
 			return true;
 		}
 
@@ -118,8 +143,13 @@ namespace Laclasse
 			var diff = new T();
 			foreach (var key in b.Fields.Keys)
 			{
-				if (Fields.ContainsKey(key) && (!Fields[key].Equals(b.Fields[key])))
-					diff.Fields[key] = b.Fields[key];
+				if (Fields.ContainsKey(key))
+				{
+					if ((Fields[key] == null) && (b.Fields[key] != null))
+						diff.Fields[key] = b.Fields[key];
+					else if (!Fields[key].Equals(b.Fields[key]))
+						diff.Fields[key] = b.Fields[key];
+				}
 			}
 			return diff;
 		}
@@ -127,7 +157,7 @@ namespace Laclasse
 		public T DiffWithId<T>(T b) where T : Model, new()
 		{
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
-			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : GetType().Name;
+			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 			var diff = Diff(b);
 			diff.Fields[primaryKey] = Fields[primaryKey];
 			return diff;
@@ -142,6 +172,11 @@ namespace Laclasse
 					result.Fields[key] = Fields[key];
 			}
 			return result;
+		}
+
+		public bool IsSet(string name)
+		{
+			return Fields.ContainsKey(name);
 		}
 
 		public void SetField<T>(string name, T value)
@@ -164,16 +199,32 @@ namespace Laclasse
 					result[key] = (string)value;
 				else if (value is int)
 					result[key] = (int)value;
+				else if (value is int?)
+					result[key] = (int?)value;
 				else if (value is uint)
-					result[key] = (int)value;
+					result[key] = (uint)value;
+				else if (value is uint?)
+					result[key] = (uint?)value;
 				else if (value is long)
-					result[key] = (int)value;
+					result[key] = (long)value;
+				else if (value is long?)
+					result[key] = (long?)value;
 				else if (value is ulong)
-					result[key] = (int)value;
+					result[key] = (ulong)value;
+				else if (value is ulong?)
+					result[key] = (ulong?)value;
 				else if (value is float)
 					result[key] = (float)value;
+				else if (value is float?)
+					result[key] = (float?)value;
 				else if (value is double)
 					result[key] = (double)value;
+				else if (value is double?)
+					result[key] = (double?)value;
+				else if (value is bool)
+					result[key] = (bool)value;
+				else if (value is bool?)
+					result[key] = (bool?)value;
 				else if (value is DateTime)
 					result[key] = (DateTime)value;
 				else if (value is DateTime?)
@@ -184,34 +235,133 @@ namespace Laclasse
 			return result;
 		}
 
-		public async Task InsertAsync(DB db)
+		public static implicit operator JsonObject(Model model)
 		{
-			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
-			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
-			await db.InsertRowAsync(tableName, Fields);
+			return model.ToJson();
 		}
 
-		public async Task UpdateAsync(DB db)
+		public static implicit operator HttpContent(Model model)
 		{
-			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
-			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
-			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : GetType().Name;
-			await db.UpdateRowAsync(tableName, primaryKey, Fields[primaryKey], Fields);
+			return new ModelContent(model);
 		}
 
-		public async Task DeleteAsync(DB db)
+		public async Task<bool> LoadAsync(DB db)
 		{
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
-			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : GetType().Name;
-			await db.DeleteAsync($"DELETE FROM {tableName} WHERE {primaryKey}=?", Fields[primaryKey]); 
+			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
+
+			bool done = false;
+			var cmd = new MySqlCommand($"SELECT * FROM `{tableName}` WHERE `{primaryKey}`=?", db.connection);
+			if (db.transaction != null)
+				cmd.Transaction = db.transaction;
+			cmd.Parameters.Add(new MySqlParameter(primaryKey, Fields[primaryKey]));
+			using (var reader = await cmd.ExecuteReaderAsync())
+			{
+				if (await reader.ReadAsync())
+				{
+					for (int i = 0; i < reader.FieldCount; i++)
+						Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+					done = true;
+				}
+			}
+			return done;
+		}
+
+		public async Task<bool> SaveAsync(DB db)
+		{
+			var res = await InsertAsync(db);
+			if (res)
+			{
+				var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+				string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
+				if (!IsSet(primaryKey))
+					Fields[primaryKey] = Convert.ChangeType(await db.LastInsertIdAsync(), GetType().GetProperty(primaryKey).PropertyType);
+				await LoadAsync(db);
+			}
+			return res;
+		}
+
+		public async Task<bool> InsertAsync(DB db)
+		{
+			// check if all required fields are present
+			foreach (var property in GetType().GetProperties())
+			{
+				var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
+				if ((fieldAttribute != null) && (fieldAttribute.Required) && !Fields.ContainsKey(property.Name))
+					throw new WebException(400, $"Missing required field {property.Name}");
+			}
+
+			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
+			await BeforeInsertAsync(db);
+			return (await db.InsertRowAsync(tableName, Fields)) == 1;
+		}
+
+		public async Task<bool> UpdateAsync(DB db)
+		{
+			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
+			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
+			return (await db.UpdateRowAsync(tableName, primaryKey, Fields[primaryKey], Fields)) == 1;
+		}
+
+		public async Task<bool> DeleteAsync(DB db)
+		{
+			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
+			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
+			return (await db.DeleteAsync($"DELETE FROM {tableName} WHERE {primaryKey}=?", Fields[primaryKey])) == 1; 
+		}
+
+		public virtual Task BeforeInsertAsync(DB db)
+		{
+			return Task.FromResult(false);
+		}
+	}
+
+	public class ModelList<T> : List<T> where T : Model
+	{
+		public JsonArray ToJson()
+		{
+			var json = new JsonArray();
+			foreach (var item in this)
+				json.Add(item.ToJson());
+			return json;
+		}
+
+		public static implicit operator JsonArray(ModelList<T> list)
+		{
+			return list.ToJson();
+		}
+
+		public static implicit operator HttpContent(ModelList<T> list)
+		{
+			return new JsonContent(list.ToJson());
+		}
+	}
+
+	public class ModelContent : StreamContent
+	{
+		public ModelContent(Model model) : base(new MemoryStream())
+		{
+			Headers.ContentType = "application/json; charset=\"UTF-8\"";
+
+			var bytes = Encoding.UTF8.GetBytes(model.ToJson().ToString());
+			Stream.Write(bytes, 0, bytes.Length);
+			Stream.Seek(0, SeekOrigin.Begin);
+		}
+
+		public static implicit operator ModelContent(Model value)
+		{
+			return new ModelContent(value);
 		}
 	}
 
 	public class DB : IDisposable
 	{
-		readonly MySqlConnection connection;
-		MySqlTransaction transaction;
+		internal readonly MySqlConnection connection;
+		internal MySqlTransaction transaction;
 
 		DB(string connectionUrl)
 		{
@@ -270,9 +420,9 @@ namespace Laclasse
 			return result;
 		}
 
-		public async Task<IList<T>> SelectAsync<T>(string query, params object[] args) where T : Model, new()
+		public async Task<ModelList<T>> SelectAsync<T>(string query, params object[] args) where T : Model, new()
 		{
-			var result = new List<T>();
+			var result = new ModelList<T>();
 			var cmd = new MySqlCommand(query, connection);
 			if (transaction != null)
 				cmd.Transaction = transaction;
@@ -283,9 +433,7 @@ namespace Laclasse
 				{
 					var item = new T();
 					for (int i = 0; i < reader.FieldCount; i++)
-					{
 						item.Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
-					}
 					result.Add(item);
 				}
 			}
@@ -305,6 +453,30 @@ namespace Laclasse
 				{
 					result = new T();
 					for (int i = 0; i < reader.FieldCount; i++)
+						result.Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+				}
+			}
+			return result;
+		}
+
+		public async Task<T> SelectRowAsync<T>(object idValue) where T : Model, new()
+		{
+			T result = null;
+			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
+			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
+			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
+
+
+			var cmd = new MySqlCommand($"SELECT * FROM `{tableName}` WHERE `{primaryKey}`=?", connection);
+			if (transaction != null)
+				cmd.Transaction = transaction;
+			cmd.Parameters.Add(new MySqlParameter(string.Empty, idValue));
+			using (var reader = await cmd.ExecuteReaderAsync())
+			{
+				while (await reader.ReadAsync() && (result == null))
+				{
+					result = new T();
+					for (int i = 0; i < reader.FieldCount; i++)
 					{
 						result.Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
 					}
@@ -312,6 +484,7 @@ namespace Laclasse
 			}
 			return result;
 		}
+
 
 		async Task<int> NonQueryAsync(string query, object[] args)
 		{
@@ -400,9 +573,7 @@ namespace Laclasse
 			{
 				var strKey = key as string;
 				if (strKey != null)
-				{
 					cmd.Parameters.Add(new MySqlParameter(strKey, values[strKey]));
-				}
 			}
 			return await cmd.ExecuteNonQueryAsync();
 		}
@@ -488,6 +659,112 @@ namespace Laclasse
 				transaction.Dispose();
 			}
 			connection.Close();
+		}
+
+		public static bool CheckDBModels(string dbUrl)
+		{
+			bool valid = true;
+			foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
+			{
+				if (type.IsSubclassOf(typeof(Model)))
+					valid &= CheckDBModel(dbUrl, type);
+			}
+			return valid;
+		}
+
+		public static bool CheckDBModel(string dbUrl, Type model)
+		{
+			if (!model.IsSubclassOf(typeof(Model)))
+				return false;
+
+			bool valid = true;
+
+			var attrs = model.GetCustomAttributes(typeof(ModelAttribute), false);
+			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : model.Name;
+			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
+
+			var fieldsProperties = new Dictionary<string, PropertyInfo>();
+			var properties = model.GetProperties();
+			foreach (var property in properties)
+			{
+				var fieldAttr = property.GetCustomAttributes(typeof(ModelFieldAttribute), false);
+
+				if (fieldAttr.Length > 0)
+					fieldsProperties[property.Name] = property;
+			}
+
+			var colsTypes = new Dictionary<string, System.Data.DataColumn>();
+
+			System.Data.DataTable schema = null;
+			using (var connection = new MySqlConnection(dbUrl))
+			{
+				using (var schemaCommand = new MySqlCommand($"SELECT * FROM `{tableName}`", connection))
+				{
+					connection.Open();
+
+					using (var reader = schemaCommand.ExecuteReader(System.Data.CommandBehavior.SchemaOnly))
+					{
+						schema = reader.GetSchemaTable();
+						foreach (System.Data.DataRow col in schema.Rows)
+						{
+							var colName = (string)col["ColumnName"];
+							colsTypes[colName] = new System.Data.DataColumn
+							{
+								ColumnName = colName,
+								DataType = (Type)col["DataType"],
+								AllowDBNull = (bool)col["AllowDBNull"]
+							};
+						}
+					}
+				}
+			}
+
+			if (!colsTypes.ContainsKey(primaryKey))
+			{
+				Console.WriteLine($"ERROR in model '{model.Name}', PRIMARY KEY '{primaryKey}' NOT PRESENT in table '{tableName}'");
+				valid = false;
+			}
+
+			foreach (var key in fieldsProperties.Keys)
+			{
+				if (!colsTypes.ContainsKey(key))
+				{
+					Console.WriteLine($"ERROR in model '{model.Name}', field '{key}' NOT PRESENT in table '{tableName}'");
+					valid = false;
+				}
+				else 
+				{
+					var propType = fieldsProperties[key].PropertyType;
+					if (fieldsProperties[key].PropertyType.IsValueType)
+					{
+						if (colsTypes[key].AllowDBNull)
+						{
+							propType = Nullable.GetUnderlyingType(fieldsProperties[key].PropertyType);
+							if (propType == null)
+							{
+								Console.WriteLine(
+								$"ERROR in model '{model.Name}', field '{key}' type NOT COMPATIBLE with col " +
+								$"in table '{tableName}' NOT NULLABLE");
+								valid = false;
+							}
+						}
+					}
+					if ((propType != null) && !propType.IsAssignableFrom(colsTypes[key].DataType))
+					{
+						Console.WriteLine(
+							$"ERROR in model '{model.Name}', field '{key}' type NOT COMPATIBLE with col " +
+							$"in table '{tableName}' ({propType} != {colsTypes[key].DataType})");
+						valid = false;
+					}
+				}
+			}
+
+			foreach (var key in colsTypes.Keys)
+			{
+				if (!fieldsProperties.ContainsKey(key))
+					Console.WriteLine($"WARN in model '{model.Name}', row '{key}' of table '{tableName}' NOT PRESENT in the model");
+			}
+			return valid;
 		}
 	}
 }

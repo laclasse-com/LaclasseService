@@ -1,17 +1,53 @@
 ﻿using System;
 using System.IO;
-using System.Net;
 using System.Xml;
 using System.Text;
 using System.Globalization;
 using System.Collections;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Erasme.Json;
 using Erasme.Http;
 
 namespace Laclasse
 {
+	public struct Date
+	{
+		DateTime dateTime;
+
+		public Date(DateTime dateTime)
+		{
+			this.dateTime = dateTime.Date;
+		}
+
+		public override string ToString()
+		{
+			return dateTime.ToString("d");
+		}
+
+		public string ToString(string format)
+		{
+			return dateTime.ToString(format);
+		}
+
+		public static Date Now
+		{
+			get
+			{
+				return new Date(DateTime.Now);
+			}
+		}
+
+		public static implicit operator DateTime(Date date)
+		{
+			return date.dateTime;
+		}
+
+		public static implicit operator Date(DateTime dateTime)
+		{
+			return new Date(dateTime);
+		}
+	}
+
 	public struct SearchResult
 	{
 		public JsonArray Data;
@@ -109,6 +145,11 @@ namespace Laclasse
 			}
 			return default(T);
 		}
+
+		public static JsonArray ToJson<T>() where T : IList<Model>
+		{
+			return new JsonArray();
+		}
 	}
 
 	public static class DictionaryExtensions
@@ -136,7 +177,7 @@ namespace Laclasse
 	{
 		static void Dump<T>(this T obj, StringBuilder sb, int indent)
 		{
-			if (obj == null)
+			if ((obj as object) == null)
 				sb.Append("null");
 			else if (obj is string)
 				sb.Append("\"" + obj + "\"");

@@ -28,7 +28,6 @@
 //
 
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Erasme.Json;
@@ -36,6 +35,23 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
+	[Model(Table = "resource", PrimaryKey = "id")]
+	public class Resource : Model
+	{
+		[ModelField]
+		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		[ModelField]
+		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		[ModelField]
+		public string url { get { return GetField<string>("url", null); } set { SetField("url", value); } }
+		[ModelField]
+		public string site_web { get { return GetField<string>("site_web", null); } set { SetField("site_web", value); } }
+		[ModelField]
+		public DateTime? mtime { get { return GetField<DateTime?>("mtime", null); } set { SetField("mtime", value); } }
+		[ModelField]
+		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
+	}
+
 	public class Resources: HttpRouting
 	{
 		string DBUrl;
@@ -46,16 +62,9 @@ namespace Laclasse.Directory
 
 			GetAsync["/"] = async (p, c) =>
 			{
-				var res = new JsonArray();
 				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					foreach (var resource in await db.SelectAsync("SELECT * FROM resource"))
-					{
-						res.Add(ResourceToJson(resource));
-					}
-				}
+					c.Response.Content = await db.SelectAsync<Resource>("SELECT * FROM resource");
 				c.Response.StatusCode = 200;
-				c.Response.Content = res;
 			};
 
 			GetAsync["/{id:int}"] = async (p, c) =>
@@ -140,31 +149,15 @@ namespace Laclasse.Directory
 			};
 		}
 
-		public JsonObject ResourceToJson(Dictionary<string, object> resource)
-		{
-			return new JsonObject
-			{
-				["id"] = (int)resource["id"],
-				["name"] = (string)resource["name"],
-				["url"] = (string)resource["url"],
-				["site_web"] = (string)resource["site_web"],
-				["mtime"] = (DateTime?)resource["mtime"],
-				["type"] = (string)resource["type"]
-			};
-		}
-
-		public async Task<JsonValue> GetResourceAsync(int id)
+		public async Task<Resource> GetResourceAsync(int id)
 		{
 			using (DB db = await DB.CreateAsync(DBUrl))
-			{
 				return await GetResourceAsync(db, id);
-			}
 		}
 
-		public async Task<JsonValue> GetResourceAsync(DB db, int id)
+		public async Task<Resource> GetResourceAsync(DB db, int id)
 		{
-			var resource = (await db.SelectAsync("SELECT * FROM resource WHERE id=?", id)).First();
-			return (resource == null) ? null : ResourceToJson(resource);
+			return await db.SelectRowAsync<Resource>(id);
 		}
 	}
 }

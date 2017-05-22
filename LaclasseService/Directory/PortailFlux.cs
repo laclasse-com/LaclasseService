@@ -4,6 +4,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +33,21 @@ using Erasme.Json;
 
 namespace Laclasse.Directory
 {
+	[Model(Table = "flux_portail", PrimaryKey = "id")]
+	public class FluxPortail : Model
+	{
+		[ModelField]
+		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		[ModelField]
+		public int nb { get { return GetField("nb", 0); } set { SetField("nb", value); } }
+		[ModelField]
+		public string url { get { return GetField<string>("url", null); } set { SetField("url", value); } }
+		[ModelField]
+		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		[ModelField]
+		public string structure_id { get { return GetField<string>("structure_id", null); } set { SetField("structure_id", value); } }
+	}
+
 	public class PortailFlux : HttpRouting
 	{
 		readonly string dbUrl;
@@ -43,29 +59,15 @@ namespace Laclasse.Directory
 			GetAsync["/"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					var jsonResult = new JsonArray();
-					foreach (var item in await db.SelectAsync("SELECT * FROM flux_portail"))
-					{
-						jsonResult.Add(PortailFluxToJson(item));
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
-				}
+					c.Response.Content = await db.SelectAsync<FluxPortail>("SELECT * FROM flux_portail");
+				c.Response.StatusCode = 200;
 			};
 
 			GetAsync["/{uai}/flux"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					var jsonResult = new JsonArray();
-					foreach (var item in await db.SelectAsync("SELECT * FROM flux_portail WHERE structure_id=?", (string)p["uai"]))
-					{
-						jsonResult.Add(PortailFluxToJson(item));
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
-				}
+					c.Response.Content = await db.SelectAsync<FluxPortail>("SELECT * FROM flux_portail WHERE structure_id=?", (string)p["uai"]);
+				c.Response.StatusCode = 200;
 			};
 
 			GetAsync["/{uai}/flux/{id:int}"] = async (p, c) =>
@@ -132,58 +134,33 @@ namespace Laclasse.Directory
 			};
 		}
 
-		JsonObject PortailFluxToJson(Dictionary<string, object> item)
-		{
-			return new JsonObject
-			{
-				["id"] = (int)item["id"],
-				["structure_id"] = (int)item["structure_id"],
-				["nb"] = (int)item["nb"],
-				["url"] = (string)item["url"],
-				["name"] = (string)item["name"]
-			};
-		}
-
-		public async Task<JsonValue> GetPortailFluxAsync(int id)
+		public async Task<FluxPortail> GetPortailFluxAsync(int id)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await GetPortailFluxAsync(db, id);
-			}
 		}
 
-		public async Task<JsonValue> GetPortailFluxAsync(DB db, int id)
+		public async Task<FluxPortail> GetPortailFluxAsync(DB db, int id)
 		{
-			var item = (await db.SelectAsync("SELECT * FROM flux_portail WHERE id=?", id)).SingleOrDefault();
-			return (item == null) ? null : PortailFluxToJson(item);
+			return await db.SelectRowAsync<FluxPortail>(id);
 		}
 
-		public async Task<JsonValue> CreatePortailFluxAsync(JsonValue json)
+		public async Task<FluxPortail> CreatePortailFluxAsync(JsonValue json)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
 				return await CreatePortailFluxAsync(db, json);
-			}
 		}
 
-		public async Task<JsonValue> CreatePortailFluxAsync(DB db, JsonValue json)
+		public async Task<FluxPortail> CreatePortailFluxAsync(DB db, JsonValue json)
 		{
 			// check required fields
 			json.RequireFields("structure_id", "url", "name");
 			var extracted = json.ExtractFields("structure_id", "url", "nb", "name");
 
-			// get the etab id
-//			var res = await db.ExecuteScalarAsync("SELECT id FROM structure WHERE id=?", (string)extracted["structure_id"]);
-//			if (res == null)
-//				throw new WebException(400, $"Unknown etab with uai: " + extracted["structure_id"]);
-
-//			extracted["etab_id"] = (int)res;
-//			extracted.Remove("etab_code_uai");
-
-			JsonValue jsonResult = null;
+			FluxPortail result = null;
 			if (await db.InsertRowAsync("flux_portail", extracted) == 1)
-				jsonResult = await GetPortailFluxAsync(db, (int)await db.LastInsertIdAsync());
-			return jsonResult;
+				result = await GetPortailFluxAsync(db, (int)await db.LastInsertIdAsync());
+			return result;
 		}
 	}
 }

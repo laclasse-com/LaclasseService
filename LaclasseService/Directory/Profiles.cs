@@ -145,7 +145,7 @@ namespace Laclasse.Directory
 			DeleteAsync["/"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
-				var ids = ((JsonArray)json).Select((arg) => (int)(arg.Value));
+				var ids = ((JsonArray)json).Select((arg) => Convert.ToInt32(arg.Value));
 
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
@@ -167,12 +167,23 @@ namespace Laclasse.Directory
 
 		public async Task<ModelList<UserProfile>> GetUserProfilesAsync(DB db, string id)
 		{
-			return await db.SelectAsync<UserProfile>("SELECT * FROM user_profile WHERE user_id=?", id);
+			var profiles = await db.SelectAsync<UserProfile>("SELECT * FROM user_profile WHERE user_id=?", id);
+			await EnsureUserHasActiveProfile(db, profiles);
+			return profiles;
 		}
 
 		public async Task<ModelList<UserProfile>> GetStructureProfilesAsync(DB db, string id)
 		{
 			return await db.SelectAsync<UserProfile>("SELECT * FROM user_profile WHERE structure_id=?", id);
+		}
+
+		internal static async Task EnsureUserHasActiveProfile(DB db, ModelList<UserProfile> profiles)
+		{
+			if (!profiles.Any((arg) => arg.active) && (profiles.Count > 0))
+			{
+				await profiles[0].DiffWithId(new UserProfile { active = true }).UpdateAsync(db);
+				await profiles[0].LoadAsync(db);
+			}
 		}
 	}
 }

@@ -4,6 +4,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -99,12 +100,14 @@ namespace Laclasse.Directory
 
 		public async Task<ModelList<UserProfile>> GetProfilesAsync(DB db)
 		{
-			return await db.SelectAsync<UserProfile>("SELECT * FROM user_profile WHERE user_id=?", id);
+			var profiles = await db.SelectAsync<UserProfile>("SELECT * FROM user_profile WHERE user_id=?", id);
+			await Profiles.EnsureUserHasActiveProfile(db, profiles);
+			return profiles;
 		}
 
 		public async Task<ModelList<UserChild>> GetChildsAsync(DB db)
 		{
-			return await db.SelectAsync<UserChild>("SELECT * FROM user_child WHERE user_id=?", id);
+			return await db.SelectAsync<UserChild>("SELECT * FROM user_child WHERE parent_id=?", id);
 		}
 
 		public async Task<ModelList<UserChild>> GetParentsAsync(DB db)
@@ -121,19 +124,23 @@ namespace Laclasse.Directory
 		{
 			return await db.SelectAsync<Email>("SELECT * FROM email WHERE user_id=?", id);
 		}
-	}
 
-	[Model(Table = "phone", PrimaryKey = "id")]
-	public class Phone : Model
-	{
-		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
-		[ModelField]
-		public string number { get { return GetField<string>("number", null); } set { SetField("number", value); } }
-		[ModelField]
-		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
-		[ModelField]
-		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
+		public async Task<ModelList<GroupUser>> GetGroupsAsync(DB db)
+		{
+			return await db.SelectAsync<GroupUser>("SELECT * FROM `group_user` WHERE user_id=?", id);
+		}
+
+		public async Task<Email> CreateDefaultEntEmailAsync(DB db)
+		{
+			var email = new Email
+			{
+				user_id = id,
+				address = await Emails.OfferEntEmailAsync(db, firstname, lastname),
+				type = "Ent"
+			};
+			await email.SaveAsync(db);
+			return email;
+		}
 	}
 
 	[Model(Table = "user_child", PrimaryKey = "id")]
@@ -144,7 +151,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
 		[ModelField]
-		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
+		public string parent_id { get { return GetField<string>("parent_id", null); } set { SetField("parent_id", value); } }
 		[ModelField]
 		public string child_id { get { return GetField<string>("child_id", null); } set { SetField("child_id", value); } }
 		[ModelField]
@@ -166,7 +173,8 @@ namespace Laclasse.Directory
 
 		readonly static List<string> searchAllowedFields = new List<string> {
 			"id", "login", "firstname", "lastname", "gender", "address", "city", "zip_code", "super_admin",
-			"aaf_struct_rattach_id", "profiles.type", "profiles.structure_id", "emails.adresse", "emails.type"
+			"aaf_struct_rattach_id", "profiles.type", "profiles.structure_id", "emails.adresse", "emails.type",
+			"groups.group_id"
 		};
 
 		public Users(string dbUrl, Emails emails, Profiles profiles, Groups groups, Structures structures,
@@ -195,8 +203,8 @@ namespace Laclasse.Directory
 			{
 				int offset = 0;
 				int count = -1;
-				string orderBy = "nom";
-				OrderDirection orderDir = OrderDirection.Ascending;
+				string orderBy = "lastname";
+				SortDirection orderDir = SortDirection.Ascending;
 				var query = "";
 				if (c.Request.QueryString.ContainsKey("query"))
 					query = c.Request.QueryString["query"];
@@ -209,7 +217,7 @@ namespace Laclasse.Directory
 				if (c.Request.QueryString.ContainsKey("sort_col"))
 					orderBy = c.Request.QueryString["sort_col"];
 				if (c.Request.QueryString.ContainsKey("sort_dir") && (c.Request.QueryString["sort_dir"] == "desc"))
-					orderDir = OrderDirection.Descending;
+					orderDir = SortDirection.Descending;
 				
 				var parsedQuery = query.QueryParser();
 				foreach (var key in c.Request.QueryString.Keys)
@@ -288,6 +296,19 @@ namespace Laclasse.Directory
 				var json = await c.Request.ReadAsJsonAsync();
 				c.Response.StatusCode = 200;
 				c.Response.Content = await ModifyUserAsync((string)p["uid"], json);
+			};
+
+			PutAsync["/"] = async (p, c) =>
+			{
+				var json = await c.Request.ReadAsJsonAsync() as JsonArray;
+				var result = new JsonArray();
+				foreach (var jsonUser in json)
+				{
+					using (var db = await DB.CreateAsync(dbUrl))
+						result.Add(await ModifyUserAsync(db, jsonUser["id"], jsonUser));
+				}
+				c.Response.StatusCode = 200;
+				c.Response.Content = result;
 			};
 
 			DeleteAsync["/{uid:uid}"] = async (p, c) =>
@@ -505,9 +526,6 @@ namespace Laclasse.Directory
 				c.Response.StatusCode = 200;
 				c.Response.Content = await GetUserAsync((string)p["uid"]);
 			};
-
-			// TODO: need API to handle user_child
-
 		}
 
 		public async Task<JsonObject> UserToJsonAsync(DB db, Dictionary<string, object> item, bool expand = true)
@@ -515,7 +533,14 @@ namespace Laclasse.Directory
 			var id = (string)item["id"];
 			string avatar;
 			if (((string)item["avatar"] == null) || ((string)item["avatar"] == "empty"))
-				avatar = "api/default_avatar/avatar_neutre.svg";
+			{
+				if ((string)item["gender"] == "M")
+					avatar = "avatar/avatar_masculin.svg";
+				else if ((string)item["gender"] == "F")
+					avatar = "avatar/avatar_feminin.svg";
+				else
+					avatar = "avatar/avatar_neutre.svg";
+			}
 			else
 				avatar = "api/avatar/user/" + 
 					id.Substring(0, 1) + "/" + id.Substring(1, 1) + "/" +
@@ -597,40 +622,34 @@ namespace Laclasse.Directory
 
 		public async Task<SearchResult> SearchUserAsync(
 			string query, int offset = 0, int count = -1, string orderBy = null,
-			OrderDirection orderDirection = OrderDirection.Ascending)
+			SortDirection sortDirection = SortDirection.Ascending)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await SearchUserAsync(db, query, offset, count, orderBy, orderDirection);
+				return await SearchUserAsync(db, query, offset, count, orderBy, sortDirection);
 			}
 		}
 
 		public Task<SearchResult> SearchUserAsync(
 			DB db, string query, int offset = 0, int count = -1, string orderBy = null,
-			OrderDirection orderDirection = OrderDirection.Ascending)
+			SortDirection sortDirection = SortDirection.Ascending)
 		{
-			return SearchUserAsync(db, query.QueryParser(), offset, count, orderBy, orderDirection);
+			return SearchUserAsync(db, query.QueryParser(), offset, count, orderBy, sortDirection);
 		}
 
 		public async Task<SearchResult> SearchUserAsync(
 			Dictionary<string, List<string>> queryFields, int offset = 0, int count = -1,
-			string orderBy = null, OrderDirection orderDirection = OrderDirection.Ascending)
+			string orderBy = null, SortDirection sortDirection = SortDirection.Ascending)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return await SearchUserAsync(db, queryFields, offset, count, orderBy, orderDirection);
+				return await SearchUserAsync(db, queryFields, offset, count, orderBy, sortDirection);
 			}
-		}
-
-		public enum OrderDirection
-		{
-			Ascending,
-			Descending
 		}
 
 		public async Task<SearchResult> SearchUserAsync(
 			DB db, Dictionary<string, List<string>> queryFields, int offset = 0, int count = -1,
-			string orderBy = null, OrderDirection orderDirection = OrderDirection.Ascending)
+			string orderBy = null, SortDirection sortDirection = SortDirection.Ascending)
 		{
 			var result = new SearchResult();
 			if ((orderBy == null) || (!searchAllowedFields.Contains(orderBy)))
@@ -760,6 +779,36 @@ namespace Laclasse.Directory
 					}
 					filter += ")";
 				}
+				else if (tableName == "groups")
+				{
+					if (filter != "")
+						filter += " AND ";
+					filter += "id IN (SELECT `user_id` FROM `group_user` WHERE ";
+
+					var first = true;
+					var groupsTable = tables[tableName];
+					foreach (var groupsKey in groupsTable.Keys)
+					{
+						var words = groupsTable[groupsKey];
+						if (words.Count == 1)
+						{
+							if (first)
+								first = false;
+							else
+								filter += " AND ";
+							filter += "`" + groupsKey + "`='" + db.EscapeString(words[0]) + "'";
+						}
+						else if (words.Count > 1)
+						{
+							if (first)
+								first = false;
+							else
+								filter += " AND ";
+							filter += db.InFilter(groupsKey, words);
+						}
+					}
+					filter += ")";
+				}
 			}
 
 			if (filter == "")
@@ -770,8 +819,8 @@ namespace Laclasse.Directory
 
 			result.Data = new JsonArray();
 
-			var orderDir = (orderDirection == OrderDirection.Ascending) ? "ASC" : "DESC";
-			Console.WriteLine($"SELECT SQL_CALC_FOUND_ROWS * FROM user WHERE {filter} ORDER BY `{orderBy}` {orderDir} {limit}");
+			var orderDir = (sortDirection == SortDirection.Ascending) ? "ASC" : "DESC";
+			Console.WriteLine($"SELECT SQL_CALC_FOUND_ROWS * FROM `user` WHERE {filter} ORDER BY `{orderBy}` {orderDir} {limit}");
 			var items = await db.SelectAsync(
 				$"SELECT SQL_CALC_FOUND_ROWS * FROM user WHERE {filter} ORDER BY `{orderBy}` {orderDir} {limit}");
 			result.Total = (int)await db.FoundRowsAsync();
@@ -791,7 +840,7 @@ namespace Laclasse.Directory
 
 		async Task<ModelList<UserChild>> GetUserChildrenAsync(DB db, string id)
 		{
-			return await db.SelectAsync<UserChild>("SELECT * FROM user_child WHERE user_id=?", id);
+			return await db.SelectAsync<UserChild>("SELECT * FROM `user_child` WHERE `parent_id`=?", id);
 		}
 
 		async Task<ModelList<UserChild>> GetUserParentsAsync(string id)
@@ -802,12 +851,12 @@ namespace Laclasse.Directory
 
 		async Task<ModelList<UserChild>> GetUserParentsAsync(DB db, string id)
 		{
-			return await db.SelectAsync<UserChild>("SELECT * FROM user_child WHERE child_id=?", id);
+			return await db.SelectAsync<UserChild>("SELECT * FROM `user_child` WHERE `child_id`=?", id);
 		}
 
 		public async Task<ModelList<Phone>> GetUserPhonesAsync(DB db, string id)
 		{
-			return await db.SelectAsync<Phone>("SELECT * FROM phone WHERE user_id=?", id);
+			return await db.SelectAsync<Phone>("SELECT * FROM `phone` WHERE `user_id`=?", id);
 		}
 
 		public async Task<JsonValue> CreateUserAsync(JsonValue json)
@@ -855,17 +904,28 @@ namespace Laclasse.Directory
 
 		public async Task<JsonValue> ModifyUserAsync(DB db, string id, JsonValue json)
 		{
-			var extracted = json.ExtractFields(
+			json["id"] = id;
+			var user = Model.CreateFromJson<User>(json, "id", "aaf_struct_rattach_id", "password", "lastname", "firstname", "gender", "birthdate", "address",
+				"zip_code", "city", "atime", "avatar");
+			await user.UpdateAsync(db);
+			return await GetUserAsync(db, id);
+
+			/*var extracted = json.ExtractFields(
 				"aaf_struct_rattach_id", "password", "lastname", "firstname", "gender", "birthdate", "address",
 				"zip_code", "city", "atime", "avatar"
 			);
 			// hash the password
 			if (extracted.ContainsKey("password"))
+			{
+				//var password = (string)extracted["password"];
+				//if (!(password.StartsWith("clear:", StringComparison.InvariantCulture) &&
+				//      !(password.StartsWith("bcrypt:", StringComparison.InvariantCulture)))
 				extracted["password"] = "bcrypt:" + BCrypt.Net.BCrypt.HashPassword((string)extracted["password"], 5);
+			}
 
 			if (extracted.Count > 0)
 				await db.UpdateRowAsync("user", "id", id, extracted);
-			return await GetUserAsync(db, id);
+			return await GetUserAsync(db, id);*/
 		}
 
 		public async Task<bool> DeleteUserAsync(string id)
@@ -881,7 +941,7 @@ namespace Laclasse.Directory
 
 		public async Task<Phone> GetUserPhoneAsync(DB db, string uid, int id)
 		{
-			return (await db.SelectAsync<Phone>("SELECT * FROM phone WHERE user_id=? AND id=?", uid, id)).SingleOrDefault();
+			return (await db.SelectAsync<Phone>("SELECT * FROM `phone` WHERE `user_id`=? AND `id`=?", uid, id)).SingleOrDefault();
 		}
 
 		public async Task<Phone> CreateUserPhoneAsync(string uid, JsonValue json)
@@ -909,26 +969,26 @@ namespace Laclasse.Directory
 
 		public async Task<bool> DeleteUserPhoneAsync(DB db, string uid, int id)
 		{
-			return await db.DeleteAsync("DELETE FROM phone WHERE user_id=? AND id=?", uid, id) == 1;
+			return await db.DeleteAsync("DELETE FROM `phone` WHERE `user_id`=? AND `id`=?", uid, id) == 1;
 		}
 
 		public async Task<JsonValue> GetUserByLoginAsync(string login)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				var item = (await db.SelectAsync("SELECT * FROM user WHERE login=?", login)).SingleOrDefault();
+				var item = (await db.SelectAsync("SELECT * FROM `user` WHERE login=?", login)).SingleOrDefault();
 				return (item == null) ? null : await UserToJsonAsync(db, item);
 			}
 		}
 
 		async Task EnsureUserHasActiveProfileAsync(DB db, string id)
 		{
-			var items = await db.SelectAsync("SELECT * FROM user_profile WHERE user_id=?", id);
+			var items = await db.SelectAsync("SELECT * FROM `user_profile` WHERE user_id=?", id);
 			foreach (var item in items)
 				if ((bool)item["active"])
 					return;
 			if (items.Count > 0)
-				await db.UpdateAsync("UPDATE user_profile SET active=TRUE WHERE id=?", (int)((items[0])["id"]));
+				await db.UpdateAsync("UPDATE `user_profile` SET active=TRUE WHERE id=?", (int)((items[0])["id"]));
 		}
 
 		/// <summary>
@@ -942,7 +1002,7 @@ namespace Laclasse.Directory
 			var ent = await db.SelectRowAsync<Ent>("Laclasse");
 
 			// get the next uid from its integer value
-			await db.UpdateAsync("UPDATE ent SET last_id_ent_counter=last_insert_id(last_id_ent_counter+1) WHERE id='Laclasse'");
+			await db.UpdateAsync("UPDATE `ent` SET last_id_ent_counter=last_insert_id(last_id_ent_counter+1) WHERE id='Laclasse'");
 
 			var lastUidCounter = await db.LastInsertIdAsync();
 
@@ -997,7 +1057,7 @@ namespace Laclasse.Directory
 
 			while(true)
 			{
-				var item = (await db.SelectAsync("SELECT login FROM user WHERE login=?", finalLogin)).SingleOrDefault();
+				var item = (await db.SelectAsync("SELECT login FROM `user` WHERE login=?", finalLogin)).SingleOrDefault();
 				if (item == null)
 					break;
 				finalLogin = $"{login}{loginNumber}";
@@ -1015,7 +1075,7 @@ namespace Laclasse.Directory
 		public async Task<string> CheckPasswordAsync(DB db, string login, string password)
 		{
 			string user = null;
-			var item = (await db.SelectAsync("SELECT * FROM user WHERE login=?", login)).SingleOrDefault();
+			var item = (await db.SelectAsync("SELECT * FROM `user` WHERE login=?", login)).SingleOrDefault();
 			if (item != null)
 			{
 				var encodedPassword = (string)item["password"];

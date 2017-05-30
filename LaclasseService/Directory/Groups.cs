@@ -72,31 +72,15 @@ namespace Laclasse.Directory
 		public string grade_id { get { return GetField<string>("grade_id", null); } set { SetField("grade_id", value); } }
 	}
 
-	[Model(Table = "group_user", PrimaryKey = "id")]
-	public class GroupUser : Model
-	{
-		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
-		[ModelField]
-		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
-		[ModelField(Required = true)]
-		public int group_id { get { return GetField("group_id", 0); } set { SetField("group_id", value); } }
-		[ModelField(Required = true)]
-		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
-		[ModelField]
-		public string subject_id { get { return GetField<string>("subject_id", null); } set { SetField("subject_id", value); } }
-		[ModelField]
-		public DateTime ctime { get { return GetField("ctime", DateTime.Now); } set { SetField("ctime", value); } }
-		[ModelField]
-		public DateTime? aaf_mtime { get { return GetField<DateTime?>("aaf_mtime", null); } set { SetField("aaf_mtime", value); } }
-		[ModelField]
-		public bool pending_validation { get { return GetField("pending_validation", false); } set { SetField("pending_validation", value); } }
-	}
-
 	public class Groups : HttpRouting
 	{
 		readonly string dbUrl;
 		readonly Grades grades;
+
+		readonly static List<string> searchAllowedFields = new List<string> {
+			"id", "name", "description", "aaf_mtime", "aaf_name", "type", "ctime", "structure_id",
+			"users.user_id", "users.pending_validation", "users.type"
+		};
 
 		public Groups(string dbUrl, Grades grades)
 		{
@@ -116,6 +100,46 @@ namespace Laclasse.Directory
 					c.Response.StatusCode = 200;
 					c.Response.Content = json;
 				}
+			};
+
+			GetAsync["/"] = async (p, c) =>
+			{
+				int offset = 0;
+				int count = -1;
+				string orderBy = "name";
+				SortDirection orderDir = SortDirection.Ascending;
+				var query = "";
+				if (c.Request.QueryString.ContainsKey("query"))
+					query = c.Request.QueryString["query"];
+				if (c.Request.QueryString.ContainsKey("limit"))
+				{
+					count = int.Parse(c.Request.QueryString["limit"]);
+					if (c.Request.QueryString.ContainsKey("page"))
+						offset = Math.Max(0, (int.Parse(c.Request.QueryString["page"]) - 1) * count);
+				}
+				if (c.Request.QueryString.ContainsKey("sort_col"))
+					orderBy = c.Request.QueryString["sort_col"];
+				if (c.Request.QueryString.ContainsKey("sort_dir") && (c.Request.QueryString["sort_dir"] == "desc"))
+					orderDir = SortDirection.Descending;
+
+				var parsedQuery = query.QueryParser();
+				foreach (var key in c.Request.QueryString.Keys)
+					if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
+						parsedQuery[key] = new List<string> { c.Request.QueryString[key] };
+				foreach (var key in c.Request.QueryStringArray.Keys)
+					if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
+						parsedQuery[key] = c.Request.QueryStringArray[key];
+				var usersResult = await SearchGroupAsync(parsedQuery, orderBy, orderDir, offset, count);
+				c.Response.StatusCode = 200;
+				if (count > 0)
+					c.Response.Content = new JsonObject
+					{
+						["total"] = usersResult.Total,
+						["page"] = (usersResult.Offset / count) + 1,
+						["data"] = usersResult.Data
+					};
+				else
+					c.Response.Content = usersResult.Data;
 			};
 
 			PostAsync["/"] = async (p, c) =>
@@ -192,7 +216,7 @@ namespace Laclasse.Directory
 		{
 			JsonValue jsonResult = null;
 			var extracted = json.ExtractFields(
-				"name", "description", "type", "grade_id", "structure_id");
+				"name", "description", "type", "grade_id", "structure_id", "aaf_name");
 			// check required fields
 			extracted.RequireFields("name", "type");
 
@@ -246,26 +270,6 @@ namespace Laclasse.Directory
 		public async Task<ModelList<GroupUser>> GetUserGroupsAsync(DB db, string id)
 		{
 			return await db.SelectAsync<GroupUser>("SELECT * FROM `group_user` WHERE user_id=?", id);
-
-/*			foreach (var inGroup in await db.SelectAsync("SELECT * FROM eleve_dans_regroupement WHERE user_id=?", id))
-			{
-				res.Add(new JsonObject
-				{
-					["type"] = "ELV",
-					["regroupement_id"] = (int)inGroup["regroupement_id"]
-				});
-			}
-
-			foreach (var inGroup in await db.SelectAsync("SELECT * FROM membre_regroupement_libre WHERE user_id=?", id))
-			{
-				res.Add(new JsonObject
-				{
-					["type"] = "MBR",
-					["regroupement_id"] = (int)inGroup["regroupement_libre_id"],
-					["regroupement_libre_id"] = (int)inGroup["regroupement_libre_id"],
-					["joined_at"] = (DateTime?)inGroup["joined_at"]
-				});
-			}*/
 		}
 
 		public async Task<ModelList<Group>> GetStructureGroupsAsync(string id)
@@ -288,6 +292,138 @@ namespace Laclasse.Directory
 		public async Task<ModelList<GroupGrade>> GetGroupGradesAsync(DB db, int id)
 		{
 			return await db.SelectAsync<GroupGrade>("SELECT * FROM `group_grade` WHERE `group_id`=?", id);
+		}
+
+		public async Task<SearchResult> SearchGroupAsync(
+			string query, string orderBy = "name", SortDirection sortDir = SortDirection.Ascending,
+			int offset = 0, int count = -1)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+				return await SearchGroupAsync(
+					db, query.QueryParser(), orderBy, sortDir, offset, count);
+		}
+
+		public async Task<SearchResult> SearchGroupAsync(
+			Dictionary<string, List<string>> queryFields, string orderBy = "name",
+			SortDirection sortDir = SortDirection.Ascending, int offset = 0, int count = -1)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+				return await SearchGroupAsync(db, queryFields, orderBy, sortDir, offset, count);
+		}
+
+		public async Task<SearchResult> SearchGroupAsync(
+			DB db, Dictionary<string, List<string>> queryFields, string orderBy = "name",
+			SortDirection sortDir = SortDirection.Ascending, int offset = 0, int count = -1)
+		{
+			var result = new SearchResult();
+			string filter = "";
+			var tables = new Dictionary<string, Dictionary<string, List<string>>>();
+			foreach (string key in queryFields.Keys)
+			{
+				if (!searchAllowedFields.Contains(key))
+					continue;
+
+				if (key.IndexOf('.') > 0)
+				{
+					var pos = key.IndexOf('.');
+					var tableName = key.Substring(0, pos);
+					var fieldName = key.Substring(pos + 1);
+					Dictionary<string, List<string>> table;
+					if (!tables.ContainsKey(tableName))
+					{
+						table = new Dictionary<string, List<string>>();
+						tables[tableName] = table;
+					}
+					else
+						table = tables[tableName];
+					table[fieldName] = queryFields[key];
+				}
+				else
+				{
+					var words = queryFields[key];
+					if (words.Count == 1)
+					{
+						if (filter != "")
+							filter += " AND ";
+						filter += "`" + key + "`='" + db.EscapeString(words[0]) + "'";
+					}
+					else if (words.Count > 1)
+					{
+						if (filter != "")
+							filter += " AND ";
+						filter += db.InFilter(key, words);
+					}
+				}
+			}
+
+			if (queryFields.ContainsKey("global"))
+			{
+				var words = queryFields["global"];
+				foreach (string word in words)
+				{
+					if (filter != "")
+						filter += " AND ";
+					filter += "(";
+					var first = true;
+					foreach (var field in searchAllowedFields)
+					{
+						if (field.IndexOf('.') > 0)
+							continue;
+						if (first)
+							first = false;
+						else
+							filter += " OR ";
+						filter += "`" + field + "` LIKE '%" + db.EscapeString(word) + "%'";
+					}
+					filter += ")";
+				}
+			}
+
+			foreach (string tableName in tables.Keys)
+			{
+				Console.WriteLine($"FOUND TABLE {tableName}");
+				if (tableName == "users")
+				{
+					if (filter != "")
+						filter += " AND ";
+					filter += "id IN (SELECT group_id FROM `group_user` WHERE ";
+
+					var first = true;
+					var profilesTable = tables[tableName];
+					foreach (var profilesKey in profilesTable.Keys)
+					{
+						var words = profilesTable[profilesKey];
+						foreach (string word in words)
+						{
+							if (first)
+								first = false;
+							else
+								filter += " AND ";
+							filter += "`" + profilesKey + "`='" + db.EscapeString(word) + "'";
+						}
+					}
+					filter += ")";
+				}
+			}
+
+			if (filter == "")
+				filter = "TRUE";
+			string limit = "";
+			if (count > 0)
+				limit = $"LIMIT {count} OFFSET {offset}";
+
+			result.Data = new JsonArray();
+			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `group` WHERE {filter} " +
+				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC") + $" {limit}";
+			Console.WriteLine(sql);
+			var items = await db.SelectAsync(sql);
+			result.Total = (int)await db.FoundRowsAsync();
+
+			foreach (var item in items)
+			{
+				result.Data.Add(await GroupToJsonAsync(db, item));
+			}
+			return result;
 		}
 	}
 }

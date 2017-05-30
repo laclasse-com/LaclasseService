@@ -29,6 +29,7 @@
 
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Erasme.Http;
@@ -68,7 +69,8 @@ namespace Laclasse.Directory
 				var json = await c.Request.ReadAsJsonAsync();
 				json.RequireFields("firstname", "lastname");
 				c.Response.StatusCode = 200;
-				c.Response.Content = new JsonPrimitive(await OfferEntEmailAsync(json["firstname"], json["lastname"]));
+				using (DB db = await DB.CreateAsync(dbUrl))
+					c.Response.Content = new JsonPrimitive(await OfferEntEmailAsync(db, json["firstname"], json["lastname"]));
 			};
 
 			GetAsync["/mail_available"] = async (p, c) =>
@@ -86,32 +88,121 @@ namespace Laclasse.Directory
 					};
 				}
 			};
+
+			GetAsync["/"] = async (p, c) =>
+			{
+				using (DB db = await DB.CreateAsync(dbUrl))
+					c.Response.Content = await Model.SearchAsync<Email>(
+						db,new List<string> { "id", "address", "user_id", "primary", "type" }, c);
+				c.Response.StatusCode = 200;
+			};
+
+			GetAsync["/{id:int}"] = async (p, c) =>
+			{
+				Email email = null;
+				using (DB db = await DB.CreateAsync(dbUrl))
+					email = await db.SelectRowAsync<Email>((int)p["id"]);
+				if (email != null)
+				{
+					c.Response.StatusCode = 200;
+					c.Response.Content = email;
+				}
+			};
+
+			PostAsync["/"] = async (p, c) =>
+			{
+				var json = await c.Request.ReadAsJsonAsync();
+				if (json is JsonArray)
+				{
+					var result = new JsonArray();
+					using (DB db = await DB.CreateAsync(dbUrl, true))
+					{
+						foreach (var jsonEmail in (JsonArray)json)
+						{
+							var email = Model.CreateFromJson<Email>(jsonEmail);
+							result.Add(await email.SaveAsync(db));
+						}
+					}
+					c.Response.StatusCode = 200;
+					c.Response.Content = result;
+				}
+				else if (json is JsonObject)
+				{
+					var email = Model.CreateFromJson<Email>(json);
+					using (DB db = await DB.CreateAsync(dbUrl))
+						await email.SaveAsync(db);
+					c.Response.StatusCode = 200;
+					c.Response.Content = email;
+				}
+			};
+
+			PutAsync["/"] = async (p, c) =>
+			{
+				var json = await c.Request.ReadAsJsonAsync();
+				if (json is JsonArray)
+				{
+					var result = new JsonArray();
+					using (DB db = await DB.CreateAsync(dbUrl, true))
+					{
+						foreach (var jsonEmail in (JsonArray)json)
+						{
+							var email = Model.CreateFromJson<Email>(jsonEmail);
+							await email.UpdateAsync(db);
+							result.Add(await email.LoadAsync(db));
+						}
+					}
+					c.Response.StatusCode = 200;
+					c.Response.Content = result;
+				}
+				else if (json is JsonObject)
+				{
+					var email = Model.CreateFromJson<Email>(json);
+					using (DB db = await DB.CreateAsync(dbUrl, true))
+					{
+						await email.UpdateAsync(db);
+						await email.LoadAsync(db);
+					}
+					c.Response.StatusCode = 200;
+					c.Response.Content = email;
+				}
+			};
+
+			DeleteAsync["/{id:int}"] = async (p, c) =>
+			{
+				Email email = null;
+				using (DB db = await DB.CreateAsync(dbUrl, true))
+				{
+					email = await db.SelectRowAsync<Email>((int)p["id"]);
+					if (email != null)
+						await email.DeleteAsync(db);
+				}
+				if (email != null)
+					c.Response.StatusCode = 200;
+			};
 		}
 
-		public async Task<string> OfferEntEmailAsync(string firstname, string lastname)
+		public static async Task<string> OfferEntEmailAsync(DB db, string firstname, string lastname)
 		{
 			var beginEmail = (firstname.RemoveDiacritics() + "." + lastname.RemoveDiacritics()).ToLower();
 			beginEmail = Regex.Replace(beginEmail.Replace(' ', '-'), @"[^\.\-a-z0-9]", "", RegexOptions.IgnoreCase);
 			string endEmail;
 			string aliasEmail;
 			int aliasIndex = 0;
-			using (DB db = await DB.CreateAsync(dbUrl))
+			var ent = await db.SelectRowAsync<Ent>("Laclasse");
+			if (ent == null)
+				throw new Exception("The ENT is not defined in the DB");
+			endEmail = "@" + ent.mail_domaine;
+
+			aliasEmail = beginEmail + endEmail;
+
+			var emails = (await db.SelectAsync(
+				"SELECT address FROM email WHERE SUBSTRING(address,1,?)=? AND type='Ent'",
+				beginEmail.Length, beginEmail)).Select((arg) => (string)arg["address"]);
+			while (emails.Contains(aliasEmail))
 			{
-				var ent = await db.SelectRowAsync<Ent>("Laclasse");
-				if (ent == null)
-					throw new Exception("The ENT is not defined in the DB");
-				endEmail = "@" + ent.mail_domaine;
-
-				aliasEmail = beginEmail + endEmail;
-
-				var emails = (await db.SelectAsync(
-					"SELECT address FROM email WHERE SUBSTRING(address,1,?)=? AND type='Ent'",
-					beginEmail.Length, beginEmail)).Select((arg) => (string)arg["address"]);
-				while (emails.Contains(aliasEmail))
-				{
-					aliasEmail = beginEmail + (++aliasIndex).ToString() + endEmail;
-				}
+				aliasEmail = beginEmail + (++aliasIndex).ToString() + endEmail;
 			}
+
 			return aliasEmail;
 		}
 

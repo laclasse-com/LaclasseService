@@ -30,6 +30,8 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using Mono.Unix;
+using Mono.Unix.Native;
 using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Directory;
@@ -118,11 +120,14 @@ namespace Laclasse
 			mapper.Add("/api/profiles", profiles);
 			var emails = new Emails(dbUrl);
 			mapper.Add("/api/emails", emails);
+			mapper.Add("/api/phones", new Phones(dbUrl));
 			var groups = new Groups(dbUrl, grades);
 			mapper.Add("/api/groups", groups);
+			mapper.Add("/api/groups_users", new GroupsUsers(dbUrl));
 			mapper.Add("/api/structures_types", new StructuresTypes(dbUrl));
 			var structures = new Structures(dbUrl, groups, resources, profiles);
 			mapper.Add("/api/structures", structures);
+			mapper.Add("/api/user_links", new UserLinks(dbUrl));
 			var users = new Users(
 				dbUrl, emails, profiles, groups, structures, setup["server"]["storage"],
 				setup["authentication"]["masterPassword"]);
@@ -142,6 +147,8 @@ namespace Laclasse
 				dbUrl, sessions, users, structures, setup["authentication"]["session"]["cookie"],
 				setup["authentication"]["cas"]["ticketTimeout"],
 				setup["authentication"]["aafSso"]));
+
+			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup["aaf"]["path"]));
 
 			// if the request is not already handled, try static files
 			server.Add(new StaticFiles(
@@ -177,9 +184,43 @@ namespace Laclasse
 			//sync.Synchronize().Wait();
 			//return;
 
+			//var diff = new Aaf.Synchronizer.SyncDiff();
+			//diff.grades = new Aaf.Synchronizer.GradesDiff();
+			//diff.grades.added = new ModelList<Grade>();
+			//Console.WriteLine(diff.ToJson().ToString());
+			//return;
+
 			server.Start();
-			Console.WriteLine("Press 'Q' to stop...");
-			while (Console.ReadKey().Key != ConsoleKey.Q) { }
+
+			Console.WriteLine("Press 'Ctrl + C' to stop...");
+
+			// catch signals for service stop
+			var signals = new UnixSignal[] {
+				new UnixSignal(Signum.SIGINT),
+				new UnixSignal(Signum.SIGTERM),
+				new UnixSignal(Signum.SIGUSR2),
+			};
+
+			Signum signal;
+			bool run = true;
+			do
+			{
+				var index = UnixSignal.WaitAny(signals, -1);
+				signal = signals[index].Signum;
+				switch (signal)
+				{
+					case Signum.SIGINT:
+						run = false;
+						break;
+					case Signum.SIGTERM:
+						run = false;
+						break;
+					case Signum.SIGUSR2:
+						run = false;
+						break;
+				}
+			} while (run);
+
 			server.Stop();
 		}
 	}

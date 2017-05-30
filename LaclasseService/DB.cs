@@ -64,7 +64,7 @@ namespace Laclasse
 	{
 		public Dictionary<string, object> Fields = new Dictionary<string, object>();
 
-		public static T CreateFromJson<T>(JsonValue value) where T : Model, new()
+		public static T CreateFromJson<T>(JsonValue value, params string[] filterFields) where T : Model, new()
 		{
 			T result = null;
 			if (value is JsonObject)
@@ -76,6 +76,8 @@ namespace Laclasse
 				{
 					var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
 					if (fieldAttribute == null)
+						continue;
+					if ((filterFields.Length > 0) && !filterFields.Contains(property.Name))
 						continue;
 					if (obj.ContainsKey(property.Name))
 					{
@@ -231,6 +233,10 @@ namespace Laclasse
 					result[key] = (DateTime?)value;
 				else if (value is TimeSpan)
 					result[key] = ((TimeSpan)value).TotalSeconds;
+				else if (value is Model)
+					result[key] = ((Model)value).ToJson();
+				else if (value is IModelList)
+					result[key] = ((IModelList)value).ToJson();
 			}
 			return result;
 		}
@@ -284,18 +290,25 @@ namespace Laclasse
 
 		public async Task<bool> InsertAsync(DB db)
 		{
+			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
+			await BeforeInsertAsync(db);
+
+
+			var filterFields = new List<string>();
 			// check if all required fields are present
 			foreach (var property in GetType().GetProperties())
 			{
 				var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
-				if ((fieldAttribute != null) && (fieldAttribute.Required) && !Fields.ContainsKey(property.Name))
-					throw new WebException(400, $"Missing required field {property.Name}");
+				if (fieldAttribute != null)
+				{
+					if ((fieldAttribute.Required) && !Fields.ContainsKey(property.Name))
+						throw new WebException(400, $"Missing required field {property.Name}");
+					filterFields.Add(property.Name);
+				}
 			}
 
-			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
-			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
-			await BeforeInsertAsync(db);
-			return (await db.InsertRowAsync(tableName, Fields)) == 1;
+			return (await db.InsertRowAsync(tableName, Fields, filterFields)) == 1;
 		}
 
 		public async Task<bool> UpdateAsync(DB db)
@@ -311,16 +324,197 @@ namespace Laclasse
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
-			return (await db.DeleteAsync($"DELETE FROM {tableName} WHERE {primaryKey}=?", Fields[primaryKey])) == 1; 
+			return (await db.DeleteAsync($"DELETE FROM `{tableName}` WHERE `{primaryKey}`=?", Fields[primaryKey])) == 1; 
 		}
 
 		public virtual Task BeforeInsertAsync(DB db)
 		{
 			return Task.FromResult(false);
 		}
+
+		public static async Task<JsonValue> SearchAsync<T>(DB db, List<string> searchAllowedFields, HttpContext c) where T : Model, new()
+		{
+			int offset = 0;
+			int count = -1;
+			string orderBy = null;
+			SortDirection orderDir = SortDirection.Ascending;
+			var query = "";
+			if (c.Request.QueryString.ContainsKey("query"))
+				query = c.Request.QueryString["query"];
+			if (c.Request.QueryString.ContainsKey("limit"))
+			{
+				count = int.Parse(c.Request.QueryString["limit"]);
+				if (c.Request.QueryString.ContainsKey("page"))
+					offset = Math.Max(0, (int.Parse(c.Request.QueryString["page"]) - 1) * count);
+			}
+			if (c.Request.QueryString.ContainsKey("sort_col"))
+				orderBy = c.Request.QueryString["sort_col"];
+			if (c.Request.QueryString.ContainsKey("sort_dir") && (c.Request.QueryString["sort_dir"] == "desc"))
+				orderDir = SortDirection.Descending;
+
+			var parsedQuery = query.QueryParser();
+			foreach (var key in c.Request.QueryString.Keys)
+				if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
+					parsedQuery[key] = new List<string> { c.Request.QueryString[key] };
+			foreach (var key in c.Request.QueryStringArray.Keys)
+				if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
+					parsedQuery[key] = c.Request.QueryStringArray[key];
+			var result = await SearchAsync<T>(db, searchAllowedFields, parsedQuery, orderBy, orderDir, offset, count);
+
+			if (count > 0)
+				return new JsonObject
+				{
+					["total"] = result.Total,
+					["page"] = (result.Offset / count) + 1,
+					["data"] = result.Data
+				};
+			else
+				return result.Data;
+		}
+
+		public static async Task<SearchResult> SearchAsync<T>(
+			DB db, List<string> searchAllowedFields, Dictionary<string, List<string>> queryFields, string orderBy,
+			SortDirection sortDir = SortDirection.Ascending, int offset = 0, int count = -1) where T : Model, new()
+		{
+			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
+			string modelTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : typeof(T).Name;
+			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
+
+			if (orderBy == null)
+				orderBy = primaryKey;
+
+			var result = new SearchResult();
+			string filter = "";
+			var tables = new Dictionary<string, Dictionary<string, List<string>>>();
+			foreach (string key in queryFields.Keys)
+			{
+				if (!searchAllowedFields.Contains(key))
+					continue;
+
+				if (key.IndexOf('.') > 0)
+				{
+					var pos = key.IndexOf('.');
+					var tableName = key.Substring(0, pos);
+					var fieldName = key.Substring(pos + 1);
+					Dictionary<string, List<string>> table;
+					if (!tables.ContainsKey(tableName))
+					{
+						table = new Dictionary<string, List<string>>();
+						tables[tableName] = table;
+					}
+					else
+						table = tables[tableName];
+					table[fieldName] = queryFields[key];
+				}
+				else
+				{
+					var words = queryFields[key];
+					if (words.Count == 1)
+					{
+						if (filter != "")
+							filter += " AND ";
+						filter += "`" + key + "`='" + db.EscapeString(words[0]) + "'";
+					}
+					else if (words.Count > 1)
+					{
+						if (filter != "")
+							filter += " AND ";
+						filter += db.InFilter(key, words);
+					}
+				}
+			}
+
+			if (queryFields.ContainsKey("global"))
+			{
+				var words = queryFields["global"];
+				foreach (string word in words)
+				{
+					if (filter != "")
+						filter += " AND ";
+					filter += "(";
+					var first = true;
+					foreach (var field in searchAllowedFields)
+					{
+						if (field.IndexOf('.') > 0)
+							continue;
+						if (first)
+							first = false;
+						else
+							filter += " OR ";
+						filter += "`" + field + "` LIKE '%" + db.EscapeString(word) + "%'";
+					}
+					filter += ")";
+				}
+			}
+
+			/*foreach (string tableName in tables.Keys)
+			{
+				Console.WriteLine($"FOUND TABLE {tableName}");
+				if (tableName == "users")
+				{
+					if (filter != "")
+						filter += " AND ";
+					filter += "id IN (SELECT group_id FROM `group_user` WHERE ";
+
+					var first = true;
+					var profilesTable = tables[tableName];
+					foreach (var profilesKey in profilesTable.Keys)
+					{
+						var words = profilesTable[profilesKey];
+						foreach (string word in words)
+						{
+							if (first)
+								first = false;
+							else
+								filter += " AND ";
+							filter += "`" + profilesKey + "`='" + db.EscapeString(word) + "'";
+						}
+					}
+					filter += ")";
+				}
+			}*/
+
+			if (filter == "")
+				filter = "TRUE";
+			string limit = "";
+			if (count > 0)
+				limit = $"LIMIT {count} OFFSET {offset}";
+
+			result.Data = new JsonArray();
+			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `{modelTableName}` WHERE {filter} " +
+				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC") + $" {limit}";
+			Console.WriteLine(sql);
+			var items = await db.SelectAsync<T>(sql);
+			result.Total = (int)await db.FoundRowsAsync();
+
+			foreach (var item in items)
+				result.Data.Add(item.ToJson());
+			return result;
+		}
+
+		public static async Task SyncAsync<T>(DB db, IEnumerable<T> srcItems, IEnumerable<T> dstItems) where T : Model
+		{
+			foreach (var dstItem in dstItems)
+			{
+				var foundItem = srcItems.SingleOrDefault(srcItem => srcItem.EqualsIntersection(dstItem));
+				if (foundItem == null)
+					await dstItem.SaveAsync(db);
+			}
+
+			foreach (var srcItem in srcItems)
+			{
+				if (!dstItems.Any(dstItem => dstItem.EqualsIntersection(srcItem)))
+					await srcItem.DeleteAsync(db);
+			}
+		}
 	}
 
-	public class ModelList<T> : List<T> where T : Model
+	interface IModelList
+	{
+		JsonArray ToJson();
+	}
+
+	public class ModelList<T> : List<T>, IModelList where T : Model
 	{
 		public JsonArray ToJson()
 		{
@@ -545,7 +739,7 @@ namespace Laclasse
 			return NonQueryAsync(query, args);
 		}
 
-		public async Task<int> InsertRowAsync(string table, IDictionary values)
+		public async Task<int> InsertRowAsync(string table, IDictionary values, IEnumerable<string> filterFields = null)
 		{
 			var fieldsList = "";
 			var valuesList = "";
@@ -554,6 +748,9 @@ namespace Laclasse
 				var strKey = key as string;
 				if (strKey != null)
 				{
+					if ((filterFields != null) && !filterFields.Contains(strKey))
+						continue;
+
 					if (fieldsList != "")
 					{
 						fieldsList += ",";
@@ -573,7 +770,11 @@ namespace Laclasse
 			{
 				var strKey = key as string;
 				if (strKey != null)
+				{
+					if ((filterFields != null) && !filterFields.Contains(strKey))
+						continue;
 					cmd.Parameters.Add(new MySqlParameter(strKey, values[strKey]));
+				}
 			}
 			return await cmd.ExecuteNonQueryAsync();
 		}
@@ -680,6 +881,9 @@ namespace Laclasse
 			bool valid = true;
 
 			var attrs = model.GetCustomAttributes(typeof(ModelAttribute), false);
+			if (attrs.Length == 0)
+				return true;
+
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : model.Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 

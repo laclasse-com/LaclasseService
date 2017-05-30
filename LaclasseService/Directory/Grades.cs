@@ -28,6 +28,7 @@
 //
 
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Authentication;
@@ -58,7 +59,8 @@ namespace Laclasse.Directory
 			GetAsync["/"] = async (p, c) =>
 			{
 				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await db.SelectAsync<Grade>("SELECT * FROM grade");
+					c.Response.Content = await Model.SearchAsync<Grade>(
+						db, new List<string> { "id", "name", "rattach", "stat" }, c);
 				c.Response.StatusCode = 200;
 			};
 

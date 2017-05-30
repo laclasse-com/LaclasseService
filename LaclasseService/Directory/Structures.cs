@@ -509,7 +509,7 @@ namespace Laclasse.Directory
 				if (key.IndexOf('.') > 0)
 				{
 					var pos = key.IndexOf('.');
-					var tableName = key.Substring(0, pos - 1);
+					var tableName = key.Substring(0, pos);
 					var fieldName = key.Substring(pos + 1);
 					Console.WriteLine($"FOUND TABLE: {tableName}, FIELD: {fieldName}");
 					Dictionary<string, List<string>> table;
@@ -596,7 +596,7 @@ namespace Laclasse.Directory
 				limit = $"LIMIT {count} OFFSET {offset}";
 
 			result.Data = new JsonArray();
-			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM structure WHERE {filter} " +
+			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `structure` WHERE {filter} " +
 				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC") + $" {limit}";
 			Console.WriteLine(sql);
 			var items = await db.SelectAsync(sql);

@@ -52,10 +52,14 @@
     <Folder Include="www\sso\images\grandlyon-logo-blanc.svg" />
     <Folder Include="www\sso\images\logo-academie-blanc.svg" />
     <Folder Include="www\sso\images\logolaclasse.svg" />
+    <Folder Include="www\avatar\" />
   </ItemGroup>
   <ItemGroup>
     <None Include="www\sso\images\grandlyon-logo-blanc.svg" />
     <None Include="www\sso\images\logo-academie-blanc.svg" />
     <None Include="www\sso\images\logolaclasse.svg" />
+    <None Include="www\avatar\avatar_feminin.svg" />
+    <None Include="www\avatar\avatar_masculin.svg" />
+    <None Include="www\avatar\avatar_neutre.svg" />
   </ItemGroup>
 </Project>

@@ -4,6 +4,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Daniel LACROIX
+// Copyright (c) 2017 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,138 +26,37 @@
 //
 
 using System;
-using System.Linq;
-using System.Collections.Generic;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using Erasme.Http;
-using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "group_user", PrimaryKey = "id")]
+	[Model(Table = "group_user", PrimaryKey = nameof(id))]
 	public class GroupUser : Model
 	{
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
-		[ModelField(Required = true)]
-		public int group_id { get { return GetField("group_id", 0); } set { SetField("group_id", value); } }
-		[ModelField(Required = true)]
-		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
+		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(Group))]
+		public int group_id { get { return GetField(nameof(group_id), 0); } set { SetField(nameof(group_id), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(User))]
+		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 		[ModelField]
-		public string subject_id { get { return GetField<string>("subject_id", null); } set { SetField("subject_id", value); } }
+		public string subject_id { get { return GetField<string>(nameof(subject_id), null); } set { SetField(nameof(subject_id), value); } }
 		[ModelField]
-		public DateTime ctime { get { return GetField("ctime", DateTime.Now); } set { SetField("ctime", value); } }
+		public DateTime ctime { get { return GetField(nameof(ctime), DateTime.Now); } set { SetField(nameof(ctime), value); } }
 		[ModelField]
-		public DateTime? aaf_mtime { get { return GetField<DateTime?>("aaf_mtime", null); } set { SetField("aaf_mtime", value); } }
+		public DateTime? aaf_mtime { get { return GetField<DateTime?>(nameof(aaf_mtime), null); } set { SetField(nameof(aaf_mtime), value); } }
 		[ModelField]
-		public bool pending_validation { get { return GetField("pending_validation", false); } set { SetField("pending_validation", value); } }
+		public bool pending_validation { get { return GetField(nameof(pending_validation), false); } set { SetField(nameof(pending_validation), value); } }
 	}
 
-	public class GroupsUsers : HttpRouting
+	public class GroupsUsers : ModelService<GroupUser>
 	{
-		readonly string dbUrl;
-
-		public GroupsUsers(string dbUrl)
+		public GroupsUsers(string dbUrl) : base(dbUrl)
 		{
-			this.dbUrl = dbUrl;
-
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
-
-			GetAsync["/"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await Model.SearchAsync<GroupUser>(
-						db, new List<string> { "id", "type", "group_id", "user_id", "subject_id", "ctime", "pending_validation" }, c);
-				c.Response.StatusCode = 200;
-			};
-
-			GetAsync["/{id:int}"] = async (p, c) =>
-			{
-				GroupUser groupUser = null;
-				using (DB db = await DB.CreateAsync(dbUrl))
-					groupUser = await db.SelectRowAsync<GroupUser>((int)p["id"]);
-				if (groupUser != null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = groupUser;
-				}
-			};
-
-			PostAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				if (json is JsonArray)
-				{
-					var result = new JsonArray();
-					using (DB db = await DB.CreateAsync(dbUrl, true))
-					{
-						foreach (var jsonItem in (JsonArray)json)
-						{
-							var item = Model.CreateFromJson<GroupUser>(jsonItem);
-							result.Add(await item.SaveAsync(db));
-						}
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = result;
-				}
-				else if (json is JsonObject)
-				{
-					var item = Model.CreateFromJson<GroupUser>(json);
-					using (DB db = await DB.CreateAsync(dbUrl))
-						await item.SaveAsync(db);
-					c.Response.StatusCode = 200;
-					c.Response.Content = item;
-				}
-			};
-
-			PutAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				if (json is JsonArray)
-				{
-					var result = new JsonArray();
-					using (DB db = await DB.CreateAsync(dbUrl, true))
-					{
-						foreach (var jsonItem in (JsonArray)json)
-						{
-							var item = Model.CreateFromJson<GroupUser>(jsonItem);
-							await item.UpdateAsync(db);
-							result.Add(await item.LoadAsync(db));
-						}
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = result;
-				}
-				else if (json is JsonObject)
-				{
-					var item = Model.CreateFromJson<GroupUser>(json);
-					using (DB db = await DB.CreateAsync(dbUrl, true))
-					{
-						await item.UpdateAsync(db);
-						await item.LoadAsync(db);
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = item;
-				}
-			};
-
-			DeleteAsync["/{id:int}"] = async (p, c) =>
-			{
-				GroupUser item = null;
-				using (DB db = await DB.CreateAsync(dbUrl, true))
-				{
-					item = await db.SelectRowAsync<GroupUser>((int)p["id"]);
-					if (item != null)
-						await item.DeleteAsync(db);
-				}
-				if (item != null)
-					c.Response.StatusCode = 200;
-			};
 		}
 	}
 }

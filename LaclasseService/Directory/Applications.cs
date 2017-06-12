@@ -26,10 +26,7 @@
 // THE SOFTWARE.
 //
 
-using System.Linq;
 using System.Threading.Tasks;
-using Erasme.Http;
-using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -47,137 +44,16 @@ namespace Laclasse.Directory
 		public string password { get { return GetField<string>("password", null); } set { SetField("password", value); } }
 	}
 
-	public class Applications: HttpRouting
+	public class Applications: ModelService<Application> //HttpRouting
 	{
 		readonly string dbUrl;
 
-		public Applications(string dbUrl)
+		public Applications(string dbUrl) : base(dbUrl)
 		{
 			this.dbUrl = dbUrl;
 
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
-
-			GetAsync["/"] = async (p, c) =>
-			{
-				var filter = "TRUE";
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					if (c.Request.QueryStringArray.ContainsKey("id"))
-						filter = db.InFilter("id", c.Request.QueryStringArray["id"]);
-					c.Response.Content = await db.SelectAsync<Application>($"SELECT * FROM application WHERE {filter}");
-				}
-				c.Response.StatusCode = 200;
-			};
-
-			GetAsync["/{id}"] = async (p, c) =>
-			{
-				var app = await GetApplicationAsync((string)p["id"]);
-				if (app == null)
-					c.Response.StatusCode = 404;
-				else
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = app;
-				}
-			};
-
-			PostAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				if (json is JsonArray)
-				{
-					var jsonResult = new JsonArray();
-					using (DB db = await DB.CreateAsync(dbUrl))
-					{
-						foreach (var jsonItem in (JsonArray)json)
-							jsonResult.Add(await CreateApplicationAsync(jsonItem));
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
-				}
-				else
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = await CreateApplicationAsync(json);
-				}
-			};
-
-			PutAsync["/{id}"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				var extracted = json.ExtractFields("name", "url", "password");
-				if (extracted.Count == 0)
-					return;
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int count = await db.UpdateRowAsync("application", "id", p["id"], extracted);
-					if (count > 0)
-					{
-						c.Response.StatusCode = 200;
-						c.Response.Content = await GetApplicationAsync(db, json["id"]);
-					}
-					else
-						c.Response.StatusCode = 404;
-				}
-			};
-
-			DeleteAsync["/{id}"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int count = await db.DeleteAsync("DELETE FROM application WHERE id=?", (string)p["id"]);
-					if (count == 0)
-						c.Response.StatusCode = 404;
-					else
-						c.Response.StatusCode = 200;
-				}
-			};
-
-			DeleteAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				var ids = ((JsonArray)json).Select((arg) => (string)(arg.Value));
-
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int count = await db.DeleteAsync("DELETE FROM application WHERE "+db.InFilter("id", ids));
-					if (count == 0)
-						c.Response.StatusCode = 404;
-					else
-						c.Response.StatusCode = 200;
-				}
-			};
-		}
-
-		public async Task<Application> GetApplicationAsync(string id)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await GetApplicationAsync(db, id);
-		}
-
-		public async Task<Application> GetApplicationAsync(DB db, string id)
-		{
-			return await db.SelectRowAsync<Application>(id);
-		}
-
-		public async Task<Application> CreateApplicationAsync(JsonValue json)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await CreateApplicationAsync(db, json);
-		}
-
-		public async Task<Application> CreateApplicationAsync(DB db, JsonValue json)
-		{
-			var extracted = json.ExtractFields("id", "name", "url", "password");
-			// check required fields
-			if (!extracted.ContainsKey("id") || !extracted.ContainsKey("url"))
-				throw new WebException(400, "Bad protocol. 'id' and 'url' are needed");
-
-			Application result = null;
-			if (await db.InsertRowAsync("application", extracted) == 1)
-				result = await GetApplicationAsync(db, json["id"]);
-			return result;
 		}
 
 		public async Task<string> CheckPasswordAsync(string login, string password)

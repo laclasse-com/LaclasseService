@@ -27,159 +27,33 @@
 // THE SOFTWARE.
 //
 
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using Erasme.Http;
-using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "grade", PrimaryKey = "id")]
+	[Model(Table = "grade", PrimaryKey = nameof(id))]
 	public class Grade : Model
 	{
 		[ModelField(Required = true)]
-		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
+		public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
 		[ModelField]
-		public string rattach { get { return GetField<string>("rattach", null); } set { SetField("rattach", value); } }
+		public string rattach { get { return GetField<string>(nameof(rattach), null); } set { SetField(nameof(rattach), value); } }
 		[ModelField]
-		public string stat { get { return GetField<string>("stat", null); } set { SetField("stat", value); } }
+		public string stat { get { return GetField<string>(nameof(stat), null); } set { SetField(nameof(stat), value); } }
 	}
 
-	public class Grades : HttpRouting
+	public class Grades : ModelService<Grade>
 	{
-		readonly string dbUrl;
-
-		public Grades(string dbUrl)
+		public Grades(string dbUrl) : base(dbUrl)
 		{
-			this.dbUrl = dbUrl;
-
-			GetAsync["/"] = async (p, c) =>
+			// API only available to authenticated users
+			BeforeAsync = async (p, c) =>
 			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await Model.SearchAsync<Grade>(
-						db, new List<string> { "id", "name", "rattach", "stat" }, c);
-				c.Response.StatusCode = 200;
+				if (c.Request.Method != "GET")
+					await c.EnsureIsAuthenticatedAsync();
 			};
-
-			GetAsync["/{id}"] = async (p, c) =>
-			{
-				var grade = await GetGradeAsync((string)p["id"]);
-				if (grade == null)
-					c.Response.StatusCode = 404;
-				else
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = grade;
-				}
-			};
-
-			PostAsync["/"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-
-				var grade = await CreateGradeAsync(await c.Request.ReadAsJsonAsync());
-				if (grade == null)
-					c.Response.StatusCode = 500;
-				else
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = grade;
-				}
-			};
-
-			PutAsync["/{id}"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-
-				var json = await c.Request.ReadAsJsonAsync();
-				var extracted = json.ExtractFields("name", "rattach", "stat");
-				if (extracted.Count == 0)
-					return;
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int count = await db.UpdateRowAsync("grade", "id", p["id"], extracted);
-					if (count > 0)
-					{
-						c.Response.StatusCode = 200;
-						c.Response.Content = await GetGradeAsync(db, (string)p["id"]);
-					}
-					else
-						c.Response.StatusCode = 404;
-				}
-			};
-
-			DeleteAsync["/{id}"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int count = await db.DeleteAsync("DELETE FROM grade WHERE id=?", (string)p["id"]);
-					if (count == 0)
-						c.Response.StatusCode = 404;
-					else
-						c.Response.StatusCode = 200;
-				}
-			};
-		}
-
-		public async Task<Grade> GetGradeAsync(string id)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await GetGradeAsync(db, id);
-		}
-
-		public async Task<Grade> GetGradeAsync(DB db, string id)
-		{
-			return await db.SelectRowAsync<Grade>(id);
-		}
-
-		//public async Task<string> GetGradeLibelleAsync(DB db, string id)
-		//{
-		//	return (string)await db.ExecuteScalarAsync("SELECT name FROM grade WHERE id=?", id);
-		//}
-
-		public async Task<Grade> CreateGradeAsync(JsonValue json)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await CreateGradeAsync(db, json);
-		}
-
-		public async Task<Grade> CreateGradeAsync(DB db, JsonValue json)
-		{
-			json.RequireFields("id", "name");
-			var extracted = json.ExtractFields("id", "name", "rattach", "stat");
-
-			return (await db.InsertRowAsync("grade", extracted) == 1) ?
-				await GetGradeAsync(db, (string)extracted["id"]) : null;
-		}
-
-		public async Task<Grade> ModifyGradeAsync(string id, JsonValue json)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await ModifyGradeAsync(db, id, json);
-		}
-
-		public async Task<Grade> ModifyGradeAsync(DB db, string id, JsonValue json)
-		{
-			var extracted = json.ExtractFields("name", "rattach", "stat");
-			if (extracted.Count > 0)
-				await db.UpdateRowAsync("grade", "id", id, extracted);
-			return await GetGradeAsync(db, id);
-		}
-
-		public async Task<bool> DeleteGradeAsync(string id)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await DeleteGradeAsync(db, id);
-		}
-
-		public async Task<bool> DeleteGradeAsync(DB db, string id)
-		{
-			return (await db.DeleteAsync("DELETE FROM grade WHERE id=?", id)) != 0;
 		}
 	}
 }

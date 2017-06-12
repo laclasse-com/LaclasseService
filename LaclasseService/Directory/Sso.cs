@@ -39,12 +39,10 @@ namespace Laclasse.Directory
 	public class Sso : HttpRouting
 	{
 		readonly string dbUrl;
-		readonly Users users;
 
 		public Sso(string dbUrl, Users users)
 		{
 			this.dbUrl = dbUrl;
-			this.users = users;
 
 			GetAsync["/"] = async (p, c) =>
 			{
@@ -141,15 +139,15 @@ namespace Laclasse.Directory
 					{
 						var user = await users.GetUserAsync(userId);
 
-						var emailBackend = (await db.SelectAsync("SELECT * FROM email_backend WHERE id=?", (int)user["email_backend_id"])).SingleOrDefault();
+						var emailBackend = (await db.SelectAsync("SELECT * FROM email_backend WHERE id=?", user.email_backend_id)).SingleOrDefault();
 						if (emailBackend == null)
 							throw new WebException(500, "email_backend not found");
 
 						c.Response.StatusCode = 200;
-						c.Response.Headers["Auth-User"] = user["id"] + "@" + emailBackend["adresse"];
+						c.Response.Headers["Auth-User"] = user.id + "@" + emailBackend["address"];
 						c.Response.Headers["Auth-Status"] = "OK";
 
-						c.Response.Headers["Auth-Server"] = (string)emailBackend["adresse_ip"];
+						c.Response.Headers["Auth-Server"] = (string)emailBackend["ip_address"];
 						if (c.Request.Headers.ContainsKey("auth-protocol"))
 						{
 							switch (c.Request.Headers["auth-protocol"])
@@ -192,21 +190,21 @@ namespace Laclasse.Directory
 			["DOC"] = "National_3"
 		};
 
-		JsonValue UserToSsoAttributes(JsonValue user)
+		JsonValue UserToSsoAttributes(User user)
 		{
 			// TODO: add ENTEleveClasses and ENTEleveNivFormation
 
 			string ENTPersonStructRattachRNE = null;
 			string ENTPersonProfils = null;
 			string categories = null;
-			foreach (var p in (JsonArray)user["profiles"])
+			foreach (var p in user.profiles)
 			{
-				if ((bool)p["actif"])
+				if (p.active)
 				{
-					ENTPersonStructRattachRNE = p["structure_id"];
-					if (ProfilIdToSdet3.ContainsKey(p["profil_id"]))
-						categories = ProfilIdToSdet3[p["profil_id"]];
-					if (p["profil_id"] == "ELV")
+					ENTPersonStructRattachRNE = p.structure_id;
+					if (ProfilIdToSdet3.ContainsKey(p.type))
+						categories = ProfilIdToSdet3[p.type];
+					if (p.type == "ELV")
 					{
 					}
 				}
@@ -215,24 +213,24 @@ namespace Laclasse.Directory
 					ENTPersonProfils = "";
 				else
 					ENTPersonProfils += ",";
-				ENTPersonProfils += p["type"] + ":" + p["structure_id"];
+				ENTPersonProfils += p.type + ":" + p.structure_id;
 			}
 
 			return new JsonObject
 			{
-				["uid"] = user["id"],
-				["user"] = user["id"],
-				["login"] = user["login"],
-				["nom"] = user["lastname"],
-				["prenom"] = user["firstname"],
-				["dateNaissance"] = (user["birthdate"] == null) ? null : DateTime.Parse(user["birthdate"]).ToString("yyyy-MM-dd"),
-				["codePostal"] = user["zip_code"],
+				["uid"] = user.id,
+				["user"] = user.id,
+				["login"] = user.login,
+				["nom"] = user.lastname,
+				["prenom"] = user.firstname,
+				["dateNaissance"] = (user.birthdate == null) ? null : ((DateTime)user.birthdate).ToString("yyyy-MM-dd"),
+				["codePostal"] = user.zip_code,
 				["ENTPersonProfils"] = ENTPersonProfils,
 				["ENTPersonStructRattach"] = ENTPersonStructRattachRNE,
 				["ENTPersonStructRattachRNE"] = ENTPersonStructRattachRNE,
 				["categories"] = categories,
-				["LaclasseNom"] = user["lastname"],
-				["LaclassePrenom"] = user["firstname"]
+				["LaclasseNom"] = user.lastname,
+				["LaclassePrenom"] = user.firstname
 			};
 		}
 
@@ -241,9 +239,9 @@ namespace Laclasse.Directory
 			JsonValue attributes = null;
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				var item = (await db.SelectAsync("SELECT * FROM user WHERE login=?", login)).First();
+				var item = (await db.SelectExpandAsync<User>("SELECT * FROM `user` WHERE `login`=?", new object[] { login })).SingleOrDefault();
 				if (item != null)
-					attributes = UserToSsoAttributes(await users.UserToJsonAsync(db, item));
+					attributes = UserToSsoAttributes(item);
 			}
 			return attributes;
 		}

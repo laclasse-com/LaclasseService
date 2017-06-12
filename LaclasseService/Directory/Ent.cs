@@ -26,18 +26,18 @@
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "ent", PrimaryKey = "id")]
+	[Model(Table = "ent", PrimaryKey = nameof(id))]
 	public class Ent : Model
 	{
 		[ModelField]
-		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
+		public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string mail_domaine { get { return GetField<string>("mail_domaine", null); } set { SetField("mail_domaine", value); } }
+		public string mail_domaine { get { return GetField<string>(nameof(mail_domaine), null); } set { SetField(nameof(mail_domaine), value); } }
 		[ModelField]
-		public long last_id_ent_counter { get { return GetField<long>("last_id_ent_counter", 0); } set { SetField("last_id_ent_counter", value); } }
+		public long last_id_ent_counter { get { return GetField<long>(nameof(last_id_ent_counter), 0); } set { SetField(nameof(last_id_ent_counter), value); } }
 		[ModelField]
-		public string ent_letter { get { return GetField<string>("ent_letter", null); } set { SetField("ent_letter", value); } }
+		public string ent_letter { get { return GetField<string>(nameof(ent_letter), null); } set { SetField(nameof(ent_letter), value); } }
 		[ModelField]
-		public int ent_digit { get { return GetField("ent_digit", 0); } set { SetField("ent_digit", value); } }
+		public int ent_digit { get { return GetField(nameof(ent_digit), 0); } set { SetField(nameof(ent_digit), value); } }
 	}
 }

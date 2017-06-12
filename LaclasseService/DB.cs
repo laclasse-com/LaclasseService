@@ -31,6 +31,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -57,7 +58,20 @@ namespace Laclasse
 	[AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
 	public class ModelFieldAttribute : Attribute
 	{
-		public bool Required = false;
+		public bool Required;
+		public bool Search = true;
+		public Type ForeignModel;
+		public string RegexMatch;
+	}
+
+	[AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+	public class ModelExpandFieldAttribute : Attribute
+	{
+		public bool Search = true;
+		public bool Visible = true;
+		public string Name;
+		public Type ForeignModel;
+		public string ForeignField;
 	}
 
 	public class Model
@@ -72,20 +86,7 @@ namespace Laclasse
 				result = new T();
 				var obj = (JsonObject)value;
 
-				foreach (var property in typeof(T).GetProperties())
-				{
-					var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
-					if (fieldAttribute == null)
-						continue;
-					if ((filterFields.Length > 0) && !filterFields.Contains(property.Name))
-						continue;
-					if (obj.ContainsKey(property.Name))
-					{
-						var val = obj[property.Name];
-						if (val is JsonPrimitive)
-							result.Fields[property.Name] = Convert.ChangeType(val.Value, property.PropertyType);
-					}
-				}
+				result.FromJson(obj, filterFields);
 			}
 			return result;
 		}
@@ -126,9 +127,12 @@ namespace Laclasse
 			{
 				if (Fields.ContainsKey(key))
 				{
-					if ((Fields[key] == null) && (obj.Fields[key] != null))
-						return false;
-					if (!Fields[key].Equals(obj.Fields[key]))
+					if (Fields[key] == null)
+					{
+						if (obj.Fields[key] != null)
+							return false;
+					}
+					else if (!Fields[key].Equals(obj.Fields[key]))
 						return false;
 				}
 			}
@@ -191,6 +195,50 @@ namespace Laclasse
 			return Fields.ContainsKey(name) ? (T)Fields[name] : defaultValue;
 		}
 
+		public virtual void FromJson(JsonObject json, string[] filterFields = null, HttpContext context = null)
+		{
+			foreach (var property in GetType().GetProperties())
+			{
+				if ((filterFields != null) && (filterFields.Length > 0) && !filterFields.Contains(property.Name))
+					continue;
+
+				if (!json.ContainsKey(property.Name))
+					continue;
+
+				var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
+				if (fieldAttribute != null)
+				{
+					var val = json[property.Name];
+					if (val is JsonPrimitive)
+					{
+						if ((fieldAttribute.RegexMatch != null) && !Regex.IsMatch(val.Value.ToString(), fieldAttribute.RegexMatch))
+							throw new WebException(400, $"Invalid field '{property.Name}' value '{val.Value}'");
+						Fields[property.Name] = Convert.ChangeType(val.Value, property.PropertyType);
+					}
+				}
+				var expandFieldAttribute = (ModelExpandFieldAttribute)property.GetCustomAttribute(typeof(ModelExpandFieldAttribute));
+				if (expandFieldAttribute != null)
+				{
+					var jsonArray = json[property.Name] as JsonArray;
+					if (jsonArray != null)
+					{
+						var modelListType = (typeof(ModelList<>)).MakeGenericType(expandFieldAttribute.ForeignModel);
+						var list = (IModelList)Activator.CreateInstance(modelListType);
+						Fields[property.Name] = list;
+						foreach (var jsonItem in jsonArray)
+						{
+							if (jsonItem.JsonType == JsonType.Object)
+							{
+								var item = (Model)Activator.CreateInstance(expandFieldAttribute.ForeignModel);
+								item.FromJson((JsonObject)jsonItem, null, context);
+								list.Add(item);
+							}
+						}
+					}
+				}
+			}
+		}
+
 		public virtual JsonObject ToJson()
 		{
 			var result = new JsonObject();
@@ -237,6 +285,8 @@ namespace Laclasse
 					result[key] = ((Model)value).ToJson();
 				else if (value is IModelList)
 					result[key] = ((IModelList)value).ToJson();
+				if (value as object == null)
+					result[key] = null;
 			}
 			return result;
 		}
@@ -251,7 +301,7 @@ namespace Laclasse
 			return new ModelContent(model);
 		}
 
-		public async Task<bool> LoadAsync(DB db)
+		public async virtual Task<bool> LoadAsync(DB db, bool expand = false)
 		{
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
@@ -271,10 +321,89 @@ namespace Laclasse
 					done = true;
 				}
 			}
+			if (expand)
+			{
+				foreach (var property in GetType().GetProperties())
+				{
+					var attr = (ModelExpandFieldAttribute)property.GetCustomAttribute(typeof(ModelExpandFieldAttribute));
+					if ((attr != null) && attr.Visible)
+					{
+						var task = typeof(DB).GetMethod("SelectForeignRowsAsync").MakeGenericMethod(attr.ForeignModel).Invoke(db, new object[] { GetType(), attr.ForeignField, Fields[primaryKey] }) as Task;
+						await task;
+						var resultProperty = typeof(Task<>).MakeGenericType((typeof(ModelList<>)).MakeGenericType(attr.ForeignModel)).GetProperty("Result");
+						Fields[attr.Name] = resultProperty.GetValue(task);
+					}
+				}
+			}
 			return done;
 		}
 
-		public async Task<bool> SaveAsync(DB db)
+		internal static PropertyInfo FindForeignProperty(Type sourceModel, Type foreignModel, string foreignField)
+		{
+			PropertyInfo[] properties;
+			if (foreignField != null)
+			{
+				var prop = foreignModel.GetProperty(foreignField);
+				if (prop != null)
+					properties = new PropertyInfo[] { prop };
+				else
+					properties = new PropertyInfo[] { };
+			}
+			else
+				properties = foreignModel.GetProperties();
+			PropertyInfo foreignfieldProperty = null;
+			foreach (var property in properties)
+			{
+				var fieldAttr = property.GetCustomAttributes(typeof(ModelFieldAttribute), false);
+				if (fieldAttr.Length > 0)
+				{
+					var attr = (ModelFieldAttribute)fieldAttr[0];
+					if (attr.ForeignModel == sourceModel)
+					{
+						foreignfieldProperty = property;
+						break;
+					}
+				}
+			}
+			return foreignfieldProperty;
+		}
+
+		public static IEnumerable<string> GetSearchAllowedFieldsFromModel(Type model, bool expand = true)
+		{
+			var searchAllowedFields = new List<string>();
+			var properties = model.GetProperties();
+			foreach (var prop in properties)
+			{
+				var propAttrs = prop.GetCustomAttributes(typeof(ModelFieldAttribute), false);
+				foreach (var a in propAttrs)
+				{
+					var propAttr = (ModelFieldAttribute)a;
+					if (propAttr.Search)
+					{
+						searchAllowedFields.Add(prop.Name);
+						break;
+					}
+				}
+				if (expand)
+				{
+					var expandPropAttrs = prop.GetCustomAttributes(typeof(ModelExpandFieldAttribute), false);
+					foreach (var a in expandPropAttrs)
+					{
+						var propAttr = (ModelExpandFieldAttribute)a;
+						if (propAttr.Search)
+						{
+							var fields = GetSearchAllowedFieldsFromModel(propAttr.ForeignModel, false);
+							foreach (var field in fields)
+								searchAllowedFields.Add(propAttr.Name + "." + field);
+							break;
+						}
+					}
+				}
+			}
+			return searchAllowedFields;
+		}
+
+		public async Task<bool> SaveAsync(DB db, bool expand = false)
 		{
 			var res = await InsertAsync(db);
 			if (res)
@@ -283,17 +412,36 @@ namespace Laclasse
 				string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 				if (!IsSet(primaryKey))
 					Fields[primaryKey] = Convert.ChangeType(await db.LastInsertIdAsync(), GetType().GetProperty(primaryKey).PropertyType);
-				await LoadAsync(db);
+				// handle expanded fields
+				if (expand)
+				{
+					foreach (var property in GetType().GetProperties())
+					{
+						if (!Fields.ContainsKey(property.Name))
+							continue;
+						var attr = (ModelExpandFieldAttribute)property.GetCustomAttribute(typeof(ModelExpandFieldAttribute));
+						if (attr != null)
+						{
+							var list = (IModelList)Fields[property.Name];
+							var foreignProp = FindForeignProperty(GetType(), attr.ForeignModel, attr.ForeignField);
+							foreach (var item in list)
+							{
+								var model = (Model)item;
+								model.Fields[foreignProp.Name] = Fields[primaryKey];
+								await ((Model)item).SaveAsync(db, expand);
+							}
+						}
+					}
+				}
+				await LoadAsync(db, expand);
 			}
 			return res;
 		}
 
-		public async Task<bool> InsertAsync(DB db)
+		public virtual async Task<bool> InsertAsync(DB db)
 		{
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
-			await BeforeInsertAsync(db);
-
 
 			var filterFields = new List<string>();
 			// check if all required fields are present
@@ -307,11 +455,10 @@ namespace Laclasse
 					filterFields.Add(property.Name);
 				}
 			}
-
 			return (await db.InsertRowAsync(tableName, Fields, filterFields)) == 1;
 		}
 
-		public async Task<bool> UpdateAsync(DB db)
+		public virtual async Task<bool> UpdateAsync(DB db)
 		{
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
@@ -319,21 +466,23 @@ namespace Laclasse
 			return (await db.UpdateRowAsync(tableName, primaryKey, Fields[primaryKey], Fields)) == 1;
 		}
 
-		public async Task<bool> DeleteAsync(DB db)
+		public virtual async Task<bool> DeleteAsync(DB db)
 		{
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
-			return (await db.DeleteAsync($"DELETE FROM `{tableName}` WHERE `{primaryKey}`=?", Fields[primaryKey])) == 1; 
+			var res = (await db.DeleteAsync($"DELETE FROM `{tableName}` WHERE `{primaryKey}`=?", Fields[primaryKey])) == 1;
+			return res;
 		}
 
-		public virtual Task BeforeInsertAsync(DB db)
+		public static Task<JsonValue> SearchAsync<T>(DB db, IEnumerable<string> searchAllowedFields, HttpContext c) where T : Model, new()
 		{
-			return Task.FromResult(false);
+			return SearchWithHttpContextAsync<T>(db, searchAllowedFields, c);
 		}
 
-		public static async Task<JsonValue> SearchAsync<T>(DB db, List<string> searchAllowedFields, HttpContext c) where T : Model, new()
+		public static async Task<JsonValue> SearchWithHttpContextAsync<T>(DB db, IEnumerable<string> searchAllowedFields, HttpContext c) where T : Model, new()
 		{
+			bool expand = true;
 			int offset = 0;
 			int count = -1;
 			string orderBy = null;
@@ -351,6 +500,8 @@ namespace Laclasse
 				orderBy = c.Request.QueryString["sort_col"];
 			if (c.Request.QueryString.ContainsKey("sort_dir") && (c.Request.QueryString["sort_dir"] == "desc"))
 				orderDir = SortDirection.Descending;
+			if (c.Request.QueryString.ContainsKey("expand"))
+				expand = Convert.ToBoolean(c.Request.QueryString["expand"]);
 
 			var parsedQuery = query.QueryParser();
 			foreach (var key in c.Request.QueryString.Keys)
@@ -359,22 +510,46 @@ namespace Laclasse
 			foreach (var key in c.Request.QueryStringArray.Keys)
 				if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
 					parsedQuery[key] = c.Request.QueryStringArray[key];
-			var result = await SearchAsync<T>(db, searchAllowedFields, parsedQuery, orderBy, orderDir, offset, count);
+			var result = await SearchAsync<T>(db, searchAllowedFields, parsedQuery, orderBy, orderDir, expand, offset, count);
 
 			if (count > 0)
+			{
 				return new JsonObject
 				{
 					["total"] = result.Total,
 					["page"] = (result.Offset / count) + 1,
 					["data"] = result.Data
 				};
-			else
-				return result.Data;
+			}
+			return result.Data;
+		}
+
+		enum CompareOperator
+		{
+			Equal,
+			Less,
+			LessOrEqual,
+			Greater,
+			GreaterOrEqual
+		}
+
+		static string CompareOperatorToSql(CompareOperator op)
+		{
+			string opStr = "=";
+			if (op == CompareOperator.Less)
+				opStr =  "<";
+			else if (op == CompareOperator.LessOrEqual)
+				opStr =  "<=";
+			else if (op == CompareOperator.Greater)
+				opStr =  ">";
+			else if (op == CompareOperator.GreaterOrEqual)
+				opStr =  ">=";
+			return opStr;
 		}
 
 		public static async Task<SearchResult> SearchAsync<T>(
-			DB db, List<string> searchAllowedFields, Dictionary<string, List<string>> queryFields, string orderBy,
-			SortDirection sortDir = SortDirection.Ascending, int offset = 0, int count = -1) where T : Model, new()
+			DB db, IEnumerable<string> searchAllowedFields, Dictionary<string, List<string>> queryFields, string orderBy = null,
+			SortDirection sortDir = SortDirection.Ascending, bool expand = true, int offset = 0, int count = -1) where T : Model, new()
 		{
 			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
 			string modelTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : typeof(T).Name;
@@ -386,8 +561,31 @@ namespace Laclasse
 			var result = new SearchResult();
 			string filter = "";
 			var tables = new Dictionary<string, Dictionary<string, List<string>>>();
-			foreach (string key in queryFields.Keys)
+			foreach (string keyOp in queryFields.Keys)
 			{
+				string key = keyOp;
+				var op = CompareOperator.Equal;
+				if (keyOp.EndsWith("<", StringComparison.InvariantCulture))
+				{
+					op = CompareOperator.Less;
+					key = keyOp.Substring(0, key.Length - 1);
+				}
+				else if (keyOp.EndsWith("<=", StringComparison.InvariantCulture))
+				{
+					op = CompareOperator.LessOrEqual;
+					key = keyOp.Substring(0, key.Length - 2);
+				}
+				else if (keyOp.EndsWith(">", StringComparison.InvariantCulture))
+				{
+					op = CompareOperator.Greater;
+					key = keyOp.Substring(0, key.Length - 1);
+				}
+				else if (keyOp.EndsWith(">=", StringComparison.InvariantCulture))
+				{
+					op = CompareOperator.GreaterOrEqual;
+					key = key.Substring(0, key.Length - 2);
+				}
+
 				if (!searchAllowedFields.Contains(key))
 					continue;
 
@@ -408,12 +606,12 @@ namespace Laclasse
 				}
 				else
 				{
-					var words = queryFields[key];
+					var words = queryFields[keyOp];
 					if (words.Count == 1)
 					{
 						if (filter != "")
 							filter += " AND ";
-						filter += "`" + key + "`='" + db.EscapeString(words[0]) + "'";
+						filter += "`" + key + "`" + CompareOperatorToSql(op) + "'" + db.EscapeString(words[0]) + "'";
 					}
 					else if (words.Count > 1)
 					{
@@ -447,32 +645,70 @@ namespace Laclasse
 				}
 			}
 
-			/*foreach (string tableName in tables.Keys)
+			foreach (string tableName in tables.Keys)
 			{
-				Console.WriteLine($"FOUND TABLE {tableName}");
-				if (tableName == "users")
-				{
-					if (filter != "")
-						filter += " AND ";
-					filter += "id IN (SELECT group_id FROM `group_user` WHERE ";
+				var property = typeof(T).GetProperty(tableName);
+				if (property == null)
+					continue;
+				var fieldAttr = property.GetCustomAttributes(typeof(ModelExpandFieldAttribute), false);
+				if (fieldAttr.Length == 0)
+					continue;
+				var attr = (ModelExpandFieldAttribute)fieldAttr[0];
 
-					var first = true;
-					var profilesTable = tables[tableName];
-					foreach (var profilesKey in profilesTable.Keys)
+				var foreignAttrs = attr.ForeignModel.GetCustomAttributes(typeof(ModelAttribute), false);
+				string foreignTableName = (foreignAttrs.Length > 0) ? ((ModelAttribute)foreignAttrs[0]).Table : attr.ForeignModel.Name;
+				PropertyInfo foreignProperty = null;
+
+				PropertyInfo[] properties;
+				if (attr.ForeignField != null)
+				{
+					var prop = attr.ForeignModel.GetProperty(attr.ForeignField);
+					if (prop != null)
+						properties = new PropertyInfo[] { prop };
+					else 
+						properties = new PropertyInfo[] { };
+				}
+				else
+					properties = attr.ForeignModel.GetProperties();
+				foreach (var prop in properties)
+				{
+					var propAttrs = prop.GetCustomAttributes(typeof(ModelFieldAttribute), false);
+					foreach (var a in propAttrs)
 					{
-						var words = profilesTable[profilesKey];
-						foreach (string word in words)
+						var propAttr = (ModelFieldAttribute)a;
+						if (propAttr.ForeignModel == typeof(T))
 						{
-							if (first)
-								first = false;
-							else
-								filter += " AND ";
-							filter += "`" + profilesKey + "`='" + db.EscapeString(word) + "'";
+							foreignProperty = prop;
+							break;
 						}
 					}
-					filter += ")";
+					if (foreignProperty != null)
+						break;
 				}
-			}*/
+
+				if (foreignProperty == null)
+					continue;
+
+				if (filter != "")
+					filter += " AND ";
+				filter += $"`{primaryKey}` IN (SELECT `{foreignProperty.Name}` FROM `{foreignTableName}` WHERE ";
+
+				var first = true;
+				var itemsTable = tables[tableName];
+				foreach (var itemKey in itemsTable.Keys)
+				{
+					var words = itemsTable[itemKey];
+					foreach (string word in words)
+					{
+						if (first)
+							first = false;
+						else
+							filter += " AND ";
+						filter += "`" + itemKey + "`='" + db.EscapeString(word) + "'";
+					}
+				}
+				filter += ")";
+			}
 
 			if (filter == "")
 				filter = "TRUE";
@@ -483,10 +719,19 @@ namespace Laclasse
 			result.Data = new JsonArray();
 			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `{modelTableName}` WHERE {filter} " +
 				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC") + $" {limit}";
-			Console.WriteLine(sql);
-			var items = await db.SelectAsync<T>(sql);
-			result.Total = (int)await db.FoundRowsAsync();
-
+			//Console.WriteLine(sql);
+			ModelList<T> items;
+			if (expand)
+			{
+				// get the found rows just after the main query because the value is changed
+				// by the others queries done for expanding the data
+				items = await db.SelectExpandAsync<T>(sql, new object[] { }, async () => result.Total = (int)await db.FoundRowsAsync());
+			}
+			else
+			{
+				items = await db.SelectAsync<T>(sql);
+				result.Total = (int)await db.FoundRowsAsync();
+			}
 			foreach (var item in items)
 				result.Data.Add(item.ToJson());
 			return result;
@@ -494,22 +739,48 @@ namespace Laclasse
 
 		public static async Task SyncAsync<T>(DB db, IEnumerable<T> srcItems, IEnumerable<T> dstItems) where T : Model
 		{
+			// delete before in case of DB constraint
+			foreach (var srcItem in srcItems)
+			{
+				if (!dstItems.Any(dstItem => dstItem.EqualsIntersection(srcItem)))
+					await srcItem.DeleteAsync(db);
+			}
+
 			foreach (var dstItem in dstItems)
 			{
 				var foundItem = srcItems.SingleOrDefault(srcItem => srcItem.EqualsIntersection(dstItem));
 				if (foundItem == null)
 					await dstItem.SaveAsync(db);
 			}
+		}
 
-			foreach (var srcItem in srcItems)
+		public async Task LoadExpandFieldAsync(DB db, string fieldName)
+		{
+			if (!IsSet(fieldName))
 			{
-				if (!dstItems.Any(dstItem => dstItem.EqualsIntersection(srcItem)))
-					await srcItem.DeleteAsync(db);
+				var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+				string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
+				Fields[fieldName] = await Model.LoadExpandFieldAsync(GetType(), db, fieldName, Fields[primaryKey]);
 			}
+		}
+
+		internal static Task<object> LoadExpandFieldAsync<T>(DB db, string fieldName, object id) where T : Model
+		{
+			return LoadExpandFieldAsync(typeof(T), db, fieldName, id);
+		}
+
+		internal static async Task<object> LoadExpandFieldAsync(Type model, DB db, string fieldName, object id)
+		{
+			var property = model.GetProperty(fieldName);
+			var attr = (ModelExpandFieldAttribute)property.GetCustomAttribute(typeof(ModelExpandFieldAttribute));
+			var task = typeof(DB).GetMethod("SelectForeignRowsAsync").MakeGenericMethod(attr.ForeignModel).Invoke(db, new object[] { model, attr.ForeignField, id }) as Task;
+			await task;
+			var resultProperty = typeof(Task<>).MakeGenericType(property.PropertyType).GetProperty("Result");
+			return resultProperty.GetValue(task);
 		}
 	}
 
-	interface IModelList
+	interface IModelList: IList
 	{
 		JsonArray ToJson();
 	}
@@ -634,37 +905,83 @@ namespace Laclasse
 			return result;
 		}
 
-		public async Task<T> SelectRowAsync<T>(string table, string idKey, object idValue) where T : Model, new()
+		public delegate Task SimpleActionAsync();
+
+		public async Task<ModelList<T>> SelectExpandAsync<T>(string query, object[] args, SimpleActionAsync beforeExpand = null) where T : Model, new()
 		{
-			T result = null;
-			var cmd = new MySqlCommand($"SELECT * FROM `{table}` WHERE `{idKey}`=?", connection);
+			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
+			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
+
+			var result = new ModelList<T>();
+			var cmd = new MySqlCommand(query, connection);
 			if (transaction != null)
 				cmd.Transaction = transaction;
-			cmd.Parameters.Add(new MySqlParameter(idKey, idValue));
+			var ids = new List<object>();
+			args.ForEach(arg => cmd.Parameters.Add(new MySqlParameter(string.Empty, arg)));
 			using (var reader = await cmd.ExecuteReaderAsync())
 			{
-				while (await reader.ReadAsync() && (result == null))
+				while (await reader.ReadAsync())
 				{
-					result = new T();
+					var item = new T();
 					for (int i = 0; i < reader.FieldCount; i++)
-						result.Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+					{
+						item.Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+						if (reader.GetName(i) == primaryKey)
+							ids.Add(item.Fields[reader.GetName(i)]);
+					}
+					result.Add(item);
+				}
+			}
+			if (beforeExpand != null)
+				await beforeExpand();
+			if (ids.Count > 0)
+			{
+				var properties = typeof(T).GetProperties();
+				foreach (var property in properties)
+				{
+					var fieldAttr = property.GetCustomAttributes(typeof(ModelExpandFieldAttribute), false);
+					if (fieldAttr.Length > 0)
+					{
+						var attr = (ModelExpandFieldAttribute)fieldAttr[0];
+						if (attr.Visible)
+						{
+							// because the ForeignModel type is not statically known, use reflexion
+							// get a base Task result for the same reason
+							var task = GetType().GetMethod("SelectForeignsRowsAsync").MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { typeof(T), attr.ForeignField, ids }) as Task;
+							await task;
+
+							var modelListType = (typeof(ModelList<>)).MakeGenericType(attr.ForeignModel);
+							var dictModelType = (typeof(Dictionary<,>)).MakeGenericType(typeof(object), modelListType);
+							var resultProperty = typeof(Task<>).MakeGenericType(dictModelType).GetProperty("Result");
+							var foreignsRows = resultProperty.GetValue(task) as IDictionary;
+
+							foreach (var item in result)
+							{
+								var itemKey = item.Fields[primaryKey];
+								if (foreignsRows.Contains(itemKey))
+									item.Fields[property.Name] = foreignsRows[itemKey];
+								else
+									item.Fields[property.Name] = Activator.CreateInstance(modelListType);
+							}
+						}
+					}
 				}
 			}
 			return result;
 		}
 
-		public async Task<T> SelectRowAsync<T>(object idValue) where T : Model, new()
+		public async Task<T> SelectRowAsync<T>(object idValue, bool expand = false) where T : Model, new()
 		{
 			T result = null;
 			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
-			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
+			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : typeof(T).Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
-
 
 			var cmd = new MySqlCommand($"SELECT * FROM `{tableName}` WHERE `{primaryKey}`=?", connection);
 			if (transaction != null)
 				cmd.Transaction = transaction;
 			cmd.Parameters.Add(new MySqlParameter(string.Empty, idValue));
+			object id = null;
 			using (var reader = await cmd.ExecuteReaderAsync())
 			{
 				while (await reader.ReadAsync() && (result == null))
@@ -673,12 +990,83 @@ namespace Laclasse
 					for (int i = 0; i < reader.FieldCount; i++)
 					{
 						result.Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+						if (expand && (reader.GetName(i) == primaryKey))
+							id = result.Fields[reader.GetName(i)];
+					}
+				}
+			}
+			if (expand && (id != null))
+			{
+				var properties = typeof(T).GetProperties();
+				foreach (var property in properties)
+				{
+					var fieldAttr = property.GetCustomAttributes(typeof(ModelExpandFieldAttribute), false);
+					if (fieldAttr.Length > 0)
+					{
+						var attr = (ModelExpandFieldAttribute)fieldAttr[0];
+						if (attr.Visible)
+						{
+							var task = GetType().GetMethod("SelectForeignRowsAsync").MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { typeof(T), attr.ForeignField, id }) as Task;
+							await task;
+							var resultProperty = typeof(Task<>).MakeGenericType((typeof(ModelList<>)).MakeGenericType(attr.ForeignModel)).GetProperty("Result");
+							result.Fields[attr.Name] = resultProperty.GetValue(task);
+						}
 					}
 				}
 			}
 			return result;
 		}
 
+		public async Task<ModelList<T>> SelectForeignRowsAsync<T>(Type sourceModel, string foreignField, object sourceId) where T : Model, new ()
+		{
+			ModelList<T> result;
+
+			Type foreignModel = typeof(T);
+			var attrs = foreignModel.GetCustomAttributes(typeof(ModelAttribute), false);
+			string destTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : foreignModel.Name;
+
+			var foreignFieldProperty = Model.FindForeignProperty(sourceModel, foreignModel, foreignField);
+
+			// if found, generate the needed SQL
+			if (foreignFieldProperty != null)
+			{
+				var sql = $"SELECT * FROM `{destTableName}` WHERE `{foreignFieldProperty.Name}`=?";
+				result = await SelectAsync<T>(sql, sourceId);
+			}
+			else
+				result = new ModelList<T>();
+			return result;
+		}
+
+		public async Task<Dictionary<object,ModelList<T>>> SelectForeignsRowsAsync<T>(Type sourceModel, string foreignField, List<object> sourceIds) where T : Model, new()
+		{
+			var result = new Dictionary<object, ModelList<T>>();
+
+			Type foreignModel = typeof(T);
+			var attrs = foreignModel.GetCustomAttributes(typeof(ModelAttribute), false);
+			string destTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : foreignModel.Name;
+
+			var foreignFieldProperty = Model.FindForeignProperty(sourceModel, foreignModel, foreignField);
+
+			// if found, generate the needed SQL
+			if (foreignFieldProperty != null)
+			{
+				var sql = $"SELECT * FROM `{destTableName}` WHERE {InFilter(foreignFieldProperty.Name, sourceIds)} ORDER BY `{foreignFieldProperty.Name}`";
+				object currentSourceId = null;
+				ModelList<T> currentSourceItems = null;
+				foreach (var item in await SelectAsync<T>(sql))
+				{
+					if ((currentSourceId == null) || !currentSourceId.Equals(item.Fields[foreignFieldProperty.Name]))
+					{
+						currentSourceId = item.Fields[foreignFieldProperty.Name];
+						currentSourceItems = new ModelList<T>();
+						result[currentSourceId] = currentSourceItems;
+					}
+					currentSourceItems.Add(item);
+				}
+			}
+			return result;
+		}
 
 		async Task<int> NonQueryAsync(string query, object[] args)
 		{
@@ -856,7 +1244,7 @@ namespace Laclasse
 		{
 			if (transaction != null)
 			{
-				transaction.Commit();
+				transaction.Rollback();
 				transaction.Dispose();
 			}
 			connection.Close();

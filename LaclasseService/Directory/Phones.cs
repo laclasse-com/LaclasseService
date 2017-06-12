@@ -26,124 +26,30 @@
 // THE SOFTWARE.
 //
 
-using System.Collections.Generic;
-using Erasme.Http;
-using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
 
-	[Model(Table = "phone", PrimaryKey = "id")]
+	[Model(Table = "phone", PrimaryKey = nameof(id))]
 	public class Phone : Model
 	{
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string number { get { return GetField<string>("number", null); } set { SetField("number", value); } }
+		public string number { get { return GetField<string>(nameof(number), null); } set { SetField(nameof(number), value); } }
 		[ModelField]
-		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
-		[ModelField]
-		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
+		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
+		[ModelField(ForeignModel = typeof(User))]
+		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 	}
 
-	public class Phones : HttpRouting
+	public class Phones : ModelService<Phone>
 	{
-		public Phones(string dbUrl)
+		public Phones(string dbUrl) : base(dbUrl)
 		{
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
-
-			GetAsync["/{id:int}"] = async (p, c) =>
-			{
-				Phone phone = null;
-				using (DB db = await DB.CreateAsync(dbUrl))
-					phone = await db.SelectRowAsync<Phone>((int)p["id"]);
-				if (phone != null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = phone;
-				}
-			};
-
-			GetAsync["/"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await Model.SearchAsync<Phone>(
-						db, new List<string> { "id", "number", "user_id", "type" }, c);
-				c.Response.StatusCode = 200;
-			};
-
-			PostAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				if (json is JsonArray)
-				{
-					var result = new JsonArray();
-					using (DB db = await DB.CreateAsync(dbUrl, true))
-					{
-						foreach (var jsonPhone in (JsonArray)json)
-						{
-							var phone = Model.CreateFromJson<Phone>(jsonPhone);
-							result.Add(await phone.SaveAsync(db));
-						}
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = result;
-				}
-				else if (json is JsonObject)
-				{
-					var email = Model.CreateFromJson<Phone>(json);
-					using (DB db = await DB.CreateAsync(dbUrl))
-						await email.SaveAsync(db);
-					c.Response.StatusCode = 200;
-					c.Response.Content = email;
-				}
-			};
-
-			PutAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				if (json is JsonArray)
-				{
-					var result = new JsonArray();
-					using (DB db = await DB.CreateAsync(dbUrl, true))
-					{
-						foreach (var jsonPhone in (JsonArray)json)
-						{
-							var phone = Model.CreateFromJson<Phone>(jsonPhone);
-							await phone.UpdateAsync(db);
-							result.Add(await phone.LoadAsync(db));
-						}
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = result;
-				}
-				else if (json is JsonObject)
-				{
-					var phone = Model.CreateFromJson<Phone>(json);
-					using (DB db = await DB.CreateAsync(dbUrl, true))
-					{
-						await phone.UpdateAsync(db);
-						await phone.LoadAsync(db);
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = phone;
-				}
-			};
-
-			DeleteAsync["/{id:int}"] = async (p, c) =>
-			{
-				Phone phone = null;
-				using (DB db = await DB.CreateAsync(dbUrl, true))
-				{
-					phone = await db.SelectRowAsync<Phone>((int)p["id"]);
-					if (phone != null)
-						await phone.DeleteAsync(db);
-				}
-				if (phone != null)
-					c.Response.StatusCode = 200;
-			};
 		}
 	}
 }

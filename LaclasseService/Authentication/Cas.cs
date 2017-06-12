@@ -66,16 +66,14 @@ namespace Laclasse.Authentication
 		readonly Tickets tickets;
 		readonly Sessions sessions;
 		readonly Users users;
-		readonly Structures structures;
 		readonly string cookieName;
 
-		public Cas(string dbUrl, Sessions sessions, Users users, Structures structures,
+		public Cas(string dbUrl, Sessions sessions, Users users,
 				   string cookieName, double ticketTimeout, JsonValue aafSsoSetup)
 		{
 			this.dbUrl = dbUrl;
 			this.sessions = sessions;
 			this.users = users;
-			this.structures = structures;
 			this.cookieName = cookieName;
 			tickets = new Tickets(dbUrl, ticketTimeout);
 
@@ -416,6 +414,9 @@ namespace Laclasse.Authentication
 				var queryFields = new Dictionary<string, List<string>>();
 				queryFields["emails.type"] = new List<string>(new string[] { "Academique" });
 				queryFields["emails.adresse"] = new List<string>(new string[] { ctemail });
+				//JsonValue userResult;
+				//using (DB db = await DB.CreateAsync(dbUrl))
+				//	userResult = (await Model.SearchAsync<User>(db, new string[] { "emails.type", "emails.adresse" }, queryFields)).Data.SingleOrDefault();
 				var userResult = (await users.SearchUserAsync(queryFields)).Data.SingleOrDefault();
 				//Console.WriteLine($"Found user: {userResult}");
 
@@ -528,9 +529,15 @@ namespace Laclasse.Authentication
 			["DOC"] = "National_3"
 		};
 
-		Dictionary<string, string> UserToSsoAttributes(JsonValue user)
+		async Task<Dictionary<string, string>> UserToSsoAttributesAsync(DB db, JsonValue user)
 		{
 			// TODO: add ENTEleveClasses and ENTEleveNivFormation
+			// TODO: add MailAdressePrincipal
+
+			EmailBackend emailBackend = null;
+			if (user.ContainsKey("email_backend_id") && (user["email_backend_id"] != null))
+				emailBackend = await db.SelectRowAsync<EmailBackend>((int)user["email_backend_id"]);
+			var primaryEmail = (await db.SelectAsync<Email>("SELECT * FROM `email` WHERE `user_id`=? AND `primary`=TRUE", (string)user["id"])).SingleOrDefault();
 
 			string ENTPersonStructRattachRNE = null;
 			string ENTPersonProfils = null;
@@ -568,7 +575,9 @@ namespace Laclasse.Authentication
 				["ENTPersonStructRattachRNE"] = ENTPersonStructRattachRNE,
 				["categories"] = categories,
 				["LaclasseNom"] = user["lastname"],
-				["LaclassePrenom"] = user["firstname"]
+				["LaclassePrenom"] = user["firstname"],
+				["MailBackend"] = (emailBackend == null) ? null : emailBackend.address,
+				["MailAdressePrincipal"] = (primaryEmail == null) ? null : primaryEmail.address
 			};
 		}
 
@@ -599,7 +608,7 @@ namespace Laclasse.Authentication
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
-				return UserToSsoAttributes(await users.GetUserAsync(uid));
+				return await UserToSsoAttributesAsync(db, await users.GetUserAsync(uid));
 			}
 		}
 
@@ -1113,7 +1122,7 @@ namespace Laclasse.Authentication
 					{
 						var childJson = await users.GetUserAsync(child["user_id"]);
 
-						if (childJson["aaf_struct_rattach_id"] == int.Parse(aaf_struct_rattach_id))
+						if (childJson.aaf_struct_rattach_id == int.Parse(aaf_struct_rattach_id))
 							return user;
 					}
 				}

@@ -25,44 +25,32 @@
 // THE SOFTWARE.
 //
 
-using Erasme.Http;
+using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "structure_type", PrimaryKey = "id")]
+	[Model(Table = "structure_type", PrimaryKey = nameof(id))]
 	public class StructureType : Model
 	{
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
 		[ModelField]
-		public string contrat_type { get { return GetField<string>("contrat_type", null); } set { SetField("contrat_type", value); } }
+		public string contrat_type { get { return GetField<string>(nameof(contrat_type), null); } set { SetField(nameof(contrat_type), value); } }
 		[ModelField]
-		public string aaf_type { get { return GetField<string>("aaf_type", null); } set { SetField("aaf_type", value); } }
+		public string aaf_type { get { return GetField<string>(nameof(aaf_type), null); } set { SetField(nameof(aaf_type), value); } }
 	}
 
-	public class StructuresTypes: HttpRouting
+	public class StructuresTypes: ModelService<StructureType>
 	{
-		public StructuresTypes(string dbUrl)
+		public StructuresTypes(string dbUrl) : base(dbUrl)
 		{
-			GetAsync["/"] = async (p, c) =>
+			// API only available to authenticated users
+			BeforeAsync = async (p, c) =>
 			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await db.SelectAsync<StructureType>("SELECT * FROM structure_type");
-				c.Response.StatusCode = 200;
-			};
-
-			GetAsync["/{id:int}"] = async (p, c) =>
-			{
-				StructureType item;
-				using (DB db = await DB.CreateAsync(dbUrl))
-					item = await db.SelectRowAsync<StructureType>((int)p["id"]);
-				if (item != null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = item;
-				}
+				if (c.Request.Method != "GET")
+					await c.EnsureIsAuthenticatedAsync();
 			};
 		}
 	}

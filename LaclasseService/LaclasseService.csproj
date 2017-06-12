@@ -90,6 +90,9 @@
     <Compile Include="Directory\UserLinks.cs" />
     <Compile Include="Directory\Phones.cs" />
     <Compile Include="Directory\GroupsUsers.cs" />
+    <Compile Include="Directory\StructuresResources.cs" />
+    <Compile Include="Directory\GroupsGrades.cs" />
+    <Compile Include="Directory\ModelService.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

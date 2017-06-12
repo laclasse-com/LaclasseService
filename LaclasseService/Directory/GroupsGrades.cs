@@ -1,4 +1,4 @@
-﻿// UserLinks.cs
+﻿// GroupsGrades.cs
 //
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
@@ -28,28 +28,20 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "user_child", PrimaryKey = nameof(id))]
-	public class UserChild : Model
+	[Model(Table = "group_grade", PrimaryKey = nameof(id))]
+	public class GroupGrade : Model
 	{
 		[ModelField]
 		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
-		[ModelField(Required = true)]
-		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
-		[ModelField(Required = true, ForeignModel = typeof(User))]
-		public string parent_id { get { return GetField<string>(nameof(parent_id), null); } set { SetField(nameof(parent_id), value); } }
-		[ModelField(Required = true, ForeignModel = typeof(User))]
-		public string child_id { get { return GetField<string>(nameof(child_id), null); } set { SetField(nameof(child_id), value); } }
-		[ModelField]
-		public bool financial { get { return GetField(nameof(financial), false); } set { SetField(nameof(financial), value); } }
-		[ModelField]
-		public bool legal { get { return GetField(nameof(legal), false); } set { SetField(nameof(legal), value); } }
-		[ModelField]
-		public bool contact { get { return GetField(nameof(contact), false); } set { SetField(nameof(contact), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(Group))]
+		public int group_id { get { return GetField(nameof(group_id), 0); } set { SetField(nameof(group_id), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(Grade))]
+		public string grade_id { get { return GetField<string>(nameof(grade_id), null); } set { SetField(nameof(grade_id), value); } }
 	}
 
-	public class UserLinks : ModelService<UserChild>
+	public class GroupsGrades : ModelService<GroupGrade>
 	{
-		public UserLinks(string dbUrl) : base(dbUrl)
+		public GroupsGrades(string dbUrl) : base(dbUrl)
 		{
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();

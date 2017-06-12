@@ -28,58 +28,44 @@ using System;
 using System.IO;
 using System.Xml;
 using Erasme.Http;
-using Erasme.Json;
+using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "news", PrimaryKey = "id")]
+	[Model(Table = "news", PrimaryKey = nameof(id))]
 	public class News : Model
 	{
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string title { get { return GetField<string>("title", null); } set { SetField("title", value); } }
+		public string title { get { return GetField<string>(nameof(title), null); } set { SetField(nameof(title), value); } }
 		[ModelField]
-		public string description { get { return GetField<string>("description", null); } set { SetField("description", value); } }
+		public string description { get { return GetField<string>(nameof(description), null); } set { SetField(nameof(description), value); } }
 		[ModelField]
-		public DateTime pubDate { get { return GetField("pubDate", DateTime.Now); } set { SetField("pubDate", value); } }
+		public DateTime pubDate { get { return GetField(nameof(pubDate), DateTime.Now); } set { SetField(nameof(pubDate), value); } }
 		[ModelField]
-		public string guid { get { return GetField<string>("guid", null); } set { SetField("guid", value); } }
+		public string guid { get { return GetField<string>(nameof(guid), null); } set { SetField(nameof(guid), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(User))]
+		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 		[ModelField]
-		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
-		[ModelField]
-		public int? publipostage_id { get { return GetField<int?>("publipostage_id", null); } set { SetField("publipostage_id", value); } }
+		public int? publipostage_id { get { return GetField<int?>(nameof(publipostage_id), null); } set { SetField(nameof(publipostage_id), value); } }
 	}
 
-	public class PortailNews : HttpRouting
+	public class PortailNews : ModelService<News>
 	{
-		public PortailNews(string dbUrl)
+		public PortailNews(string dbUrl) : base(dbUrl)
 		{
-			GetAsync["/{uid}/news"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					var json = new JsonArray();
+			// API only available to authenticated users
+			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+		}
+	}
 
-					foreach (var item in await db.SelectAsync("SELECT * FROM news WHERE user_id=?", (string)p["uid"]))
-					{
-						var jsonItem = new JsonObject();
-						json.Add(jsonItem);
-
-						jsonItem["content"] = (string)item["description"];
-						jsonItem["title"] = (string)item["title"];
-						jsonItem["pubDate"] = ((DateTime)item["pubDate"]).ToString("R");
-						jsonItem["link"] = null;
-						jsonItem["image"] = null;
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = json;
-				}
-			};
-
+	public class PortailRss : HttpRouting
+	{
+		public PortailRss(string dbUrl)
+		{
 			GetAsync["/{uid}/rss"] = async (p, c) =>
 			{
-
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
 					var dom = new XmlDocument();
@@ -119,7 +105,7 @@ namespace Laclasse.Directory
 						var itemLink = dom.CreateElement("link");
 						itemLink.InnerText = "notYetImplemented";
 						xmlItem.AppendChild(itemLink);
-      
+
 						var itemDescription = dom.CreateElement("description");
 						itemDescription.InnerText = (string)item["description"];
 						xmlItem.AppendChild(itemDescription);
@@ -127,7 +113,7 @@ namespace Laclasse.Directory
 						var pubDate = dom.CreateElement("pubDate");
 						pubDate.InnerText = ((DateTime)item["pubDate"]).ToString("R");
 						xmlItem.AppendChild(pubDate);
-	  
+
 						var dcDate = dom.CreateElement("dc:date", dc);
 						dcDate.InnerText = ((DateTime)item["pubDate"]).ToString("O");
 						xmlItem.AppendChild(dcDate);

@@ -28,136 +28,42 @@
 //
 
 using System;
-using System.Threading.Tasks;
-using Erasme.Http;
-using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "resource", PrimaryKey = "id")]
+	[Model(Table = "resource", PrimaryKey = nameof(id))]
 	public class Resource : Model
 	{
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
 		[ModelField]
-		public string url { get { return GetField<string>("url", null); } set { SetField("url", value); } }
+		public string url { get { return GetField<string>(nameof(url), null); } set { SetField(nameof(url), value); } }
 		[ModelField]
-		public string site_web { get { return GetField<string>("site_web", null); } set { SetField("site_web", value); } }
+		public string site_web { get { return GetField<string>(nameof(site_web), null); } set { SetField(nameof(site_web), value); } }
 		[ModelField]
-		public DateTime? mtime { get { return GetField<DateTime?>("mtime", null); } set { SetField("mtime", value); } }
+		public DateTime? mtime { get { return GetField<DateTime?>(nameof(mtime), null); } set { SetField(nameof(mtime), value); } }
 		[ModelField]
-		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
+		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
+
+		[ModelExpandField(Name = nameof(structures), ForeignModel = typeof(StructureResource), Visible = false)]
+		public ModelList<StructureResource> structures {
+			get { return GetField<ModelList<StructureResource>>(nameof(structures), null); }
+			set { SetField(nameof(structures), value); } }
 	}
 
-	public class Resources: HttpRouting
+	public class Resources: ModelService<Resource>
 	{
-		string DBUrl;
-
-		public Resources(string dbUrl)
+		public Resources(string dbUrl) : base(dbUrl)
 		{
-			DBUrl = dbUrl;
-
-			GetAsync["/"] = async (p, c) =>
+			// API only available to authenticated users
+			BeforeAsync = async (p, c) =>
 			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await db.SelectAsync<Resource>("SELECT * FROM resource");
-				c.Response.StatusCode = 200;
+				if (c.Request.Method != "GET")
+					await c.EnsureIsAuthenticatedAsync();
 			};
-
-			GetAsync["/{id:int}"] = async (p, c) =>
-			{
-				var json = await GetResourceAsync((int)p["id"]);
-				if (json == null)
-					c.Response.StatusCode = 404;
-				else
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = json;
-				}
-			};
-
-			PostAsync["/"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-
-				var json = await c.Request.ReadAsJsonAsync();
-				var extracted = json.ExtractFields(
-					"name", "url", "site_web", "resource");
-				// check required fields
-				if (!extracted.ContainsKey("lib"))
-					throw new WebException(400, "Missing arguments");
-
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int res = await db.InsertRowAsync("resource", extracted);
-					if (res == 1)
-					{
-						var jsonResult = await GetResourceAsync(db, (int)await db.LastInsertIdAsync());
-						if(jsonResult != null) 
-						{
-							c.Response.StatusCode = 200;
-							c.Response.Content = jsonResult;
-						}
-						else
-							c.Response.StatusCode = 500;
-					}
-					else
-						c.Response.StatusCode = 500;
-				}
-			};
-
-			PutAsync["/{id:int}"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-
-				var json = await c.Request.ReadAsJsonAsync();
-				var extracted = json.ExtractFields(
-					"name", "url", "site_web", "type");
-				JsonValue jsonResult = null;
-				if (extracted.Count > 0)
-				{
-					using (DB db = await DB.CreateAsync(dbUrl))
-					{
-						if ((await db.UpdateRowAsync("resource", "id", p["id"], extracted)) > 0)
-							jsonResult = await GetResourceAsync(db, (int)p["id"]);
-					}
-				}
-				if (jsonResult == null)
-					c.Response.StatusCode = 404;
-				else
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
-				}
-			};
-
-			DeleteAsync["/{id:int}"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int count = await db.DeleteAsync("DELETE FROM resource WHERE id=?", (int)p["id"]);
-					if (count == 0)
-						c.Response.StatusCode = 404;
-					else
-						c.Response.StatusCode = 200;
-				}
-			};
-		}
-
-		public async Task<Resource> GetResourceAsync(int id)
-		{
-			using (DB db = await DB.CreateAsync(DBUrl))
-				return await GetResourceAsync(db, id);
-		}
-
-		public async Task<Resource> GetResourceAsync(DB db, int id)
-		{
-			return await db.SelectRowAsync<Resource>(id);
 		}
 	}
 }

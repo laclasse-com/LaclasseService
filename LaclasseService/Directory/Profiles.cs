@@ -30,160 +30,94 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Erasme.Http;
-using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "user_profile", PrimaryKey = "id")]
+	[Model(Table = "user_profile", PrimaryKey = nameof(id))]
 	public class UserProfile : Model
 	{
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
+		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(Structure))]
+		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(User))]
+		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 		[ModelField]
-		public string structure_id { get { return GetField<string>("structure_id", null); } set { SetField("structure_id", value); } }
+		public bool active { get { return GetField(nameof(active), false); } set { SetField(nameof(active), value); } }
 		[ModelField]
-		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
-		[ModelField]
-		public bool active { get { return GetField("active", false); } set { SetField("active", value); } }
-		[ModelField]
-		public DateTime? aaf_mtime { get { return GetField<DateTime?>("aaf_mtime", null); } set { SetField("aaf_mtime", value); } }
+		public DateTime? aaf_mtime { get { return GetField<DateTime?>(nameof(aaf_mtime), null); } set { SetField(nameof(aaf_mtime), value); } }
+
+	
+		public async override Task<bool> InsertAsync(DB db)
+		{
+			var userProfiles = (ModelList<UserProfile>)await LoadExpandFieldAsync<User>(db, nameof(User.profiles), user_id);
+			var activeProfiles = userProfiles.FindAll((obj) => obj.active);
+			// ensure only 1 active profile per user
+			if (activeProfiles.Count == 0)
+				active = true;
+			bool done = await base.InsertAsync(db);
+			if (IsSet(nameof(active)) && active && (activeProfiles.Count > 0))
+			{
+				foreach (var profile in activeProfiles)
+					await profile.DiffWithId(new UserProfile { active = false }).UpdateAsync(db);
+			}
+			return done;
+		}
+
+		public async override Task<bool> UpdateAsync(DB db)
+		{
+			var oldProfile = this;
+			// if the user is not known, load the profile data
+			if (!IsSet(nameof(user_id)))
+				oldProfile = await db.SelectRowAsync<UserProfile>(id);
+
+			var userProfiles = (ModelList<UserProfile>)await LoadExpandFieldAsync<User>(db, nameof(User.profiles), oldProfile.user_id);
+			var activeProfiles = userProfiles.FindAll((obj) => obj.active && (obj.id != id));
+
+			if (activeProfiles.Count == 0)
+				active = true;
+
+			var done = await base.UpdateAsync(db);
+
+			if (IsSet(nameof(active)) && active)
+			{
+				foreach (var profile in activeProfiles)
+					await profile.DiffWithId(new UserProfile { active = false }).UpdateAsync(db);
+			}
+			return done;
+		}
+
+		public async override Task<bool> DeleteAsync(DB db)
+		{
+			var oldProfile = this;
+			// if the user is not known, load the profile data
+			if (!IsSet(nameof(user_id)))
+				oldProfile = await db.SelectRowAsync<UserProfile>(id);
+
+			var userProfiles = (ModelList<UserProfile>)await LoadExpandFieldAsync<User>(db, nameof(User.profiles), oldProfile.user_id);
+			var activeProfiles = userProfiles.FindAll((obj) => obj.active && (obj.id != id));
+
+			var res = await base.DeleteAsync(db);
+
+			if (activeProfiles.Count == 0)
+			{
+				var profile = userProfiles.FirstOrDefault((arg) => arg.id != id);
+				if (profile != null)
+					await profile.DiffWithId(new UserProfile { active = true }).UpdateAsync(db);
+			}
+			return res;
+		}
 	}
 
-	public class Profiles : HttpRouting
+	public class Profiles : ModelService<UserProfile>
 	{
-		readonly string dbUrl;
-
-		public Profiles(string dbUrl)
+		public Profiles(string dbUrl) : base(dbUrl)
 		{
-			this.dbUrl = dbUrl;
-
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
-
-			GetAsync["/"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					var filter = "TRUE";
-					if (c.Request.QueryString.ContainsKey("structure_id"))
-						filter += $" AND `structure_id`='{db.EscapeString(c.Request.QueryString["structure_id"])}'";
-					if (c.Request.QueryString.ContainsKey("type"))
-						filter += $" AND `type`='{db.EscapeString(c.Request.QueryString["type"])}'";
-					if (c.Request.QueryString.ContainsKey("user_id"))
-						filter += $" AND `user_id`='{db.EscapeString(c.Request.QueryString["user_id"])}'";
-					if (c.Request.QueryString.ContainsKey("id"))
-						filter += $" AND `id`='{db.EscapeString(c.Request.QueryString["id"])}'";
-					if (c.Request.QueryStringArray.ContainsKey("structure_id"))
-						filter += " AND " + db.InFilter("structure_id", c.Request.QueryStringArray["structure_id"]);
-					if (c.Request.QueryStringArray.ContainsKey("user_id"))
-						filter += " AND " + db.InFilter("user_id", c.Request.QueryStringArray["user_id"]);
-					if (c.Request.QueryStringArray.ContainsKey("type"))
-						filter += " AND " + db.InFilter("type", c.Request.QueryStringArray["type"]);
-					if (c.Request.QueryStringArray.ContainsKey("id"))
-						filter += " AND " + db.InFilter("id", c.Request.QueryStringArray["id"]);
-
-					System.Console.WriteLine($"SELECT * FROM user_profile WHERE {filter}");
-
-					c.Response.Content = await db.SelectAsync<UserProfile>($"SELECT * FROM user_profile WHERE {filter}");
-				}
-				c.Response.StatusCode = 200;
-			};
-
-			GetAsync["/{id:int}"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					var item = await db.SelectRowAsync<UserProfile>((int)p["id"]);
-					if (item != null) {
-						c.Response.StatusCode = 200;
-						c.Response.Content = item;
-					}
-				}
-			};
-
-			PostAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-
-				if (json is JsonArray)
-				{
-					var jsonResult = new JsonArray();
-					using (DB db = await DB.CreateAsync(dbUrl))
-					{
-						foreach (var jsonItem in (JsonArray)json)
-							jsonResult.Add(await Model.CreateFromJson<UserProfile>(jsonItem).SaveAsync(db));
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
-				}
-				else
-				{
-					var profile = Model.CreateFromJson<UserProfile>(json);
-					using (DB db = await DB.CreateAsync(dbUrl))
-						await profile.SaveAsync(db);
-					c.Response.StatusCode = 200;
-					c.Response.Content = profile;
-				}
-			};
-
-			DeleteAsync["/{id:int}"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int count = await db.DeleteAsync("DELETE FROM user_profile WHERE id=?", (int)p["id"]);
-					if (count == 0)
-						c.Response.StatusCode = 404;
-					else
-						c.Response.StatusCode = 200;
-				}
-			};
-
-			DeleteAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				var ids = ((JsonArray)json).Select((arg) => Convert.ToInt32(arg.Value));
-
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int count = await db.DeleteAsync("DELETE FROM user_profile WHERE " + db.InFilter("id", ids));
-					if (count == 0)
-						c.Response.StatusCode = 404;
-					else
-						c.Response.StatusCode = 200;
-				}
-			};
-
-		}
-
-		public async Task<ModelList<UserProfile>> GetUserProfilesAsync(string id)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await GetUserProfilesAsync(db, id);
-		}
-
-		public async Task<ModelList<UserProfile>> GetUserProfilesAsync(DB db, string id)
-		{
-			var profiles = await db.SelectAsync<UserProfile>("SELECT * FROM user_profile WHERE user_id=?", id);
-			await EnsureUserHasActiveProfile(db, profiles);
-			return profiles;
-		}
-
-		public async Task<ModelList<UserProfile>> GetStructureProfilesAsync(DB db, string id)
-		{
-			return await db.SelectAsync<UserProfile>("SELECT * FROM user_profile WHERE structure_id=?", id);
-		}
-
-		internal static async Task EnsureUserHasActiveProfile(DB db, ModelList<UserProfile> profiles)
-		{
-			if (!profiles.Any((arg) => arg.active) && (profiles.Count > 0))
-			{
-				await profiles[0].DiffWithId(new UserProfile { active = true }).UpdateAsync(db);
-				await profiles[0].LoadAsync(db);
-			}
 		}
 	}
 }

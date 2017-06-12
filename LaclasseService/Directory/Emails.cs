@@ -29,38 +29,105 @@
 
 using System;
 using System.Linq;
-using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "email", PrimaryKey = "id")]
+	[Model(Table = "email", PrimaryKey = nameof(id))]
 	public class Email : Model
 	{ 
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(User))]
+		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 		[ModelField(Required = true)]
-		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
-		[ModelField(Required = true)]
-		public string address { get { return GetField<string>("address", null); } set { SetField("address", value); } }
+		public string address { get { return GetField<string>(nameof(address), null); } set { SetField(nameof(address), value); } }
 		[ModelField]
-		public bool primary { get { return GetField("primary", false); } set { SetField("primary", value); } }
+		public bool primary { get { return GetField(nameof(primary), false); } set { SetField(nameof(primary), value); } }
 		[ModelField]
-		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
+		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
+
+		public async override Task<bool> InsertAsync(DB db)
+		{
+			var userEmails = (ModelList<Email>)await LoadExpandFieldAsync<User>(db, nameof(User.emails), user_id);
+			var primaryEmails = userEmails.FindAll((obj) => obj.primary);
+			// ensure only 1 email is primary per user
+			if (primaryEmails.Count == 0)
+				primary = true;
+			bool done = await base.InsertAsync(db);
+			if (IsSet(nameof(primary)) && primary && (primaryEmails.Count > 0))
+			{
+				foreach (var email in primaryEmails)
+					await email.DiffWithId(new Email { primary = false }).UpdateAsync(db);
+			}
+			return done;
+		}
+
+		public async override Task<bool> UpdateAsync(DB db)
+		{
+			var oldEmail = this;
+			// if the user is not known, load the email data
+			if (!IsSet(nameof(user_id)))
+				oldEmail = await db.SelectRowAsync<Email>(id);
+
+			var userEmails = (ModelList<Email>)await LoadExpandFieldAsync<User>(db, nameof(User.emails), oldEmail.user_id);
+			var primaryEmails = userEmails.FindAll((obj) => obj.primary && (obj.id != id));
+
+			if (primaryEmails.Count == 0)
+				primary = true;
+
+			var done = await base.UpdateAsync(db);
+
+			if (IsSet(nameof(primary)) && primary)
+			{
+				foreach (var email in primaryEmails)
+					await email.DiffWithId(new Email { primary = false }).UpdateAsync(db);
+			}
+			return done;
+		}
+
+		public async override Task<bool> DeleteAsync(DB db)
+		{
+			var oldEmail = this;
+			// if the user is not known, load the email data
+			if (!IsSet(nameof(user_id)))
+				oldEmail = await db.SelectRowAsync<Email>(id);
+
+			var userEmails = (ModelList<Email>)await LoadExpandFieldAsync<User>(db, nameof(User.emails), oldEmail.user_id);
+			var primaryEmails = userEmails.FindAll((obj) => obj.primary && (obj.id != id));
+
+			var res = await base.DeleteAsync(db);
+
+			if (primaryEmails.Count == 0)
+			{
+				var email = userEmails.FirstOrDefault((arg) => arg.id != id);
+				if (email != null)
+					await email.DiffWithId(new Email { primary = true }).UpdateAsync(db);
+			}
+			return res;
+		}
 	}
 
-	public class Emails : HttpRouting
+	[Model(Table = "email_backend", PrimaryKey = nameof(id))]
+	public class EmailBackend : Model
 	{
-		readonly string dbUrl;
+		[ModelField]
+		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
+		[ModelField(Required = true)]
+		public string address { get { return GetField<string>(nameof(address), null); } set { SetField(nameof(address), value); } }
+		[ModelField(Required = true)]
+		public string ip_address { get { return GetField<string>(nameof(ip_address), null); } set { SetField(nameof(ip_address), value); } }
+		[ModelField]
+		public string master_key { get { return GetField<string>(nameof(master_key), null); } set { SetField(nameof(master_key), value); } }
+	}
 
-		public Emails(string dbUrl)
+	public class Emails : ModelService<Email>
+	{
+		public Emails(string dbUrl) : base(dbUrl)
 		{
-			this.dbUrl = dbUrl;
-
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
@@ -80,104 +147,13 @@ namespace Laclasse.Directory
 
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					var emails = await db.SelectAsync("SELECT * FROM email WHERE address=?", (string)json["mail"]);
+					var emails = await db.SelectAsync("SELECT * FROM `email` WHERE `address`=?", (string)json["mail"]);
 					c.Response.StatusCode = 200;
 					c.Response.Content = new JsonObject
 					{
 						["available"] = (emails.Count() == 0)
 					};
 				}
-			};
-
-			GetAsync["/"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await Model.SearchAsync<Email>(
-						db,new List<string> { "id", "address", "user_id", "primary", "type" }, c);
-				c.Response.StatusCode = 200;
-			};
-
-			GetAsync["/{id:int}"] = async (p, c) =>
-			{
-				Email email = null;
-				using (DB db = await DB.CreateAsync(dbUrl))
-					email = await db.SelectRowAsync<Email>((int)p["id"]);
-				if (email != null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = email;
-				}
-			};
-
-			PostAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				if (json is JsonArray)
-				{
-					var result = new JsonArray();
-					using (DB db = await DB.CreateAsync(dbUrl, true))
-					{
-						foreach (var jsonEmail in (JsonArray)json)
-						{
-							var email = Model.CreateFromJson<Email>(jsonEmail);
-							result.Add(await email.SaveAsync(db));
-						}
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = result;
-				}
-				else if (json is JsonObject)
-				{
-					var email = Model.CreateFromJson<Email>(json);
-					using (DB db = await DB.CreateAsync(dbUrl))
-						await email.SaveAsync(db);
-					c.Response.StatusCode = 200;
-					c.Response.Content = email;
-				}
-			};
-
-			PutAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				if (json is JsonArray)
-				{
-					var result = new JsonArray();
-					using (DB db = await DB.CreateAsync(dbUrl, true))
-					{
-						foreach (var jsonEmail in (JsonArray)json)
-						{
-							var email = Model.CreateFromJson<Email>(jsonEmail);
-							await email.UpdateAsync(db);
-							result.Add(await email.LoadAsync(db));
-						}
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = result;
-				}
-				else if (json is JsonObject)
-				{
-					var email = Model.CreateFromJson<Email>(json);
-					using (DB db = await DB.CreateAsync(dbUrl, true))
-					{
-						await email.UpdateAsync(db);
-						await email.LoadAsync(db);
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = email;
-				}
-			};
-
-			DeleteAsync["/{id:int}"] = async (p, c) =>
-			{
-				Email email = null;
-				using (DB db = await DB.CreateAsync(dbUrl, true))
-				{
-					email = await db.SelectRowAsync<Email>((int)p["id"]);
-					if (email != null)
-						await email.DeleteAsync(db);
-				}
-				if (email != null)
-					c.Response.StatusCode = 200;
 			};
 		}
 
@@ -196,7 +172,7 @@ namespace Laclasse.Directory
 			aliasEmail = beginEmail + endEmail;
 
 			var emails = (await db.SelectAsync(
-				"SELECT address FROM email WHERE SUBSTRING(address,1,?)=? AND type='Ent'",
+				"SELECT `address` FROM `email` WHERE SUBSTRING(address,1,?)=? AND `type`='Ent'",
 				beginEmail.Length, beginEmail)).Select((arg) => (string)arg["address"]);
 			while (emails.Contains(aliasEmail))
 			{
@@ -204,50 +180,6 @@ namespace Laclasse.Directory
 			}
 
 			return aliasEmail;
-		}
-
-		public async Task<ModelList<Email>> GetUserEmailsAsync(string uid)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await GetUserEmailsAsync(db, uid);
-		}
-
-		public async Task<ModelList<Email>> GetUserEmailsAsync(DB db, string uid)
-		{
-			return await db.SelectAsync<Email>("SELECT * FROM email WHERE user_id=?", uid);
-		}
-
-		public async Task<Email> GetUserEmailAsync(DB db, string uid, int id)
-		{
-			return (await db.SelectAsync<Email>("SELECT * FROM email WHERE user_id=? AND id=?", uid, id)).SingleOrDefault();
-		}
-
-		public async Task<Email> CreateUserEmailAsync(string uid, JsonValue json)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await CreateUserEmailAsync(db, uid, json);
-		}
-
-		public async Task<Email> CreateUserEmailAsync(DB db, string uid, JsonValue json)
-		{
-			Email emailResult = null;
-			json.RequireFields("address", "type");
-			var extracted = json.ExtractFields("address", "type");
-			extracted["user_id"] = uid;
-			if (await db.InsertRowAsync("email", extracted) == 1)
-				emailResult = await GetUserEmailAsync(db, uid, (int)(await db.LastInsertIdAsync()));
-			return emailResult;
-		}
-
-		public async Task<bool> DeleteUserEmailAsync(string uid, int id)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await DeleteUserEmailAsync(db, uid, id);
-		}
-
-		public async Task<bool> DeleteUserEmailAsync(DB db, string uid, int id)
-		{
-			return await db.DeleteAsync("DELETE FROM email WHERE user_id=? AND id=?", uid, id) == 1;
 		}
 	}
 }

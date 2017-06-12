@@ -67,10 +67,13 @@ namespace Laclasse
 
 			// get the config file from args
 			string configFile = null;
+			bool interactive = false;
 			for (int i = 0; i < args.Length; i++)
 			{
 				if ((args[i] == "-c") || (args[i] == "--configFile"))
 					configFile = args[++i];
+				else if (args[i] == "-i")
+					interactive = true;
 			}
 
 			// load the current setup
@@ -107,36 +110,29 @@ namespace Laclasse
 			var mapper = new PathMapper();
 			server.Add(mapper);
 			mapper.Add("/api/sessions", sessions);
-			var subjects = new Subjects(dbUrl);
-			mapper.Add("/api/subjects", subjects);
-			var grades = new Grades(dbUrl);
-			mapper.Add("/api/grades", grades);
+			mapper.Add("/api/subjects", new Subjects(dbUrl));
+			mapper.Add("/api/grades", new Grades(dbUrl));
 			var applications = new Applications(dbUrl);
 			mapper.Add("/api/applications", applications);
-			var resources = new Resources(dbUrl);
-			mapper.Add("/api/resources", resources);
+			mapper.Add("/api/resources", new Resources(dbUrl));
+			mapper.Add("/api/structures_resources", new StructuresResources(dbUrl));
 			mapper.Add("/api/profiles_types", new ProfilesTypes(dbUrl));
-			var profiles = new Profiles(dbUrl);
-			mapper.Add("/api/profiles", profiles);
-			var emails = new Emails(dbUrl);
-			mapper.Add("/api/emails", emails);
+			mapper.Add("/api/profiles", new Profiles(dbUrl));
+			mapper.Add("/api/emails", new Emails(dbUrl));
 			mapper.Add("/api/phones", new Phones(dbUrl));
-			var groups = new Groups(dbUrl, grades);
-			mapper.Add("/api/groups", groups);
+			mapper.Add("/api/groups", new Groups(dbUrl));
 			mapper.Add("/api/groups_users", new GroupsUsers(dbUrl));
+			mapper.Add("/api/groups_grades", new GroupsGrades(dbUrl));
 			mapper.Add("/api/structures_types", new StructuresTypes(dbUrl));
-			var structures = new Structures(dbUrl, groups, resources, profiles);
-			mapper.Add("/api/structures", structures);
+			mapper.Add("/api/structures", new Structures(dbUrl));
 			mapper.Add("/api/user_links", new UserLinks(dbUrl));
-			var users = new Users(
-				dbUrl, emails, profiles, groups, structures, setup["server"]["storage"],
-				setup["authentication"]["masterPassword"]);
+			var users = new Users(dbUrl, setup["server"]["storage"], setup["authentication"]["masterPassword"]);
 			mapper.Add("/api/users", users);
-			mapper.Add("/api/app/users", users);
 			mapper.Add("/api/sso", new Sso(dbUrl, users));
-			mapper.Add("/api/structures", new Tiles(dbUrl));
-			mapper.Add("/api/structures", new PortailFlux(dbUrl));
-			mapper.Add("/api/users", new PortailNews(dbUrl));
+			mapper.Add("/api/tiles", new Tiles(dbUrl));
+			mapper.Add("/api/flux", new PortailFlux(dbUrl));
+			mapper.Add("/api/news", new PortailNews(dbUrl));
+			mapper.Add("/api/users", new PortailRss(dbUrl));
 			mapper.Add("/api/logs", new Logs(dbUrl));
 
 			mapper.Add("/api/avatar/user", new StaticFiles(
@@ -144,7 +140,7 @@ namespace Laclasse
 				setup["http"]["defaultCacheDuration"]));
 
 			mapper.Add("/sso", new Cas(
-				dbUrl, sessions, users, structures, setup["authentication"]["session"]["cookie"],
+				dbUrl, sessions, users, setup["authentication"]["session"]["cookie"],
 				setup["authentication"]["cas"]["ticketTimeout"],
 				setup["authentication"]["aafSso"]));
 
@@ -170,6 +166,16 @@ namespace Laclasse
 			if (!DB.CheckDBModels(dbUrl))
 				return;
 
+			//			using (DB db = DB.Create(dbUrl))
+			//			{
+			//				var res = db.SelectRowAsync<Directory.Group>(14, true);
+			//				res.Wait();
+			//				Console.WriteLine(res.Result.Fields.Dump());
+			//				var res = db.SelectExpandAsync<Directory.Group>("SELECT * FROM `group` WHERE `id` IN (14,17)", new object[] { });
+			//				res.Wait();
+			//				Console.WriteLine(res.Result.Dump());
+			//			}
+
 			//var log = Model.CreateFromJson<Log>(new JsonObject { ["url"] = "test", ["timestamp"] = "2015-01-12" });
 			//Console.WriteLine(log.Fields.Dump());
 			//Console.WriteLine(log.Fields["primary"].GetType());
@@ -190,36 +196,73 @@ namespace Laclasse
 			//Console.WriteLine(diff.ToJson().ToString());
 			//return;
 
+			/*using (DB db = DB.Create(dbUrl, true))
+			{
+				var task = db.SelectRowAsync<User>("VAA60025");
+				task.Wait();
+				var user = task.Result;
+				user.lastname = "COULANGE2";
+				var task2 = user.UpdateAsync(db);
+				task2.Wait();
+
+				throw new Exception("BOOM");
+
+				user.lastname = "COULANGE";
+				task2 = user.UpdateAsync(db);
+				task2.Wait();
+				db.Commit();
+			}*/
+
+			//var json = JsonValue.Parse("{\"type\":\"CLS\",\"name\":\"TEST\",\"structure_id\":\"0000001A\",\"grades\": [{\"grade_id\":\"10310019110\"}]}");
+			//var myGroup = Model.CreateFromJson<Directory.Group>(json);
+			//Console.WriteLine(myGroup.Dump());
+
+			/*using (DB db = DB.Create(dbUrl))
+			{
+				var group = new Directory.Group { id = 7871 };
+				var task = group.LoadAsync(db, true);
+				task.Wait();
+				Console.WriteLine(group.Dump());
+			}*/
+
 			server.Start();
 
-			Console.WriteLine("Press 'Ctrl + C' to stop...");
-
-			// catch signals for service stop
-			var signals = new UnixSignal[] {
-				new UnixSignal(Signum.SIGINT),
-				new UnixSignal(Signum.SIGTERM),
-				new UnixSignal(Signum.SIGUSR2),
-			};
-
-			Signum signal;
-			bool run = true;
-			do
+			if (interactive)
 			{
-				var index = UnixSignal.WaitAny(signals, -1);
-				signal = signals[index].Signum;
-				switch (signal)
+				Console.WriteLine("Press 'Q' to stop...");
+				while (Console.ReadKey().Key != ConsoleKey.Q) { }
+			}
+			else
+			{
+				Console.WriteLine("Press 'Ctrl + C' to stop...");
+
+				// catch signals for service stop
+				var signals = new UnixSignal[] {
+					new UnixSignal(Signum.SIGINT),
+					new UnixSignal(Signum.SIGTERM),
+					new UnixSignal(Signum.SIGUSR2),
+				};
+
+				Signum signal;
+				bool run = true;
+				do
 				{
-					case Signum.SIGINT:
-						run = false;
-						break;
-					case Signum.SIGTERM:
-						run = false;
-						break;
-					case Signum.SIGUSR2:
-						run = false;
-						break;
-				}
-			} while (run);
+					var index = UnixSignal.WaitAny(signals, -1);
+					signal = signals[index].Signum;
+					switch (signal)
+					{
+						case Signum.SIGINT:
+							run = false;
+							break;
+						case Signum.SIGTERM:
+							run = false;
+							break;
+						case Signum.SIGUSR2:
+							run = false;
+							break;
+					}
+				} while (run);
+			}
 
 			server.Stop();
 		}

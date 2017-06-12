@@ -36,44 +36,6 @@ using Erasme.Http;
 
 namespace Laclasse
 {
-	public struct Date
-	{
-		DateTime dateTime;
-
-		public Date(DateTime dateTime)
-		{
-			this.dateTime = dateTime.Date;
-		}
-
-		public override string ToString()
-		{
-			return dateTime.ToString("d");
-		}
-
-		public string ToString(string format)
-		{
-			return dateTime.ToString(format);
-		}
-
-		public static Date Now
-		{
-			get
-			{
-				return new Date(DateTime.Now);
-			}
-		}
-
-		public static implicit operator DateTime(Date date)
-		{
-			return date.dateTime;
-		}
-
-		public static implicit operator Date(DateTime dateTime)
-		{
-			return new Date(dateTime);
-		}
-	}
-
 	public struct SearchResult
 	{
 		public JsonArray Data;
@@ -161,20 +123,6 @@ namespace Laclasse
 		public static void ForEach(this IEnumerable xs, Action<object> f)
 		{
 			foreach (var x in xs) f(x);
-		}
-
-		public static T First<T>(this IEnumerable<T> xs)
-		{
-			foreach (var x in xs)
-			{
-				return x;
-			}
-			return default(T);
-		}
-
-		public static JsonArray ToJson<T>() where T : IList<Model>
-		{
-			return new JsonArray();
 		}
 	}
 

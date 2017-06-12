@@ -134,6 +134,10 @@ namespace Laclasse
 					exception = webException.Exception;
 			}
 
+			// dont log WebException
+			if (exception is WebException)
+				return;
+
 			var log = new StringBuilder();
 
 			// remote address

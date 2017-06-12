@@ -24,133 +24,41 @@
 // THE SOFTWARE.
 //
 
-using System.Threading.Tasks;
-using Erasme.Http;
-using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "tile", PrimaryKey = "id")]
+	[Model(Table = "tile", PrimaryKey = nameof(id))]
 	public class Tile : Model
 	{
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(Structure))]
+		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
+		[ModelField(ForeignModel = typeof(Application))]
+		public string application_id { get { return GetField<string>(nameof(application_id), null); } set { SetField(nameof(application_id), value); } }
 		[ModelField(Required = true)]
-		public string structure_id { get { return GetField<string>("structure_id", null); } set { SetField("structure_id", value); } }
+		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
 		[ModelField]
-		public string application_id { get { return GetField<string>("application_id", null); } set { SetField("application_id", value); } }
+		public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
+		[ModelField]
+		public string description { get { return GetField<string>(nameof(description), null); } set { SetField(nameof(description), value); } }
+		[ModelField]
+		public string url { get { return GetField<string>(nameof(url), null); } set { SetField(nameof(url), value); } }
 		[ModelField(Required = true)]
-		public string type { get { return GetField<string>("type", null); } set { SetField("type", value); } }
+		public int index { get { return GetField(nameof(index), 0); } set { SetField(nameof(index), value); } }
 		[ModelField]
-		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		public string color { get { return GetField<string>(nameof(color), null); } set { SetField(nameof(color), value); } }
 		[ModelField]
-		public string description { get { return GetField<string>("description", null); } set { SetField("description", value); } }
-		[ModelField]
-		public string url { get { return GetField<string>("url", null); } set { SetField("url", value); } }
-		[ModelField(Required = true)]
-		public int index { get { return GetField("index", 0); } set { SetField("index", value); } }
-		[ModelField]
-		public string color { get { return GetField<string>("color", null); } set { SetField("color", value); } }
-		[ModelField]
-		public string icon { get { return GetField<string>("icon", null); } set { SetField("icon", value); } }
+		public string icon { get { return GetField<string>(nameof(icon), null); } set { SetField(nameof(icon), value); } }
 	}
 
-	public class Tiles : HttpRouting
+	public class Tiles : ModelService<Tile>
 	{
-		readonly string dbUrl;
-
-		public Tiles(string dbUrl)
+		public Tiles(string dbUrl) : base(dbUrl)
 		{
-			this.dbUrl = dbUrl;
-
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
-
-			GetAsync["/{uai}/tiles"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = await db.SelectAsync<Tile>("SELECT * FROM tile WHERE structure_id=?", (string)p["uai"]);
-				}
-			};
-
-			PostAsync["/{uai}/tiles"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				if (json is JsonArray)
-				{
-					var jsonResult = new JsonArray();
-					using (DB db = await DB.CreateAsync(dbUrl))
-					{
-						foreach (var jsonItem in (JsonArray)json)
-							jsonResult.Add(await CreateTileAsync(jsonItem));
-					}
-					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
-				}
-				else
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = await CreateTileAsync(json);
-				}
-			};
-
-			PutAsync["/{uai}/tiles/{id:int}"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				var extracted = json.ExtractFields("name", "description", "color", "index");
-				if (extracted.Count == 0)
-					return;
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					int count = await db.UpdateRowAsync("tile", "id", (int)p["id"], extracted);
-					if (count > 0)
-					{
-						c.Response.StatusCode = 200;
-						c.Response.Content = await GetTileAsync(db, json["id"]);
-					}
-					else
-						c.Response.StatusCode = 404;
-				}
-			};
-
-			DeleteAsync["/{uai}/tiles/{id:int}"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					if (await db.DeleteAsync("DELETE FROM tile WHERE id=? AND structure_id=?", (int)p["id"], (string)p["uai"]) == 1)
-						c.Response.StatusCode = 200;
-					else
-						c.Response.StatusCode = 404;
-				}
-			};
-		}
-
-		public async Task<Tile> GetTileAsync(DB db, int id)
-		{
-			return await db.SelectRowAsync<Tile>(id);
-		}
-
-		public async Task<Tile> CreateTileAsync(JsonValue json)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await CreateTileAsync(db, json);
-		}
-
-		public async Task<Tile> CreateTileAsync(DB db, JsonValue json)
-		{
-			// check required fields
-			json.RequireFields("structure_id", "index", "type");
-			var extracted = json.ExtractFields(
-				"structure_id", "index", "type", "application_id", "name", "description",
-				"url", "icon", "color");
-
-			Tile tile = null;
-			if (await db.InsertRowAsync("tile", extracted) == 1)
-				tile = await GetTileAsync(db, (int)await db.LastInsertIdAsync());
-			return tile;
 		}
 	}
 }

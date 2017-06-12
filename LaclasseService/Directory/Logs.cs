@@ -27,112 +27,57 @@
 
 using System;
 using System.Net;
-using System.Threading.Tasks;
 using Erasme.Http;
+using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "log", PrimaryKey = "id")]
+	[Model(Table = "log", PrimaryKey = nameof(id))]
 	public class Log : Model
 	{
 		[ModelField]
-		public int id { get { return GetField("id", 0); } set { SetField("id", value); } }
+		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
 		[ModelField(Required = true)]
-		public string ip { get { return GetField<string>("ip", null); } set { SetField("ip", value); } }
+		public string ip { get { return GetField<string>(nameof(ip), null); } set { SetField(nameof(ip), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(User))]
+		public string application_id { get { return GetField<string>(nameof(application_id), null); } set { SetField(nameof(application_id), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(User))]
+		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(Structure))]
+		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
 		[ModelField(Required = true)]
-		public string application_id { get { return GetField<string>("application_id", null); } set { SetField("application_id", value); } }
+		public string profil_id { get { return GetField<string>(nameof(profil_id), null); } set { SetField(nameof(profil_id), value); } }
 		[ModelField(Required = true)]
-		public string user_id { get { return GetField<string>("user_id", null); } set { SetField("user_id", value); } }
-		[ModelField(Required = true)]
-		public string structure_id { get { return GetField<string>("structure_id", null); } set { SetField("structure_id", value); } }
-		[ModelField(Required = true)]
-		public string profil_id { get { return GetField<string>("profil_id", null); } set { SetField("profil_id", value); } }
-		[ModelField(Required = true)]
-		public string url { get { return GetField<string>("url", null); } set { SetField("url", value); } }
+		public string url { get { return GetField<string>(nameof(url), null); } set { SetField(nameof(url), value); } }
 		[ModelField]
-		public string parameters { get { return GetField<string>("parameters", null); } set { SetField("parameters", value); } }
+		public string parameters { get { return GetField<string>(nameof(parameters), null); } set { SetField(nameof(parameters), value); } }
 		[ModelField]
-		public DateTime timestamp { get { return GetField("timestamp", DateTime.Now); } set { SetField("timestamp", value); } }
+		public DateTime timestamp { get { return GetField(nameof(timestamp), DateTime.Now); } set { SetField(nameof(timestamp), value); } }
+
+		public override void FromJson(JsonObject json, string[] filterFields = null, HttpContext context = null)
+		{
+			base.FromJson(json, filterFields, context);
+			// if create from an HTTP context, auto fill timestamp and IP address
+			if (context != null)
+			{
+				timestamp = DateTime.Now;
+				string contextIp = "unknown";
+				if (context.Request.RemoteEndPoint is IPEndPoint)
+					contextIp = ((IPEndPoint)context.Request.RemoteEndPoint).Address.ToString();
+				if (context.Request.Headers.ContainsKey("x-forwarded-for"))
+					contextIp = context.Request.Headers["x-forwarded-for"];
+				ip = contextIp;
+			}
+		}
 	}
 
-	public class Logs : HttpRouting
+	public class Logs : ModelService<Log>
 	{
-		readonly string dbUrl;
-
-		public Logs(string dbUrl)
+		public Logs(string dbUrl) : base(dbUrl)
 		{
-			this.dbUrl = dbUrl;
-
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
-
-
-			GetAsync["/{id:int}"] = async (p, c) =>
-			{
-				c.Response.StatusCode = 200;
-				c.Response.Content = await GetLogAsync((int)p["id"]);
-			};
-
-			PostAsync["/"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				// check required fields
-				json.RequireFields("application_id", "user_id", "structure_id", "profil_id", "url");
-				var extracted = json.ExtractFields("application_id", "user_id", "structure_id", "profil_id", "url", "parameters");
-				// append the sender IP address
-				string ip = "unknown";
-				if (c.Request.RemoteEndPoint is IPEndPoint)
-					ip = ((IPEndPoint)c.Request.RemoteEndPoint).Address.ToString();
-				if (c.Request.Headers.ContainsKey("x-forwarded-for"))
-					ip = c.Request.Headers["x-forwarded-for"];
-				extracted["ip"] = ip;
-				extracted["timestamp"] = DateTime.Now;
-
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					if(await db.InsertRowAsync("log", extracted) == 1)
-					{
-						c.Response.StatusCode = 200;
-						c.Response.Content = await GetLogAsync(db, (int)await db.LastInsertIdAsync());
-					}
-					else
-						c.Response.StatusCode = 500;
-				}
-			};
-
-			GetAsync["/stats"] = async (p, c) =>
-			{
-				c.Request.QueryString.RequireFields(
-					"until", "from");
-
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					string filter = "";
-					if (c.Request.QueryStringArray.ContainsKey("uais") &&
-						c.Request.QueryStringArray["uais"].Count > 0)
-						filter += " AND " + db.InFilter("uai", c.Request.QueryStringArray["uais"]);
-					if (c.Request.QueryStringArray.ContainsKey("uids") &&
-						c.Request.QueryStringArray["uids"].Count > 0)
-						filter += " AND " + db.InFilter("uid", c.Request.QueryStringArray["uids"]);
-					c.Response.Content = await db.SelectAsync<Log>(
-						$"SELECT * FROM log WHERE timestamp >= ? AND timestamp <= ? {filter}",
-						DateTime.Parse(c.Request.QueryString["from"]),
-						DateTime.Parse(c.Request.QueryString["until"]));
-				}
-				c.Response.StatusCode = 200;
-			};
-		}
-
-		public async Task<Log> GetLogAsync(int id)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await GetLogAsync(db, id);
-		}
-
-		public async Task<Log> GetLogAsync(DB db, int id)
-		{
-			return await db.SelectRowAsync<Log>(id);
 		}
 	}
 }

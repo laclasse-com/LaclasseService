@@ -26,45 +26,30 @@
 // THE SOFTWARE.
 //
 
-using System.Threading.Tasks;
-using Erasme.Http;
-using Erasme.Json;
+using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "profile_type", PrimaryKey = "id")]
+	[Model(Table = "profile_type", PrimaryKey = nameof(id))]
 	public class ProfileType : Model
 	{
 		[ModelField]
-		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
+		public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
 		[ModelField]
-		public string code_national { get { return GetField<string>("code_national", null); } set { SetField("code_national", value); } }
+		public string code_national { get { return GetField<string>(nameof(code_national), null); } set { SetField(nameof(code_national), value); } }
 	}
 
-	public class ProfilesTypes : HttpRouting
+	public class ProfilesTypes : ModelService<ProfileType>
 	{
-		public ProfilesTypes(string dbUrl)
+		public ProfilesTypes(string dbUrl) : base(dbUrl)
 		{
-			GetAsync["/"] = async (p, c) =>
+			// API only available to authenticated users
+			BeforeAsync = async (p, c) =>
 			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await db.SelectAsync<ProfileType>("SELECT * FROM profile_type");
-				c.Response.StatusCode = 200;
-			};
-
-			GetAsync["/{id}"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					var item = await db.SelectRowAsync<ProfileType>((string)p["id"]);
-					if (item != null)
-					{
-						c.Response.StatusCode = 200;
-						c.Response.Content = item;
-					}
-				}
+				if (c.Request.Method != "GET")
+					await c.EnsureIsAuthenticatedAsync();
 			};
 		}
 	}

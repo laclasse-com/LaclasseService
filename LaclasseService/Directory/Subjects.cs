@@ -26,132 +26,25 @@
 // THE SOFTWARE.
 //
 
-using System.Threading.Tasks;
-using Erasme.Http;
-using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "subject", PrimaryKey = "id")]
+	[Model(Table = "subject", PrimaryKey = nameof(id))]
 	public class Subject : Model
 	{
 		[ModelField(Required = true)]
-		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } } 
+		public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } } 
 		[ModelField]
-		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
 	}
 
-	public class Subjects : HttpRouting
+	public class Subjects : ModelService<Subject>
 	{
-		readonly string dbUrl;
-
-		public Subjects(string dbUrl)
+		public Subjects(string dbUrl) : base(dbUrl)
 		{
-			this.dbUrl = dbUrl;
-
-			GetAsync["/"] = async (p, c) =>
-			{
-				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await db.SelectAsync<Subject>("SELECT * FROM subject");
-				c.Response.StatusCode = 200;
-			};
-
-			GetAsync["/{id}"] = async (p, c) =>
-			{
-				var jsonResult = await GetSubjectAsync((string)p["id"]);
-				if (jsonResult == null)
-					c.Response.StatusCode = 404;
-				else
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
-				}
-			};
-
-			PostAsync["/"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-				var jsonResult = await CreateSubjectAsync(await c.Request.ReadAsJsonAsync());
-				if (jsonResult == null)
-					c.Response.StatusCode = 500;
-				else
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
-				}
-			};
-
-			PutAsync["/{id}"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-
-				var jsonResult = await ModifySubjectAsync((string)p["id"], await c.Request.ReadAsJsonAsync());
-				if (jsonResult != null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = jsonResult;
-				}
-				else
-					c.Response.StatusCode = 404;
-			};
-
-			DeleteAsync["/{id}"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-				c.Response.StatusCode = await DeleteSubjectAsync((string)p["id"]) ? 200 : 404;
-			};
-		}
-
-		public async Task<Subject> GetSubjectAsync(string id)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await GetSubjectAsync(db, id);
-		}
-
-		public async Task<Subject> GetSubjectAsync(DB db, string id)
-		{
-			return await db.SelectRowAsync<Subject>(id);
-		}
-
-		public async Task<Subject> CreateSubjectAsync(JsonValue json)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await CreateSubjectAsync(db, json);
-		}
-
-		public async Task<Subject> CreateSubjectAsync(DB db, JsonValue json)
-		{
-			json.RequireFields("id", "name");
-			var extracted = json.ExtractFields("id", "name");
-
-			return (await db.InsertRowAsync("subject", extracted) == 1) ? 
-				await GetSubjectAsync(db, (string)extracted["id"]) : null;
-		}
-
-		public async Task<Subject> ModifySubjectAsync(string id, JsonValue json)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await ModifySubjectAsync(db, id, json);
-		}
-
-		public async Task<Subject> ModifySubjectAsync(DB db, string id, JsonValue json)
-		{
-			var extracted = json.ExtractFields("name");
-			if (extracted.Count > 0)
-				await db.UpdateRowAsync("subject", "id", id, extracted);
-			return await GetSubjectAsync(db, id);
-		}
-
-		public async Task<bool> DeleteSubjectAsync(string id)
-		{
-			using (DB db = await DB.CreateAsync(dbUrl))
-				return await DeleteSubjectAsync(db, id);
-		}
-
-		public async Task<bool> DeleteSubjectAsync(DB db, string id)
-		{
-			return (await db.DeleteAsync("DELETE FROM subject WHERE id=?", id)) != 0;
+			// API only available to authenticated users
+			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 		}
 	}
 }

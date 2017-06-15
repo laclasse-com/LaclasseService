@@ -37,6 +37,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Net.Mail;
 using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Directory;
@@ -49,6 +50,10 @@ namespace Laclasse.Authentication
 		public string error;
 		public string title;
 		public string message;
+		public IEnumerable<User> rescueUsers;
+		public string rescue;
+		public string rescueId;
+		public string rescueUser;
 	}
 
 	public class SsoClient
@@ -67,18 +72,20 @@ namespace Laclasse.Authentication
 		readonly Sessions sessions;
 		readonly Users users;
 		readonly string cookieName;
+		readonly MailSetup mailSetup;
 
 		public Cas(string dbUrl, Sessions sessions, Users users,
-				   string cookieName, double ticketTimeout, JsonValue aafSsoSetup)
+		           string cookieName, double ticketTimeout, AafSsoSetup aafSsoSetup, MailSetup mailSetup)
 		{
 			this.dbUrl = dbUrl;
 			this.sessions = sessions;
 			this.users = users;
 			this.cookieName = cookieName;
+			this.mailSetup = mailSetup;
 			tickets = new Tickets(dbUrl, ticketTimeout);
 
-			var agentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup["agents"]["cert"]));
-			var parentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup["parents"]["cert"]));
+			var agentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.agents.cert));
+			var parentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.parents.cert));
 
 			GetAsync["/login"] = async (p, c) =>
 			{
@@ -130,22 +137,32 @@ namespace Laclasse.Authentication
 				Dictionary<string, string> formFields;
 				Dictionary<string, List<string>> formArrayFields;
 				HttpUtility.ParseFormUrlEncoded(formUrl, out formFields, out formArrayFields);
-				formFields.RequireFields("username", "password");
 
-				var uid = await users.CheckPasswordAsync(formFields["username"], formFields["password"]);
-				if (uid == null)
+				// handle rescue login
+				if (formFields.ContainsKey("rescue"))
 				{
-					c.Response.StatusCode = 200;
-					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
-					c.Response.Content = (new CasView
-					{
-						service = formFields.ContainsKey("service") ? formFields["service"] : "/",
-						error = "Les informations transmises n'ont pas permis de vous authentifier."
-					}).TransformText();
+					await HandleRescueLogin(c, formFields);
 				}
+				// handle login/password login
 				else
-					// init the session and redirect to service
-					await CasLoginAsync(c, uid, formFields.ContainsKey("service") ? formFields["service"] : null);
+				{
+					formFields.RequireFields("username", "password");
+
+					var uid = await users.CheckPasswordAsync(formFields["username"], formFields["password"]);
+					if (uid == null)
+					{
+						c.Response.StatusCode = 200;
+						c.Response.Headers["content-type"] = "text/html; charset=utf-8";
+						c.Response.Content = (new CasView
+						{
+							service = formFields.ContainsKey("service") ? formFields["service"] : "/",
+							error = "Les informations transmises n'ont pas permis de vous authentifier."
+						}).TransformText();
+					}
+					else
+						// init the session and redirect to service
+						await CasLoginAsync(c, uid, formFields.ContainsKey("service") ? formFields["service"] : null);
+				}
 			};
 
 			GetAsync["/logout"] = async (p, c) =>
@@ -311,12 +328,12 @@ namespace Laclasse.Authentication
 
 			Get["/parentPortalIdp"] = (p, c) =>
 			{
-				var url = (string)aafSsoSetup["parents"]["url"];
+				var url = aafSsoSetup.parents.url;
 				var uri = new Uri(new Uri(c.SelfURL()), new Uri("login", UriKind.Relative));
 				var service = uri.AbsoluteUri;
 				if (c.Request.QueryString.ContainsKey("service"))
 					service = c.Request.QueryString["service"];
-				var xml = SamlAuthnRequest(aafSsoSetup["parents"], service, c.SelfURL());
+				var xml = SamlAuthnRequest(aafSsoSetup.parents, service, c.SelfURL());
 
 				string SAMLRequest;
 				using (var memStream = new MemoryStream())
@@ -335,12 +352,12 @@ namespace Laclasse.Authentication
 
 			Get["/agentPortalIdp"] = (p, c) =>
 			{
-				var url = (string)aafSsoSetup["agents"]["url"];
+				var url = aafSsoSetup.agents.url;
 				var uri = new Uri(new Uri(c.SelfURL()), new Uri("login", UriKind.Relative));
 				var service = uri.AbsoluteUri;
 				if (c.Request.QueryString.ContainsKey("service"))
 					service = c.Request.QueryString["service"];
-				var xml = SamlAuthnRequest(aafSsoSetup["agents"], service, c.SelfURL());
+				var xml = SamlAuthnRequest(aafSsoSetup.agents, service, c.SelfURL());
 
 				string SAMLRequest;
 				using (var memStream = new MemoryStream())
@@ -713,7 +730,7 @@ namespace Laclasse.Authentication
 			return res;
 		}
 
-		string SamlAuthnRequest(JsonValue setup, string service, string assertionConsumerServiceURL)
+		string SamlAuthnRequest(AafSsoEndPointSetup setup, string service, string assertionConsumerServiceURL)
 		{
 			var dom = new XmlDocument();
 			var samlp = "urn:oasis:names:tc:SAML:2.0:protocol";
@@ -731,13 +748,13 @@ namespace Laclasse.Authentication
 			AuthnRequest.SetAttribute("ID", id);
 			AuthnRequest.SetAttribute("Version", "2.0");
 			AuthnRequest.SetAttribute("IssueInstant", DateTime.UtcNow.ToString("s") + "Z");
-			AuthnRequest.SetAttribute("Destination", setup["url"]);
+			AuthnRequest.SetAttribute("Destination", setup.url);
 			AuthnRequest.SetAttribute("AssertionConsumerServiceURL", assertionConsumerServiceURL);
 			AuthnRequest.SetAttribute("ProtocolBinding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST");
 			dom.AppendChild(AuthnRequest);
 
 			var Issuer = dom.CreateElement("saml:Issuer", saml);
-			Issuer.InnerText = setup["issuer"];
+			Issuer.InnerText = setup.issuer;
 			AuthnRequest.AppendChild(Issuer);
 
 			var NameIDPolicy = dom.CreateElement("samlp:NameIDPolicy", samlp);
@@ -1210,6 +1227,172 @@ namespace Laclasse.Authentication
 					attributes[attr] = userAttributes[attr];
 			}
 			return attributes;
+		}
+
+		async Task HandleRescueLogin(HttpContext c, Dictionary<string, string> formFields)
+		{
+			if (formFields.ContainsKey("rescueId"))
+				await HandleRescueDone(c, formFields);
+			else
+				await HandleRescueSearch(c, formFields);
+		}
+
+		async Task HandleRescueSearch(HttpContext c, Dictionary<string, string> formFields)
+		{
+			List<User> rescueUsers = null;
+			var userIds = new List<string>();
+			var rescue = formFields["rescue"];
+
+			using (DB db = await DB.CreateAsync(dbUrl, true))
+			{
+				// search for un email
+				if (rescue.Contains("@"))
+				{
+					var emails = await db.SelectAsync<Email>("SELECT * FROM `email` WHERE `type` != 'Ent' AND address = ?", rescue);
+					foreach (var email in emails)
+						if (!userIds.Contains(email.user_id))
+							userIds.Add(email.user_id);
+				}
+				// search for mobile phone
+				else
+				{
+					var tel1 = Regex.Replace(rescue, @"\s+", "");
+					string tel2;
+					if (tel1.StartsWith("+33", StringComparison.InvariantCulture))
+						tel2 = "0" + tel1.Substring(3);
+					else if (tel1.StartsWith("0", StringComparison.InvariantCulture))
+						tel2 = "+33" + tel1.Substring(1);
+					else
+						tel2 = tel1;
+					var regexTel1 = @"^\s*";
+					foreach (var ch in tel1)
+						regexTel1 += ch + @"\s*";
+					regexTel1 += "$";
+					var regexTel2 = @"^\s*";
+					foreach (var ch in tel2)
+						regexTel2 += ch + @"\s*";
+					regexTel2 += "$";
+					var phones = await db.SelectAsync<Phone>("SELECT * FROM `phone` WHERE `number` REGEXP ? OR `number` REGEXP ?", regexTel1, regexTel2);
+					foreach (var phone in phones)
+						if (!userIds.Contains(phone.user_id))
+							userIds.Add(phone.user_id);
+				}
+				// add children
+				if (userIds.Count > 0)
+				{
+					var userChildren = await db.SelectAsync<UserChild>("SELECT * FROM `user_child` WHERE " + db.InFilter("parent_id", userIds));
+					foreach (var child in userChildren)
+						if (!userIds.Contains(child.child_id))
+							userIds.Add(child.child_id);
+
+					rescueUsers = await db.SelectAsync<User>("SELECT * FROM `user` WHERE " + db.InFilter("id", userIds));
+				}
+				db.Commit();
+			}
+
+			if ((rescueUsers != null) && formFields.ContainsKey("user"))
+				rescueUsers = rescueUsers.FindAll((obj) => obj.id == formFields["user"]);
+
+			c.Response.StatusCode = 200;
+			c.Response.Headers["content-type"] = "text/html; charset=utf-8";
+
+			if ((rescueUsers == null) || (rescueUsers.Count == 0))
+			{
+				c.Response.Content = (new CasView
+				{
+					service = formFields.ContainsKey("service") ? formFields["service"] : "/",
+					error = $"Récupération impossible. '{rescue}' n'est pas connu dans Laclasse"
+				}).TransformText();
+			}
+			// 1 user found, create a temporary code, send it a ask it to the user 
+			else if (rescueUsers.Count == 1)
+			{
+				var rescueUser = rescueUsers[0];
+				var sessionId = await sessions.CreateSessionAsync(rescueUser.id);
+				var ticket = await tickets.CreateRescueAsync(sessionId);
+
+				if (rescue.Contains("@"))
+				{
+					using (var smtpClient = new SmtpClient(mailSetup.server.host, mailSetup.server.port))
+					{
+						smtpClient.SendAsync(
+							mailSetup.from, rescue, "[Laclasse] Récupération de mot de passe",
+							"Vous avez demandé un récupération de mot de passe pour l'utilisateur "+
+							$"{rescueUser.firstname} {rescueUser.lastname} sur Laclasse.\n"+
+							$"Voici votre code: {ticket.code}", null
+						);
+					}
+				}
+				else
+				{
+					// TODO: send an SMS
+					throw new NotImplementedException("SMS SERVICE NOT YET IMPLEMENTED");
+				}
+
+				c.Response.Content = (new CasView
+				{
+					service = formFields.ContainsKey("service") ? formFields["service"] : "/",
+					rescue = rescue,
+					rescueUser = rescueUsers[0].firstname + " " + rescueUsers[0].lastname,
+					rescueId = ticket.id
+				}).TransformText();
+			}
+			// more than 1 user, let choose which user to rescue
+			else
+			{
+				c.Response.Content = (new CasView
+				{
+					service = formFields.ContainsKey("service") ? formFields["service"] : "/",
+					rescue = rescue,
+					rescueUsers = rescueUsers
+				}).TransformText();
+			}
+		}
+
+		async Task HandleRescueDone(HttpContext c, Dictionary<string, string> formFields)
+		{
+			formFields.RequireFields("rescueId", "rescueCode");
+
+			var ticket = await tickets.GetRescueAsync(formFields["rescueId"]);
+			await tickets.DeleteAsync(formFields["rescueId"]);
+
+			if (ticket == null)
+			{
+				c.Response.StatusCode = 200;
+				c.Response.Headers["content-type"] = "text/html; charset=utf-8";
+				c.Response.Content = (new CasView
+				{
+					service = formFields.ContainsKey("service") ? formFields["service"] : "/",
+					error = "Echec de la récupération. Le code de récupération n'est plus valide. Vous avez probablement attendu trop longtemps."
+				}).TransformText();
+			}
+			else if (ticket.code != formFields["rescueCode"])
+			{
+				c.Response.StatusCode = 200;
+				c.Response.Headers["content-type"] = "text/html; charset=utf-8";
+				c.Response.Content = (new CasView
+				{
+					service = formFields.ContainsKey("service") ? formFields["service"] : "/",
+					error = "Code de récupération non valide."
+				}).TransformText();
+			}
+			else
+			{
+				var session = await sessions.GetSessionAsync(ticket.session);
+				if (session == null)
+				{
+					c.Response.StatusCode = 200;
+					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
+					c.Response.Content = (new CasView
+					{
+						service = formFields.ContainsKey("service") ? formFields["service"] : "/",
+						error = "La session a expiré"
+					}).TransformText();
+				}
+				else
+					// init the session and redirect to service
+					await CasLoginAsync(c, session.user, formFields.ContainsKey("service") ? formFields["service"] : null);
+			}
 		}
 	}
 }

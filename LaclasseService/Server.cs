@@ -31,6 +31,7 @@ using System;
 using System.Text;
 using System.Globalization;
 using System.Threading.Tasks;
+using System.Net.Mail;
 using Erasme.Http;
 using Erasme.Json;
 

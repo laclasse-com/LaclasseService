@@ -41,6 +41,21 @@ namespace Laclasse
 {
 	class MainClass
 	{
+		public static string ReadWithoutComment(Stream stream)
+		{
+			var sb = new StringBuilder();
+			using (StreamReader reader = new StreamReader(stream))
+			{
+				while (!reader.EndOfStream)
+				{
+					var line = reader.ReadLine();
+					if (!(line.TrimStart(' ', '\t')).StartsWith("//", StringComparison.InvariantCulture))
+						sb.Append(line);
+				}
+			}
+			return sb.ToString();
+		}
+
 		public static JsonValue ReadCommentedJson(Stream stream)
 		{
 			var sb = new StringBuilder();
@@ -59,11 +74,12 @@ namespace Laclasse
 		public static void Main(string[] args)
 		{
 			// load the default setup from an embeded resource
-			JsonValue setup;
-			using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Laclasse.laclasse.conf"))
-			{
-				setup = ReadCommentedJson(stream);
-			}
+			var setup = new Setup();
+			//JsonValue setup;
+			//using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Laclasse.laclasse.conf"))
+			//{
+			//	setup = ReadCommentedJson(stream);
+			//}
 
 			// get the config file from args
 			string configFile = null;
@@ -79,12 +95,8 @@ namespace Laclasse
 			// load the current setup
 			if (configFile != null)
 			{
-				JsonValue currentSetup;
 				using (FileStream stream = File.OpenRead(configFile))
-				{
-					currentSetup = ReadCommentedJson(stream);
-				}
-				setup.Merge(currentSetup);
+					setup = JsonValue.ParseToObject<Setup>(ReadWithoutComment(stream));
 				Console.WriteLine("Setup loaded from '" + configFile + "'");
 			}
 			else
@@ -92,17 +104,17 @@ namespace Laclasse
 				Console.WriteLine("Default setup loaded");
 			}
 
-			string dbUrl = setup["database"]["url"];
+			string dbUrl = setup.database.url;
 
-			var server = new Server(setup["server"]["port"]);
-			server.StopOnException = setup["server"]["stopOnException"];
-			server.AllowGZip = setup["http"]["allowGZip"];
-			server.KeepAliveMax = setup["http"]["keepAliveMax"];
-			server.KeepAliveTimeout = setup["http"]["keepAliveTimeout"];
+			var server = new Server(setup.server.port);
+			server.StopOnException = setup.server.stopOnException;
+			server.AllowGZip = setup.http.allowGZip;
+			server.KeepAliveMax = setup.http.keepAliveMax;
+			server.KeepAliveTimeout = setup.http.keepAliveTimeout;
 
 			var sessions = new Sessions(
-				dbUrl, setup["authentication"]["session"]["timeout"],
-				setup["authentication"]["session"]["cookie"]);
+				dbUrl, setup.authentication.session.timeout,
+				setup.authentication.session.cookie);
 
 			var contextInjector = new ContextInjector();
 			server.Add(contextInjector);
@@ -126,7 +138,7 @@ namespace Laclasse
 			mapper.Add("/api/structures_types", new StructuresTypes(dbUrl));
 			mapper.Add("/api/structures", new Structures(dbUrl));
 			mapper.Add("/api/user_links", new UserLinks(dbUrl));
-			var users = new Users(dbUrl, setup["server"]["storage"], setup["authentication"]["masterPassword"]);
+			var users = new Users(dbUrl, setup.server.storage, setup.authentication.masterPassword);
 			mapper.Add("/api/users", users);
 			mapper.Add("/api/sso", new Sso(dbUrl, users));
 			mapper.Add("/api/tiles", new Tiles(dbUrl));
@@ -136,25 +148,27 @@ namespace Laclasse
 			mapper.Add("/api/logs", new Logs(dbUrl));
 
 			mapper.Add("/api/avatar/user", new StaticFiles(
-				Path.Combine(setup["server"]["storage"], "avatar"),
-				setup["http"]["defaultCacheDuration"]));
+				Path.Combine(setup.server.storage, "avatar"),
+				setup.http.defaultCacheDuration));
 
 			mapper.Add("/sso", new Cas(
-				dbUrl, sessions, users, setup["authentication"]["session"]["cookie"],
-				setup["authentication"]["cas"]["ticketTimeout"],
-				setup["authentication"]["aafSso"]));
+				dbUrl, sessions, users, setup.authentication.session.cookie,
+				setup.authentication.cas.ticketTimeout,
+				setup.authentication.aafSso, setup.mail));
 
-			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup["aaf"]["path"]));
+			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path));
+
+			mapper.Add("/api/setup", new SetupService(setup));
+			mapper.Add("/api/manage", new Manage.ManageService());
 
 			// if the request is not already handled, try static files
-			server.Add(new StaticFiles(
-				setup["server"]["static"], setup["http"]["defaultCacheDuration"]));
+			server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));
 
 			// inject some object needed for the HttpContextExtensions and ContextExtensions
 			contextInjector.Inject("users", users);
 			contextInjector.Inject("sessions", sessions);
 			contextInjector.Inject("applications", applications);
-			contextInjector.Inject("publicUrl", (string)setup["server"]["publicUrl"]);
+			contextInjector.Inject("publicUrl", setup.server.publicUrl);
 
 			//var n1 = new Grade { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };
 			//var n2 = new Grade { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };

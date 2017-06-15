@@ -148,9 +148,12 @@ namespace Laclasse.Directory
 							catch (FormatException) { }
 							if (id != null)
 							{
+								bool expand = true;
+								if (context.Request.QueryString.ContainsKey("expand"))
+									expand = Convert.ToBoolean(context.Request.QueryString["expand"]);
 								T item = null;
 								using (DB db = await DB.CreateAsync(dbUrl))
-									item = await db.SelectRowAsync<T>(id, true);
+									item = await db.SelectRowAsync<T>(id, expand);
 								if (item != null)
 								{
 									c.Response.StatusCode = 200;

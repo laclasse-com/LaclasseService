@@ -93,6 +93,11 @@
     <Compile Include="Directory\StructuresResources.cs" />
     <Compile Include="Directory\GroupsGrades.cs" />
     <Compile Include="Directory\ModelService.cs" />
+    <Compile Include="Manage\ManageService.cs" />
+    <Compile Include="Manage\IManageRights.cs" />
+    <Compile Include="Manage\IManageExtension.cs" />
+    <Compile Include="Setup.cs" />
+    <Compile Include="Directory\SetupService.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -106,9 +111,7 @@
     <Folder Include="Directory\" />
     <Folder Include="Authentication\" />
     <Folder Include="Aaf\" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="laclasse.conf" />
+    <Folder Include="Manage\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>

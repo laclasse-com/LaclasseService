@@ -52,7 +52,7 @@ namespace Laclasse.Directory
 			get { return GetField<string>(nameof(password), null); }
 			set {
 				if (!value.StartsWith("bcrypt:", StringComparison.InvariantCulture) &&
-				    value.StartsWith("clear:", StringComparison.InvariantCulture))
+				    !value.StartsWith("clear:", StringComparison.InvariantCulture))
 				    value = "bcrypt:" + BCrypt.Net.BCrypt.HashPassword(value, 5);
 				SetField(nameof(password), value);
 			}
@@ -195,6 +195,14 @@ namespace Laclasse.Directory
 				json.Remove("password");
 
 			return json;
+		}
+
+		public override void FromJson(JsonObject json, string[] filterFields = null, HttpContext context = null)
+		{
+			base.FromJson(json, filterFields, context);
+			// if the password is set, need to transform it
+			if (json.ContainsKey(nameof(password)))
+				password = json[nameof(password)];
 		}
 	}
 

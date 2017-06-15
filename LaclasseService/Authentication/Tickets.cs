@@ -40,10 +40,12 @@ namespace Laclasse.Authentication
 	{
 		[ModelField]
 		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
-		[ModelField]
+		[ModelField(Required = true)]
 		public string session { get { return GetField<string>("session", null); } set { SetField("session", value); } }
 		[ModelField]
 		public DateTime start { get { return GetField("start", DateTime.Now); } set { SetField("start", value); } }
+		[ModelField]
+		public string code { get { return GetField<string>("code", null); } set { SetField("code", value); } }
 	}
 
 	public class Tickets
@@ -59,13 +61,27 @@ namespace Laclasse.Authentication
 
 		public async Task<string> CreateAsync(string session)
 		{
+			var ticket = await CreateAsync(session, false);
+			return ticket.id;
+		}
+
+		public async Task<Ticket> CreateRescueAsync(string session)
+		{
+			return await CreateAsync(session, true);
+		}
+
+		async Task<Ticket> CreateAsync(string session, bool withCode)
+		{
 			string ticketId;
+			string code = null;
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
 				var sb = new StringBuilder();
 				foreach (var b in BitConverter.GetBytes(DateTime.Now.Ticks))
 					sb.Append(b.ToString("X2"));
 
+				if (withCode)
+					code = StringExt.RandomString(4, "0123456789");
 				bool duplicate;
 				int tryCount = 0;
 				do
@@ -74,7 +90,7 @@ namespace Laclasse.Authentication
 					ticketId = "ST-" + sb + StringExt.RandomString(13);
 					try
 					{
-						if (await db.InsertAsync("INSERT INTO ticket (id,session) VALUES (?,?)", ticketId, session) != 1)
+						if (await db.InsertAsync("INSERT INTO ticket (id,session,code) VALUES (?,?,?)", ticketId, session, code) != 1)
 							ticketId = null;
 					}
 					catch (MySql.Data.MySqlClient.MySqlException e)
@@ -89,7 +105,7 @@ namespace Laclasse.Authentication
 				if (ticketId  == null)
 					throw new Exception("Ticket create fails. Impossible generate a ticketId");
 			}
-			return ticketId;
+			return new Ticket { id = ticketId, session = session, code = code, start = DateTime.Now };
 		}
 
 		async Task CleanAsync()
@@ -104,27 +120,33 @@ namespace Laclasse.Authentication
 				CallContext.LogicalSetData("Laclasse.Authentication.Tickets.lastClean", now);
 				// delete old tickets
 				using (DB db = await DB.CreateAsync(dbUrl))
-					await db.DeleteAsync("DELETE FROM ticket WHERE TIMESTAMPDIFF(SECOND, start, NOW()) >= ?", ticketTimeout);
+					await db.DeleteAsync("DELETE FROM `ticket` WHERE TIMESTAMPDIFF(SECOND, start, NOW()) >= ?", ticketTimeout);
 			}
+		}
+
+		async Task<Ticket> GetTicketAsync(string ticketId)
+		{
+			await CleanAsync();
+			using (DB db = await DB.CreateAsync(dbUrl))
+				return await db.SelectRowAsync<Ticket>(ticketId);
 		}
 
 		public async Task<string> GetAsync(string ticketId)
 		{
-			await CleanAsync();
-			string user = null;
-			using (DB db = await DB.CreateAsync(dbUrl))
-			{
-				var item = (await db.SelectAsync("SELECT * FROM ticket WHERE id=?", ticketId)).SingleOrDefault();
-				if (item != null)
-					user = (string)item["session"];
-			}
-			return user;
+			var ticket = await GetTicketAsync(ticketId);
+			return ((ticket != null) && (ticket.code == null)) ? ticket.session : null;
+		}
+
+		public async Task<Ticket> GetRescueAsync(string ticketId)
+		{
+			var ticket = await GetTicketAsync(ticketId);
+			return ((ticket != null) && (ticket.code != null)) ? ticket : null;
 		}
 
 		public async Task DeleteAsync(string ticketId)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-				await db.DeleteAsync("DELETE FROM ticket WHERE id=?", ticketId);
+				await db.DeleteAsync("DELETE FROM `ticket` WHERE `id`=?", ticketId);
 		}
 	}
 }

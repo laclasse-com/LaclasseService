@@ -328,7 +328,7 @@ namespace Laclasse
 					var attr = (ModelExpandFieldAttribute)property.GetCustomAttribute(typeof(ModelExpandFieldAttribute));
 					if ((attr != null) && attr.Visible)
 					{
-						var task = typeof(DB).GetMethod("SelectForeignRowsAsync").MakeGenericMethod(attr.ForeignModel).Invoke(db, new object[] { GetType(), attr.ForeignField, Fields[primaryKey] }) as Task;
+						var task = typeof(DB).GetMethod(nameof(DB.SelectForeignRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(db, new object[] { GetType(), attr.ForeignField, Fields[primaryKey] }) as Task;
 						await task;
 						var resultProperty = typeof(Task<>).MakeGenericType((typeof(ModelList<>)).MakeGenericType(attr.ForeignModel)).GetProperty("Result");
 						Fields[attr.Name] = resultProperty.GetValue(task);
@@ -748,7 +748,7 @@ namespace Laclasse
 
 			foreach (var dstItem in dstItems)
 			{
-				var foundItem = srcItems.SingleOrDefault(srcItem => srcItem.EqualsIntersection(dstItem));
+				var foundItem = srcItems.FirstOrDefault(srcItem => srcItem.EqualsIntersection(dstItem));
 				if (foundItem == null)
 					await dstItem.SaveAsync(db);
 			}
@@ -773,7 +773,7 @@ namespace Laclasse
 		{
 			var property = model.GetProperty(fieldName);
 			var attr = (ModelExpandFieldAttribute)property.GetCustomAttribute(typeof(ModelExpandFieldAttribute));
-			var task = typeof(DB).GetMethod("SelectForeignRowsAsync").MakeGenericMethod(attr.ForeignModel).Invoke(db, new object[] { model, attr.ForeignField, id }) as Task;
+			var task = typeof(DB).GetMethod(nameof(DB.SelectForeignRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(db, new object[] { model, attr.ForeignField, id }) as Task;
 			await task;
 			var resultProperty = typeof(Task<>).MakeGenericType(property.PropertyType).GetProperty("Result");
 			return resultProperty.GetValue(task);
@@ -947,7 +947,7 @@ namespace Laclasse
 						{
 							// because the ForeignModel type is not statically known, use reflexion
 							// get a base Task result for the same reason
-							var task = GetType().GetMethod("SelectForeignsRowsAsync").MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { typeof(T), attr.ForeignField, ids }) as Task;
+							var task = GetType().GetMethod(nameof(SelectForeignsRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { typeof(T), attr.ForeignField, ids }) as Task;
 							await task;
 
 							var modelListType = (typeof(ModelList<>)).MakeGenericType(attr.ForeignModel);
@@ -1006,7 +1006,7 @@ namespace Laclasse
 						var attr = (ModelExpandFieldAttribute)fieldAttr[0];
 						if (attr.Visible)
 						{
-							var task = GetType().GetMethod("SelectForeignRowsAsync").MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { typeof(T), attr.ForeignField, id }) as Task;
+							var task = GetType().GetMethod(nameof(SelectForeignRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { typeof(T), attr.ForeignField, id }) as Task;
 							await task;
 							var resultProperty = typeof(Task<>).MakeGenericType((typeof(ModelList<>)).MakeGenericType(attr.ForeignModel)).GetProperty("Result");
 							result.Fields[attr.Name] = resultProperty.GetValue(task);

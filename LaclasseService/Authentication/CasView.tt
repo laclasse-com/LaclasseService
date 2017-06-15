@@ -83,6 +83,22 @@ input[type=text], input[type=password] {
     margin-bottom: 20px;
 }
 		</style>
+		<script>
+function onRescue()
+{
+	errorContent = document.getElementById("error-content");
+	if (errorContent != null)
+		errorContent.style.display = "none";
+	document.getElementById("authentication-content").style.display = "none";
+	document.getElementById("rescue-content").style.display = "inherit";
+}
+
+function onRescueBack(e)
+{
+	document.getElementById("authentication-content").style.display = "inherit";
+	document.getElementById("rescue-content").style.display = "none";
+}
+		</script>
 	</head>
 <body>
 			<img draggable="false" class="logo" src="images/logolaclasse.svg" alt="Logo ENT">
@@ -114,19 +130,17 @@ input[type=text], input[type=password] {
 					<div class="box" style="max-width: 400px; text-align: left">
 						<# if (error != null) { #>
 
-						<div style="font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #eb5454;">
-							Erreur
-						</div>
-						<div style="margin-bottom: 20px; color: #eb5454">
-							<div>
-								<#= error #>
+						<div style="display: inherit" id="error-content">
+							<div style="font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #eb5454;">
+								Erreur
+							</div>
+							<div style="margin-bottom: 20px; color: #eb5454">
+								<div>
+									<#= error #>
+								</div>
 							</div>
 						</div>
 						<# } #>
-
-						<div style="font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;">
-							Authentification
-						</div>
 
 						<# if (message != null) { #>
 
@@ -138,32 +152,119 @@ input[type=text], input[type=password] {
 							<a class="btn" href="logout">SE DÉCONNECTER</a>
 						</div>
 
-						<# } else { #>
+						<#
+						}
+						else
+						{
+							if (rescueUsers != null) { #>
 
-						<div style="margin-bottom: 20px;">
-							<div class="title">Connectez-vous avec votre compte Académique.</div>
-							<div>
-								<a class="btn" href="parentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>">Parents/Elèves</a>
-								<a class="btn" href="agentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>">Profs/Agents</a>
+						<div id="rescue-content">
+							<div style="font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;">
+								<a href="#back" onclick="onRescueBack()" style="font-weight: bold; text-decoration: none; float: left">&#8592;</a> Mot de passe perdu
+							</div>
+
+							<div style="margin-bottom: 20px;">
+								<div class="title">Choisissez l'utilisateur pour lequel vous avez perdu le mot de passe</div>
+
+								<form method="post">
+		    	        			<input type="hidden" name="service" value="<#= service #>">
+		    	        			<input type="hidden" name="rescue" value="<#= rescue #>">
+		    	        			<# var first = "checked"; foreach (var user in rescueUsers) { #>
+		    	        			<input type="radio" name="user" value="<#= user.id #>" <#= first #>><#= user.firstname + " " + user.lastname #></input><br>
+									<# first = ""; } #>
+									<br>
+									<input class="btn" name="submit" type="submit" value="VALIDER">
+								</form>
 							</div>
 						</div>
-						<br>
-						<div style="height: 2px; background-color: #fff; text-align: center; margin-bottom: 1em">
-							<span style="background-color: #48bbd6; position: relative; top: -0.5em; margin: 0px auto;font-weight: bold">&nbsp;OU&nbsp;</span>
-						</div>
-						<br>
 
-						<div style="margin-bottom: 20px;">
-							<div class="title">Connectez-vous avec votre compte Laclasse.com.</div>
-							<form method="post" action="?">
-		            			<input type="hidden" name="service" value="<#= service #>">
-								<div>Identifiant:</div>
-								<input name="username" type="text" style="width: 80%; margin-bottom: 10px;">
-								<div>Mot de passe:</div>
-								<input name="password" type="password" style="width: 80%; margin-bottom: 10px;">
+						<# 	} else if (rescueId != null) { #>
+
+						<div id="rescue-content">
+							<div style="font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;">
+								<a href="#back" onclick="onRescueBack()" style="font-weight: bold; text-decoration: none; float: left">&#8592;</a> Mot de passe perdu
+							</div>
+
+							<div style="margin-bottom: 20px;">
+								<div>
+									Un code vient de vous être envoyé à <b><#= rescue #></b>. Merci de le saisir dans
+									le champ ci-dessous. Cela vous permettra de vous connecter sur le compte
+									de <#= rescueUser #>. Une fois connecté, pensez bien à changer le mot de passe.
+								</div>
 								<br>
-								<input class="btn" name="submit" type="submit" value="SE CONNECTER">
-							</form>
+								<form method="post">
+		    	        			<input type="hidden" name="service" value="<#= service #>">
+		    	        			<input type="hidden" name="rescue" value="<#= rescue #>">
+		    	        			<input type="hidden" name="rescueId" value="<#= rescueId #>">
+		    	        			<div>Code:</div>
+		    	        			<input type="text" name="rescueCode" value="">
+									<br>
+									<input class="btn" name="submit" type="submit" value="VALIDER">
+								</form>
+							</div>
+						</div>
+
+						<# 	} #>
+
+						<!-- authentication -->
+						<div style="display: <#= (rescue != null) ? "none" : "inherit" #>" id="authentication-content">
+							<div style="font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;">
+								Authentification
+							</div>
+
+							<div style="margin-bottom: 20px;">
+								<div class="title">Connectez-vous avec votre compte Académique.</div>
+								<div>
+									<a class="btn" href="parentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>">Parents/Elèves</a>
+									<a class="btn" href="agentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>">Profs/Agents</a>
+								</div>
+							</div>
+							<br>
+							<div style="height: 2px; background-color: #fff; text-align: center; margin-bottom: 1em">
+								<span style="background-color: #48bbd6; position: relative; top: -0.5em; margin: 0px auto;font-weight: bold">&nbsp;OU&nbsp;</span>
+							</div>
+							<br>
+
+							<div style="margin-bottom: 20px;">
+								<div class="title">Connectez-vous avec votre compte Laclasse.com.</div>
+								<form method="post" action="?">
+			            			<input type="hidden" name="service" value="<#= service #>">
+									<div>Identifiant:</div>
+									<input name="username" type="text" style="width: 80%; margin-bottom: 10px;">
+									<div>Mot de passe:</div>
+									<input name="password" type="password" style="width: 80%; margin-bottom: 10px;">
+									<br>
+									<input class="btn" name="submit" type="submit" value="SE CONNECTER">
+								</form>
+							</div>
+							<a href="#" onclick="onRescue()">Mot de passe oublié ?</a>
+						</div>
+
+	   					<!-- lost password -->
+						<div style="display: none" id="rescue-content">
+							<div style="font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;">
+								<a href="#back" onclick="onRescueBack()" style="font-weight: bold; text-decoration: none; float: left">&#8592;</a> Mot de passe perdu
+							</div>
+
+							<div style="margin-bottom: 20px;">
+								<div>
+									Merci de renseigner une adresse email (autre que celle de l'ENT) ou numéro de
+									téléphone portable: les vôtres ou ceux d'un de vos parents.<br>
+									<br>
+									Par exemple:
+									<ul>
+										<li>pour un compte enseignant, votre adresse email académique.
+										<li>pour un élève, l'adresse email de votre mère.
+										<li>pour un parent, votre numéro de téléphone portable que vous avez communiqué lors de l'inscription
+									</ul>
+								</div>
+								<form method="post">
+		    	        			<input type="hidden" name="service" value="<#= service #>">
+									<input name="rescue" type="text" style="width: 80%; margin-bottom: 10px;">
+									<br>
+									<input class="btn" name="submit" type="submit" value="RÉCUPÉRER">
+								</form>
+							</div>
 						</div>
 						<# } #>
 					</div>

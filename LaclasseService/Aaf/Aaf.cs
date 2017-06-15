@@ -31,6 +31,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Erasme.Json;
+using Laclasse.Authentication;
 
 namespace Laclasse.Aaf
 {
@@ -42,6 +43,9 @@ namespace Laclasse.Aaf
 		{
 			this.syncFilesFolder = syncFilesFolder;
 			//string syncLogsFolder = "/home/daniel/Programmation/laclassev4/aaf/logs";
+
+			// API only available to authenticated users
+			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
 			GetAsync["/"] = async (p, c) =>
 			{

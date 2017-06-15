@@ -139,6 +139,8 @@ namespace Laclasse.Aaf
 		public class SyncStat : Model
 		{
 			[ModelField]
+			public int count { get { return GetField(nameof(count), 0); } set { SetField(nameof(count), value); } }
+			[ModelField]
 			public double total { get { return GetField<double>("total", 0); } set { SetField("total", value); } }
 			[ModelField]
 			public double load { get { return GetField<double>("load", 0); } set { SetField("load", value); } }
@@ -178,22 +180,19 @@ namespace Laclasse.Aaf
 
 			var stopWatch = new Stopwatch();
 			stopWatch.Start();
-			structures = await LoadEntStructuresAsync();
-			profilesTypes = await LoadEntProfilesTypesAsync();
-			structuresGroupsClasses = await LoadEntStructuresGroupsAsync(GroupType.CLS);
-			structuresGroupsGroupes = await LoadEntStructuresGroupsAsync(GroupType.GRP);
-			groups = await LoadEntGroupsAsync();
-			stopWatch.Stop();
 
-			diff.stats.load = stopWatch.Elapsed.TotalSeconds;
-
-			
 			using (DB db = await DB.CreateAsync(dbUrl, true))
 			{
-				//var dir = new DirectoryInfo(BaseDir);
-				//Console.WriteLine(dir.GetFiles());
-				//var files = dir.GetFiles("*_MatiereEducNat_*.xml"); 
-				//ENT_0690078K_Complet_20170327_MatiereEducNat_0000.xml
+
+				structures = await LoadEntStructuresAsync(db);
+				profilesTypes = await LoadEntProfilesTypesAsync(db);
+				structuresGroupsClasses = await LoadEntStructuresGroupsAsync(db, GroupType.CLS);
+				structuresGroupsGroupes = await LoadEntStructuresGroupsAsync(db, GroupType.GRP);
+				groups = await LoadEntGroupsAsync(db);
+				stopWatch.Stop();
+
+				diff.stats.load = stopWatch.Elapsed.TotalSeconds;
+			
 				if (subject)
 				{
 					stopWatch = new Stopwatch();
@@ -278,13 +277,18 @@ namespace Laclasse.Aaf
 					var load = stopWatch.Elapsed.TotalSeconds;
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
-					diff.eleves = await SyncEleveAsync(db, nodes, aafParents, apply);
+					diff.eleves = await SyncEleveAsync(db, nodes, persRelEleve, aafParents, apply);
 					stopWatch.Stop();
 					diff.eleves.stats.load = load;
 					diff.eleves.stats.sync = stopWatch.Elapsed.TotalSeconds;
 				}
 
-				// TODO: remove all parents handled by the AAF no more seen
+				if (persRelEleve)
+				{
+					// sync parents profiles
+					foreach (var structureItem in structures.Values)
+						await SyncStructureParentsProfilesAsync(db, structureItem.id, apply);
+				}
 
 				db.Commit();
 			}
@@ -587,10 +591,9 @@ namespace Laclasse.Aaf
 				aafEtabs[attrs["ENTStructureUAI"]].Fields["ENTStructureGroupes"] = ENTStructureGroupes;
 			}
 			var entStructs = new Dictionary<string, Structure>();
-
-			var items = await db.SelectAsync<Structure>("SELECT * FROM structure");
-			foreach (var item in items)
+			foreach (var item in structures.Values)
 				entStructs[item.id] = item;
+			diff.stats.count = entStructs.Values.Count;
 			Console.WriteLine($"ETABS ENT COUNT: {entStructs.Count}");
 
 			foreach (var id in aafEtabs.Keys)
@@ -779,42 +782,35 @@ namespace Laclasse.Aaf
 			return diff;
 		}
 
-		public async Task<Dictionary<int, Structure>> LoadEntStructuresAsync()
+		public async Task<Dictionary<int, Structure>> LoadEntStructuresAsync(DB db)
 		{
 			var entStructures = new Dictionary<int, Structure>();
 
-			using (var db = await DB.CreateAsync(dbUrl))
-			{
-				var items = await db.SelectAsync<Structure>("SELECT * FROM structure WHERE aaf_jointure_id IS NOT NULL");
-				foreach (var item in items)
-					entStructures[(int)item.aaf_jointure_id] = item;
-			}
+			var items = await db.SelectAsync<Structure>("SELECT * FROM `structure` WHERE `aaf_jointure_id` IS NOT NULL AND `aaf_sync_activated`=TRUE");
+			foreach (var item in items)
+				entStructures[(int)item.aaf_jointure_id] = item;
+			
 			return entStructures;
 		}
 
-		public async Task<Dictionary<string, ProfileType>> LoadEntProfilesTypesAsync()
+		public async Task<Dictionary<string, ProfileType>> LoadEntProfilesTypesAsync(DB db)
 		{
 			var entProfilesTypes = new Dictionary<string, ProfileType>();
 
-			using (var db = await DB.CreateAsync(dbUrl))
-			{
-				var items = await db.SelectAsync<ProfileType>("SELECT * FROM profile_type");
-				foreach (var item in items)
-					entProfilesTypes[item.id] = item;
-			}
+			var items = await db.SelectAsync<ProfileType>("SELECT * FROM `profile_type`");
+			foreach (var item in items)
+				entProfilesTypes[item.id] = item;
 			return entProfilesTypes;
 		}
 
-		public async Task<Dictionary<int, Group>> LoadEntGroupsAsync()
+		public async Task<Dictionary<int, Group>> LoadEntGroupsAsync(DB db)
 		{
 			var entGroups = new Dictionary<int, Group>();
 
-			using (var db = await DB.CreateAsync(dbUrl))
-			{
-				var items = await db.SelectAsync<Group>("SELECT * FROM `group` WHERE `aaf_name` IS NOT NULL");
-				foreach (var item in items)
-					entGroups[item.id] = item;
-			}
+			var items = await db.SelectAsync<Group>("SELECT * FROM `group` WHERE `aaf_name` IS NOT NULL");
+			foreach (var item in items)
+				entGroups[item.id] = item;
+			
 			return entGroups;
 		}
 
@@ -824,26 +820,24 @@ namespace Laclasse.Aaf
 			GRP
 		}
 
-		public async Task<Dictionary<string, Dictionary<string,Group>>> LoadEntStructuresGroupsAsync(GroupType type)
+		public async Task<Dictionary<string, Dictionary<string,Group>>> LoadEntStructuresGroupsAsync(DB db, GroupType type)
 		{
 			var entStructuresGroups = new Dictionary<string, Dictionary<string,Group>>();
 			string currentStructId = null;
 			Dictionary<string, Group> currentStructGroups = null;
 
-			using (var db = await DB.CreateAsync(dbUrl))
+			var items = await db.SelectAsync<Group>("SELECT * FROM `group` WHERE `aaf_name` IS NOT NULL AND `structure_id` IS NOT NULL AND `type`=? ORDER BY `structure_id`", type.ToString());
+			foreach (var item in items)
 			{
-				var items = await db.SelectAsync<Group>("SELECT * FROM `group` WHERE `aaf_name` IS NOT NULL AND `structure_id` IS NOT NULL AND `type`=? ORDER BY `structure_id`", type.ToString());
-				foreach (var item in items)
+				if (currentStructId != item.structure_id)
 				{
-					if (currentStructId != item.structure_id)
-					{
-						currentStructGroups = new Dictionary<string, Group>();
-						currentStructId = item.structure_id;
-						entStructuresGroups[currentStructId] = currentStructGroups;
-					}
-					currentStructGroups[item.aaf_name] = item;
+					currentStructGroups = new Dictionary<string, Group>();
+					currentStructId = item.structure_id;
+					entStructuresGroups[currentStructId] = currentStructGroups;
 				}
+				currentStructGroups[item.aaf_name] = item;
 			}
+
 			return entStructuresGroups;
 		}
 
@@ -939,6 +933,7 @@ namespace Laclasse.Aaf
 
 			var diff = new PersEducNatDiff();
 			diff.stats = new SyncStat();
+			diff.stats.count = 0;
 			diff.errors = new ModelList<Error>();
 			diff.add = new ModelList<User>();
 			diff.change = new ModelList<User>();
@@ -1222,7 +1217,7 @@ namespace Laclasse.Aaf
 			public ModelList<User> remove { get { return GetField<ModelList<User>>("remove", null); } set { SetField("remove", value); } }
 		}
 
-		public async Task<ElevesDiff> SyncEleveAsync(DB db, List<XmlNode> nodes, Dictionary<long, User> aafParents, bool apply)
+		public async Task<ElevesDiff> SyncEleveAsync(DB db, List<XmlNode> nodes, bool persRelEleve, Dictionary<long, User> aafParents, bool apply)
 		{
 			Console.WriteLine("ELEVE SYNCHRONIZE");
 
@@ -1328,7 +1323,7 @@ namespace Laclasse.Aaf
 				}
 
 				// handle parents
-				if (attrsMul.ContainsKey("ENTElevePersRelEleve"))
+				if (persRelEleve && attrsMul.ContainsKey("ENTElevePersRelEleve"))
 				{
 					var aafUserChilds = new ModelList<UserChild>();
 
@@ -1453,6 +1448,26 @@ namespace Laclasse.Aaf
 			// TODO: remove all groups managed by the AAF but not seen by the synchronization for the AAF structures
 
 			return diff;
+		}
+
+		/// <summary>
+		/// Syncs the structure parents profiles async.
+		/// Use the relation between child and parent to find which profiles
+		/// parents shoud have
+		/// </summary>
+		/// <param name="uai">The structure UAI code</param>
+		async Task SyncStructureParentsProfilesAsync(DB db, string uai, bool apply)
+		{
+			var expectParents = new ModelList<UserProfile>();
+			foreach (var item in await db.SelectAsync(
+				"SELECT DISTINCT(`parent_id`) FROM `user_child` WHERE `child_id` IN " +
+				"(SELECT `user_id` FROM `user_profile` WHERE `type`= 'ELV' AND `structure_id`= ?)", uai))
+				expectParents.Add(new UserProfile { user_id = (string)item["parent_id"], structure_id = uai, type = "TUT" });
+
+			var entParents = await db.SelectAsync<UserProfile>("SELECT * FROM `user_profile` WHERE `type`='TUT' AND `structure_id`=?", uai);
+
+			if (apply)
+				await Model.SyncAsync(db, entParents, expectParents);
 		}
 
 		void ReadAttributes(XmlNode node, string[] mulFields, out long id, out Dictionary<string,string> attrs, out Dictionary<string,List<string>> attrsMul)

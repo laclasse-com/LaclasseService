@@ -215,6 +215,14 @@ namespace Laclasse
 					prop.GetValue(obj).Dump(sb, indent + 2);
 					sb.Append("\n");
 				}
+				foreach (var field in obj.GetType().GetFields())
+				{
+					sb.Append(' ', indent + 2);
+					sb.Append(field.Name);
+					sb.Append(": ");
+					field.GetValue(obj).Dump(sb, indent + 2);
+					sb.Append("\n");
+				}
 				sb.Append(' ', indent);
 				sb.Append("}");
 			}
@@ -225,6 +233,11 @@ namespace Laclasse
 			var sb = new StringBuilder();
 			obj.Dump(sb, 0);
 			return sb.ToString();
+		}
+
+		public static JsonObject ToJson<T>(this T obj)
+		{
+			return JsonValue.ObjectToJson(obj);
 		}
 	}
 

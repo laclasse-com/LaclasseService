@@ -204,6 +204,11 @@ namespace Laclasse.Directory
 			if (json.ContainsKey(nameof(password)))
 				password = json[nameof(password)];
 		}
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			await context.EnsureHasRightsOnUserAsync(this, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+		}
 	}
 
 	public class Users : ModelService<User>
@@ -230,18 +235,15 @@ namespace Laclasse.Directory
 			// register a type
 			Types["uid"] = (val) => (Regex.IsMatch(val, "^[A-Z0-9]+$")) ? val : null;
 
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
-
 			GetAsync["/current"] = async (p, c) =>
 			{
 				var user = await c.GetAuthenticatedUserAsync();
-				if (user == null)
+				if ((user == null) || !user.IsUser)
 					c.Response.StatusCode = 401;
 				else
 				{
 					c.Response.StatusCode = 302;
-					c.Response.Headers["location"] = user;
+					c.Response.Headers["location"] = user.user.id;
 				}
 			};
 
@@ -256,6 +258,8 @@ namespace Laclasse.Directory
 				//var oldUser = await GetUserAsync(uid);
 				if (oldUser == null)
 					return;
+
+				await c.EnsureHasRightsOnUserAsync(oldUser, true, true, false);
 
 				var reader = c.Request.ReadAsMultipart();
 				MultipartPart part;
@@ -318,7 +322,7 @@ namespace Laclasse.Directory
 			return await db.SelectRowAsync<User>(id, expand);
 		}
 
-		public async Task<SearchResult> SearchUserAsync(
+		public async Task<SearchResult<User>> SearchUserAsync(
 			string query, int offset = 0, int count = -1, string orderBy = null,
 			SortDirection sortDirection = SortDirection.Ascending)
 		{
@@ -326,14 +330,14 @@ namespace Laclasse.Directory
 				return await SearchUserAsync(db, query, offset, count, orderBy, sortDirection);
 		}
 
-		public Task<SearchResult> SearchUserAsync(
+		public Task<SearchResult<User>> SearchUserAsync(
 			DB db, string query, int offset = 0, int count = -1, string orderBy = null,
 			SortDirection sortDirection = SortDirection.Ascending)
 		{
 			return SearchUserAsync(db, query.QueryParser(), offset, count, orderBy, sortDirection);
 		}
 
-		public async Task<SearchResult> SearchUserAsync(
+		public async Task<SearchResult<User>> SearchUserAsync(
 			Dictionary<string, List<string>> queryFields, int offset = 0, int count = -1,
 			string orderBy = null, SortDirection sortDirection = SortDirection.Ascending)
 		{
@@ -341,7 +345,7 @@ namespace Laclasse.Directory
 				return await SearchUserAsync(db, queryFields, offset, count, orderBy, sortDirection);
 		}
 
-		public async Task<SearchResult> SearchUserAsync(
+		public async Task<SearchResult<User>> SearchUserAsync(
 			DB db, Dictionary<string, List<string>> queryFields, int offset = 0, int count = -1,
 			string orderBy = null, SortDirection sortDirection = SortDirection.Ascending)
 		{

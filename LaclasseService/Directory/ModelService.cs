@@ -132,7 +132,12 @@ namespace Laclasse.Directory
 						{
 							await RunBeforeAsync(null, context);
 							using (DB db = await DB.CreateAsync(dbUrl))
-								c.Response.Content = await Model.SearchAsync<T>(db, searchAllowedFields, c);
+							{
+								var result = await Model.SearchAsync<T>(db, searchAllowedFields, c);
+								foreach(var item in result.Data)
+									await item.EnsureRightAsync(c, Right.Read);
+								c.Response.Content = result;
+							}
 							c.Response.StatusCode = 200;
 						}
 						// get item
@@ -156,6 +161,7 @@ namespace Laclasse.Directory
 									item = await db.SelectRowAsync<T>(id, expand);
 								if (item != null)
 								{
+									await item.EnsureRightAsync(c, Right.Read);
 									c.Response.StatusCode = 200;
 									c.Response.Content = item;
 								}
@@ -219,8 +225,10 @@ namespace Laclasse.Directory
 												null, new object[] { db, expandFields[parts[1]].ForeignSearchAllowedFields, c }
 											) as Task;
 										await task;
-										var resultProperty = typeof(Task<>).MakeGenericType(typeof(JsonValue)).GetProperty("Result");
-										c.Response.Content = resultProperty.GetValue(task) as JsonValue;
+
+										var searchType = typeof(SearchResult<>).MakeGenericType(expandFields[parts[1]].ForeignModel);
+										var resultProperty = typeof(Task<>).MakeGenericType(searchType).GetProperty("Result");
+										c.Response.Content = ((IJsonable)resultProperty.GetValue(task)).ToJson();
 									}
 									c.Response.StatusCode = 200;
 								}
@@ -242,6 +250,7 @@ namespace Laclasse.Directory
 									{
 										var item = new T();
 										item.FromJson((JsonObject)jsonItem, null, c);
+										await item.EnsureRightAsync(c, Right.Create);
 										await item.SaveAsync(db, true);
 										result.Add(item);
 									}
@@ -255,6 +264,8 @@ namespace Laclasse.Directory
 								await RunBeforeAsync(null, context);
 								var item = new T();
 								item.FromJson((JsonObject)json, null, c);
+								await item.EnsureRightAsync(c, Right.Create);
+
 								using (DB db = await DB.CreateAsync(dbUrl, true))
 								{
 									await item.SaveAsync(db, true);
@@ -279,7 +290,6 @@ namespace Laclasse.Directory
 								var json = await c.Request.ReadAsJsonAsync();
 								using (DB db = await DB.CreateAsync(dbUrl, true))
 								{
-
 									if (json is JsonArray)
 									{
 										foreach (var jsonItem in (JsonArray)json)
@@ -304,6 +314,7 @@ namespace Laclasse.Directory
 									// return the whole item
 									T item = null;
 									item = await db.SelectRowAsync<T>(id, true);
+									await item.EnsureRightAsync(c, Right.Update);
 									if (item != null)
 									{
 										c.Response.StatusCode = 200;
@@ -329,6 +340,7 @@ namespace Laclasse.Directory
 									{
 										var item = new T();
 										item.FromJson((JsonObject)jsonItem, null, c);
+										await item.EnsureRightAsync(c, Right.Update);
 										await item.UpdateAsync(db);
 										result.Add(await item.LoadAsync(db));
 									}
@@ -358,6 +370,7 @@ namespace Laclasse.Directory
 									var itemDiff = new T();
 									itemDiff.FromJson((JsonObject)json, null, c);
 									itemDiff.Fields[details.PrimaryKeyName] = id;
+									await itemDiff.EnsureRightAsync(c, Right.Update);
 									using (DB db = await DB.CreateAsync(dbUrl, true))
 									{
 										await itemDiff.UpdateAsync(db);
@@ -419,6 +432,7 @@ namespace Laclasse.Directory
 											// return the whole item
 											T item = null;
 											item = await db.SelectRowAsync<T>(id, true);
+											await item.EnsureRightAsync(c, Right.Update);
 											if (item != null)
 											{
 												c.Response.StatusCode = 200;
@@ -446,6 +460,7 @@ namespace Laclasse.Directory
 										// return the whole item
 										T item = null;
 										item = await db.SelectRowAsync<T>(id, true);
+										await item.EnsureRightAsync(c, Right.Update);
 										if (item != null)
 										{
 											c.Response.StatusCode = 200;
@@ -469,6 +484,7 @@ namespace Laclasse.Directory
 								var ids = ((JsonArray)json).Select((arg) => Convert.ChangeType(arg.Value, details.PrimaryKeyType));
 								using (DB db = await DB.CreateAsync(dbUrl, true))
 								{
+									// TODO: handle Delete right
 									int count = await db.DeleteAsync($"DELETE FROM `{details.TableName}` WHERE {db.InFilter(details.PrimaryKeyName, ids)}");
 									if (count == 0)
 										c.Response.StatusCode = 404;
@@ -497,7 +513,10 @@ namespace Laclasse.Directory
 								{
 									item = await db.SelectRowAsync<T>(id);
 									if (item != null)
+									{
+										await item.EnsureRightAsync(c, Right.Delete);
 										await item.DeleteAsync(db);
+									}
 									db.Commit();
 								}
 								if (item != null)
@@ -546,6 +565,7 @@ namespace Laclasse.Directory
 											// return the whole item
 											T item = null;
 											item = await db.SelectRowAsync<T>(id, true);
+											await item.EnsureRightAsync(c, Right.Update);
 											if (item != null)
 											{
 												c.Response.StatusCode = 200;
@@ -574,6 +594,7 @@ namespace Laclasse.Directory
 										// return the whole item
 										T item = null;
 										item = await db.SelectRowAsync<T>(id, true);
+										await item.EnsureRightAsync(c, Right.Update);
 										if (item != null)
 										{
 											c.Response.StatusCode = 200;

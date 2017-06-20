@@ -168,6 +168,7 @@ function onRescueBack(e)
 
 								<form method="post">
 		    	        			<input type="hidden" name="service" value="<#= service #>">
+		    	        			<input type="hidden" name="ticket" value="<#= ticket #>">
 		    	        			<input type="hidden" name="rescue" value="<#= rescue #>">
 		    	        			<# var first = "checked"; foreach (var user in rescueUsers) { #>
 		    	        			<input type="radio" name="user" value="<#= user.id #>" <#= first #>><#= user.firstname + " " + user.lastname #></input><br>
@@ -194,6 +195,7 @@ function onRescueBack(e)
 								<br>
 								<form method="post">
 		    	        			<input type="hidden" name="service" value="<#= service #>">
+		    	        			<input type="hidden" name="ticket" value="<#= ticket #>">
 		    	        			<input type="hidden" name="rescue" value="<#= rescue #>">
 		    	        			<input type="hidden" name="rescueId" value="<#= rescueId #>">
 		    	        			<div>Code:</div>
@@ -229,6 +231,7 @@ function onRescueBack(e)
 								<div class="title">Connectez-vous avec votre compte Laclasse.com.</div>
 								<form method="post" action="?">
 			            			<input type="hidden" name="service" value="<#= service #>">
+			            			<input type="hidden" name="ticket" value="<#= ticket #>">
 									<div>Identifiant:</div>
 									<input name="username" type="text" style="width: 80%; margin-bottom: 10px;">
 									<div>Mot de passe:</div>
@@ -260,6 +263,7 @@ function onRescueBack(e)
 								</div>
 								<form method="post">
 		    	        			<input type="hidden" name="service" value="<#= service #>">
+		    	        			<input type="hidden" name="ticket" value="<#= ticket #>">
 									<input name="rescue" type="text" style="width: 80%; margin-bottom: 10px;">
 									<br>
 									<input class="btn" name="submit" type="submit" value="RÉCUPÉRER">

@@ -26,6 +26,8 @@
 // THE SOFTWARE.
 //
 
+using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -37,14 +39,18 @@ namespace Laclasse.Directory
 		public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } } 
 		[ModelField]
 		public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			if (right != Right.Read)
+				await context.EnsureIsSuperAdminAsync();
+		}
 	}
 
 	public class Subjects : ModelService<Subject>
 	{
 		public Subjects(string dbUrl) : base(dbUrl)
 		{
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 		}
 	}
 }

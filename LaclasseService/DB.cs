@@ -48,6 +48,14 @@ namespace Laclasse
 		Descending
 	}
 
+	public enum Right
+	{
+		Create,
+		Read,
+		Update,
+		Delete
+	}
+
 	[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
 	public class ModelAttribute : Attribute
 	{
@@ -475,12 +483,12 @@ namespace Laclasse
 			return res;
 		}
 
-		public static Task<JsonValue> SearchAsync<T>(DB db, IEnumerable<string> searchAllowedFields, HttpContext c) where T : Model, new()
+		public static Task<SearchResult<T>> SearchAsync<T>(DB db, IEnumerable<string> searchAllowedFields, HttpContext c) where T : Model, new()
 		{
 			return SearchWithHttpContextAsync<T>(db, searchAllowedFields, c);
 		}
 
-		public static async Task<JsonValue> SearchWithHttpContextAsync<T>(DB db, IEnumerable<string> searchAllowedFields, HttpContext c) where T : Model, new()
+		public static async Task<SearchResult<T>> SearchWithHttpContextAsync<T>(DB db, IEnumerable<string> searchAllowedFields, HttpContext c) where T : Model, new()
 		{
 			bool expand = true;
 			int offset = 0;
@@ -505,23 +513,12 @@ namespace Laclasse
 
 			var parsedQuery = query.QueryParser();
 			foreach (var key in c.Request.QueryString.Keys)
-				if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
+				if (!parsedQuery.ContainsKey(key))
 					parsedQuery[key] = new List<string> { c.Request.QueryString[key] };
 			foreach (var key in c.Request.QueryStringArray.Keys)
-				if (searchAllowedFields.Contains(key) && !parsedQuery.ContainsKey(key))
+				if (!parsedQuery.ContainsKey(key))
 					parsedQuery[key] = c.Request.QueryStringArray[key];
-			var result = await SearchAsync<T>(db, searchAllowedFields, parsedQuery, orderBy, orderDir, expand, offset, count);
-
-			if (count > 0)
-			{
-				return new JsonObject
-				{
-					["total"] = result.Total,
-					["page"] = (result.Offset / count) + 1,
-					["data"] = result.Data
-				};
-			}
-			return result.Data;
+			return await SearchAsync<T>(db, searchAllowedFields, parsedQuery, orderBy, orderDir, expand, offset, count);
 		}
 
 		enum CompareOperator
@@ -547,7 +544,7 @@ namespace Laclasse
 			return opStr;
 		}
 
-		public static async Task<SearchResult> SearchAsync<T>(
+		public static async Task<SearchResult<T>> SearchAsync<T>(
 			DB db, IEnumerable<string> searchAllowedFields, Dictionary<string, List<string>> queryFields, string orderBy = null,
 			SortDirection sortDir = SortDirection.Ascending, bool expand = true, int offset = 0, int count = -1) where T : Model, new()
 		{
@@ -558,7 +555,7 @@ namespace Laclasse
 			if (orderBy == null)
 				orderBy = primaryKey;
 
-			var result = new SearchResult();
+			var result = new SearchResult<T>();
 			string filter = "";
 			var tables = new Dictionary<string, Dictionary<string, List<string>>>();
 			foreach (string keyOp in queryFields.Keys)
@@ -716,24 +713,21 @@ namespace Laclasse
 			if (count > 0)
 				limit = $"LIMIT {count} OFFSET {offset}";
 
-			result.Data = new JsonArray();
 			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `{modelTableName}` WHERE {filter} " +
 				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC") + $" {limit}";
 			//Console.WriteLine(sql);
-			ModelList<T> items;
+			result.Limit = count;
 			if (expand)
 			{
 				// get the found rows just after the main query because the value is changed
 				// by the others queries done for expanding the data
-				items = await db.SelectExpandAsync<T>(sql, new object[] { }, async () => result.Total = (int)await db.FoundRowsAsync());
+				result.Data = await db.SelectExpandAsync<T>(sql, new object[] { }, async () => result.Total = (int)await db.FoundRowsAsync());
 			}
 			else
 			{
-				items = await db.SelectAsync<T>(sql);
+				result.Data = await db.SelectAsync<T>(sql);
 				result.Total = (int)await db.FoundRowsAsync();
 			}
-			foreach (var item in items)
-				result.Data.Add(item.ToJson());
 			return result;
 		}
 
@@ -760,7 +754,7 @@ namespace Laclasse
 			{
 				var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
 				string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
-				Fields[fieldName] = await Model.LoadExpandFieldAsync(GetType(), db, fieldName, Fields[primaryKey]);
+				Fields[fieldName] = await LoadExpandFieldAsync(GetType(), db, fieldName, Fields[primaryKey]);
 			}
 		}
 
@@ -777,6 +771,11 @@ namespace Laclasse
 			await task;
 			var resultProperty = typeof(Task<>).MakeGenericType(property.PropertyType).GetProperty("Result");
 			return resultProperty.GetValue(task);
+		}
+
+		public virtual async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			await Task.FromResult(false);
 		}
 	}
 

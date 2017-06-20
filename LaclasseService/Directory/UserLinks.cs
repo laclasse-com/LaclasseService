@@ -24,6 +24,8 @@
 // THE SOFTWARE.
 //
 
+using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -45,6 +47,19 @@ namespace Laclasse.Directory
 		public bool legal { get { return GetField(nameof(legal), false); } set { SetField(nameof(legal), value); } }
 		[ModelField]
 		public bool contact { get { return GetField(nameof(contact), false); } set { SetField(nameof(contact), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			var parent = new User { id = parent_id };
+			var child = new User { id = child_id };
+			using (var db = await DB.CreateAsync(context.GetSetup().database.url))
+			{
+				await parent.LoadAsync(db, true);
+				await child.LoadAsync(db, true);
+			}
+			await context.EnsureHasRightsOnUserAsync(parent, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+			await context.EnsureHasRightsOnUserAsync(child, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+		}
 	}
 
 	public class UserLinks : ModelService<UserChild>

@@ -36,6 +36,7 @@ using System.Text.RegularExpressions;
 using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
+using System.Collections;
 using System.Collections.Generic;
 using System.Net.Mail;
 using Erasme.Http;
@@ -47,6 +48,7 @@ namespace Laclasse.Authentication
 	public partial class CasView
 	{
 		public string service = "";
+		public bool ticket = true;
 		public string error;
 		public string title;
 		public string message;
@@ -98,6 +100,7 @@ namespace Laclasse.Authentication
 					if (c.Request.QueryString.ContainsKey("service"))
 					{
 						string service = c.Request.QueryString["service"];
+
 						var ticket = await tickets.CreateAsync(c.Request.Cookies[cookieName]);
 						if (service.IndexOf('?') >= 0)
 							service += "&ticket=" + ticket;
@@ -122,12 +125,15 @@ namespace Laclasse.Authentication
 				else
 				{
 					string service = "";
+					var wantTicket = true;
 					if (c.Request.QueryString.ContainsKey("service"))
 						service = c.Request.QueryString["service"];
+					if (c.Request.QueryString.ContainsKey("ticket"))
+						wantTicket = Convert.ToBoolean(c.Request.QueryString["ticket"]);
 
 					c.Response.StatusCode = 200;
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
-					c.Response.Content = (new CasView { service = service }).TransformText();
+					c.Response.Content = (new CasView { service = service, ticket = wantTicket }).TransformText();
 				}
 			};
 
@@ -147,6 +153,9 @@ namespace Laclasse.Authentication
 				else
 				{
 					formFields.RequireFields("username", "password");
+					bool wantTicket = true;
+					if (formFields.ContainsKey("ticket"))
+						wantTicket = Convert.ToBoolean(formFields["ticket"]);
 
 					var uid = await users.CheckPasswordAsync(formFields["username"], formFields["password"]);
 					if (uid == null)
@@ -161,7 +170,7 @@ namespace Laclasse.Authentication
 					}
 					else
 						// init the session and redirect to service
-						await CasLoginAsync(c, uid, formFields.ContainsKey("service") ? formFields["service"] : null);
+						await CasLoginAsync(c, uid, formFields.ContainsKey("service") ? formFields["service"] : null, wantTicket);
 				}
 			};
 
@@ -182,72 +191,9 @@ namespace Laclasse.Authentication
 				c.Response.Headers["location"] = destination;
 			};
 
-			GetAsync["/serviceValidate"] = async (p, c) =>
-			{
-				c.Request.QueryString.RequireFields("ticket");
-				if (!c.Request.QueryString.ContainsKey("ticket") && !c.Request.QueryString.ContainsKey("service"))
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-					c.Response.Content = ServiceResponseFailure(
-						"INVALID_REQUEST",
-						$"serviceValidate require at least two parameters : ticket and service.");
-					return;
-				}
+			GetAsync["/serviceValidate"] = async (p, c) => await ServiceValidateAsync(c);
 
-				var service = c.Request.QueryString["service"];
-				var ticketId = c.Request.QueryString["ticket"];
-				var sessionId = await tickets.GetAsync(ticketId);
-				if (sessionId == null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-					c.Response.Content = ServiceResponseFailure(
-						"INVALID_TICKET",
-						$"Ticket {ticketId} is not recognized.");
-					return;
-				}
-				await tickets.DeleteAsync(ticketId);
-				var session = await sessions.GetSessionAsync(sessionId);
-				if (session == null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-					c.Response.Content = ServiceResponseFailure(
-						"INVALID_SESSION",
-						$"Ticket {ticketId} has a timed out session.");
-					return;
-				}
-
-				var userAttributes = await GetUserSsoAttributesAsync(session.user);
-				if (userAttributes == null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-					c.Response.Content = ServiceResponseFailure(
-						"INVALID_SESSION",
-						$"Ticket {ticketId} user not found");
-					return;
-				}
-
-				var client = await GetClientFromServiceAsync(service);
-				if (client == null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-					c.Response.Content = ServiceResponseFailure(
-						"INVALID_SESSION",
-						$"Ticket {ticketId}, service not allowed");
-					return;
-				}
-
-				var attributes = FilterAttributesFromClient(client, userAttributes);
-				attributes["user"] = userAttributes[client.identity_attribute];
-
-				c.Response.StatusCode = 200;
-				c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-				c.Response.Content = ServiceResponseSuccess(attributes);
-			};
+			GetAsync["/proxyValidate"] = async (p, c) => await ServiceValidateAsync(c);
 
 			PostAsync["/samlValidate"] = async (p, c) =>
 			{
@@ -451,7 +397,7 @@ namespace Laclasse.Authentication
 				}
 
 				// init the session and redirect to service
-				await CasLoginAsync(c, userResult["id"], service);
+				await CasLoginAsync(c, userResult.id, service);
 			};
 
 			PostAsync["/parentPortalIdp"] = async (p, c) =>
@@ -598,7 +544,7 @@ namespace Laclasse.Authentication
 			};
 		}
 
-		async Task CasLoginAsync(HttpContext c, string uid, string service)
+		async Task CasLoginAsync(HttpContext c, string uid, string service, bool wantTicket = true)
 		{
 			var sessionId = await sessions.CreateSessionAsync(uid);
 
@@ -608,11 +554,14 @@ namespace Laclasse.Authentication
 
 			if (!string.IsNullOrEmpty(service))
 			{
-				var ticket = await tickets.CreateAsync(sessionId);
-				if (service.IndexOf('?') >= 0)
-					service += "&ticket=" + ticket;
-				else
-					service += "?ticket=" + ticket;
+				if (wantTicket)
+				{
+					var ticket = await tickets.CreateAsync(sessionId);
+					if (service.IndexOf('?') >= 0)
+						service += "&ticket=" + ticket;
+					else
+						service += "?ticket=" + ticket;
+				}
 				Console.WriteLine($"Location: '{service}'");
 				c.Response.Headers["location"] = service;
 			}
@@ -1135,9 +1084,9 @@ namespace Laclasse.Authentication
 				// seach find the corresponding student with the 'aaf_struct_rattach_id'
 				foreach (var user in usersResult)
 				{
-					foreach (var child in (JsonArray)user["children"])
+					foreach (var child in user.children)
 					{
-						var childJson = await users.GetUserAsync(child["user_id"]);
+						var childJson = await users.GetUserAsync(child.child_id);
 
 						if (childJson.aaf_struct_rattach_id == int.Parse(aaf_struct_rattach_id))
 							return user;
@@ -1393,6 +1342,73 @@ namespace Laclasse.Authentication
 					// init the session and redirect to service
 					await CasLoginAsync(c, session.user, formFields.ContainsKey("service") ? formFields["service"] : null);
 			}
+		}
+
+		async Task ServiceValidateAsync(HttpContext c)
+		{
+			c.Request.QueryString.RequireFields("ticket");
+			if (!c.Request.QueryString.ContainsKey("ticket") && !c.Request.QueryString.ContainsKey("service"))
+			{
+				c.Response.StatusCode = 200;
+				c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
+				c.Response.Content = ServiceResponseFailure(
+					"INVALID_REQUEST",
+					$"serviceValidate require at least two parameters : ticket and service.");
+				return;
+			}
+
+			var service = c.Request.QueryString["service"];
+			var ticketId = c.Request.QueryString["ticket"];
+			var sessionId = await tickets.GetAsync(ticketId);
+			if (sessionId == null)
+			{
+				c.Response.StatusCode = 200;
+				c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
+				c.Response.Content = ServiceResponseFailure(
+					"INVALID_TICKET",
+					$"Ticket {ticketId} is not recognized.");
+				return;
+			}
+			await tickets.DeleteAsync(ticketId);
+			var session = await sessions.GetSessionAsync(sessionId);
+			if (session == null)
+			{
+				c.Response.StatusCode = 200;
+				c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
+				c.Response.Content = ServiceResponseFailure(
+					"INVALID_SESSION",
+					$"Ticket {ticketId} has a timed out session.");
+				return;
+			}
+
+			var userAttributes = await GetUserSsoAttributesAsync(session.user);
+			if (userAttributes == null)
+			{
+				c.Response.StatusCode = 200;
+				c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
+				c.Response.Content = ServiceResponseFailure(
+					"INVALID_SESSION",
+					$"Ticket {ticketId} user not found");
+				return;
+			}
+
+			var client = await GetClientFromServiceAsync(service);
+			if (client == null)
+			{
+				c.Response.StatusCode = 200;
+				c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
+				c.Response.Content = ServiceResponseFailure(
+					"INVALID_SESSION",
+					$"Ticket {ticketId}, service not allowed");
+				return;
+			}
+
+			var attributes = FilterAttributesFromClient(client, userAttributes);
+			attributes["user"] = userAttributes[client.identity_attribute];
+
+			c.Response.StatusCode = 200;
+			c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
+			c.Response.Content = ServiceResponseSuccess(attributes);
 		}
 	}
 }

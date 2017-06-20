@@ -27,48 +27,52 @@
 //
 
 using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "application", PrimaryKey = "id")]
+	[Model(Table = "application", PrimaryKey = nameof(id))]
 	public class Application : Model
 	{
 		[ModelField(Required = true)]
-		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
+		public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string name { get { return GetField<string>("name", null); } set { SetField("name", value); } }
+		public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
 		[ModelField(Required = true)]
-		public string url { get { return GetField<string>("url", null); } set { SetField("url", value); } }
+		public string url { get { return GetField<string>(nameof(url), null); } set { SetField(nameof(url), value); } }
 		[ModelField]
-		public string password { get { return GetField<string>("password", null); } set { SetField("password", value); } }
+		public string password { get { return GetField<string>(nameof(password), null); } set { SetField(nameof(password), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			if (right != Right.Read)
+				await context.EnsureIsSuperAdminAsync();
+		}
 	}
 
-	public class Applications: ModelService<Application> //HttpRouting
+	public class Applications: ModelService<Application>
 	{
 		readonly string dbUrl;
 
 		public Applications(string dbUrl) : base(dbUrl)
 		{
 			this.dbUrl = dbUrl;
-
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 		}
 
-		public async Task<string> CheckPasswordAsync(string login, string password)
+		public async Task<Application> CheckPasswordAsync(string login, string password)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 				return await CheckPasswordAsync(db, login, password);
 		}
 
-		public async Task<string> CheckPasswordAsync(DB db, string login, string password)
+		public async Task<Application> CheckPasswordAsync(DB db, string login, string password)
 		{
-			string user = null;
+			Application app = null;
 			var item = await db.SelectRowAsync<Application>(login);
 			if ((item != null) && (item.password != null) && (password == item.password))
-				user = item.id;
-			return user;
+				app = item;
+			return app;
 		}
 	}
 }

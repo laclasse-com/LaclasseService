@@ -28,6 +28,8 @@
 //
 
 using System;
+using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -52,18 +54,20 @@ namespace Laclasse.Directory
 		public ModelList<StructureResource> structures {
 			get { return GetField<ModelList<StructureResource>>(nameof(structures), null); }
 			set { SetField(nameof(structures), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			if (right != Right.Read)
+				await context.EnsureIsSuperAdminAsync();
+			else
+				await context.EnsureIsAuthenticatedAsync();
+		}
 	}
 
 	public class Resources: ModelService<Resource>
 	{
 		public Resources(string dbUrl) : base(dbUrl)
 		{
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) =>
-			{
-				if (c.Request.Method != "GET")
-					await c.EnsureIsAuthenticatedAsync();
-			};
 		}
 	}
 }

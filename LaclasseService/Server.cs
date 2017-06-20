@@ -34,6 +34,7 @@ using System.Threading.Tasks;
 using System.Net.Mail;
 using Erasme.Http;
 using Erasme.Json;
+using Laclasse.Directory;
 
 namespace Laclasse
 {

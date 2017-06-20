@@ -43,9 +43,7 @@ namespace Laclasse
 		public override void ProcessRequest(HttpContext context)
 		{
 			foreach (var key in values.Keys)
-			{
 				context.Data[key] = values[key];
-			}
 		}
 	}
 }

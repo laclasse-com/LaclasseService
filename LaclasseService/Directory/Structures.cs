@@ -26,8 +26,8 @@
 //
 
 using System;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -96,14 +96,21 @@ namespace Laclasse.Directory
 
 		[ModelExpandField(Name = nameof(flux), ForeignModel = typeof(FluxPortail), Visible = false)]
 		public ModelList<FluxPortail> flux { get { return GetField<ModelList<FluxPortail>>(nameof(flux), null); } set { SetField(nameof(flux), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			if (right == Right.Create)
+				await context.EnsureIsSuperAdminAsync();
+			else
+				await context.EnsureHasRightsOnStructureAsync(
+					this, true, (right == Right.Update), (right == Right.Delete));
+		}
 	}
 
 	public class Structures : ModelService<Structure>
 	{
 		public Structures(string dbUrl) : base(dbUrl)
 		{
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 		}
 	}
 }

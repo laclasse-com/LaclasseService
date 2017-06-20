@@ -24,6 +24,8 @@
 // THE SOFTWARE.
 //
 
+using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -37,14 +39,18 @@ namespace Laclasse.Directory
 		public int resource_id { get { return GetField(nameof(resource_id), 0); } set { SetField(nameof(resource_id), value); } }
 		[ModelField(Required = true, ForeignModel = typeof(Structure))]
 		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			var structure = new Structure { id = structure_id };
+			await context.EnsureHasRightsOnStructureAsync(structure, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+		}
 	}
 
 	public class StructuresResources : ModelService<StructureResource>
 	{
 		public StructuresResources(string dbUrl) : base(dbUrl)
 		{
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 		}
 	}
 }

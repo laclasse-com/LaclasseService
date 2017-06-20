@@ -169,6 +169,7 @@ namespace Laclasse
 			contextInjector.Inject("sessions", sessions);
 			contextInjector.Inject("applications", applications);
 			contextInjector.Inject("publicUrl", setup.server.publicUrl);
+			contextInjector.Inject("setup", setup);
 
 			//var n1 = new Grade { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };
 			//var n2 = new Grade { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };

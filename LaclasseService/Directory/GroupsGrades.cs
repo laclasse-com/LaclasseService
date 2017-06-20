@@ -4,6 +4,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +25,8 @@
 // THE SOFTWARE.
 //
 
+using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -37,6 +40,15 @@ namespace Laclasse.Directory
 		public int group_id { get { return GetField(nameof(group_id), 0); } set { SetField(nameof(group_id), value); } }
 		[ModelField(Required = true, ForeignModel = typeof(Grade))]
 		public string grade_id { get { return GetField<string>(nameof(grade_id), null); } set { SetField(nameof(grade_id), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			var group = new Group { id = group_id };
+			using (var db = await DB.CreateAsync(context.GetSetup().database.url))
+				await group.LoadAsync(db, true);
+
+			await context.EnsureHasRightsOnGroupAsync(group, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+		}
 	}
 
 	public class GroupsGrades : ModelService<GroupGrade>

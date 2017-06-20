@@ -36,11 +36,37 @@ using Erasme.Http;
 
 namespace Laclasse
 {
-	public struct SearchResult
+	public interface IJsonable
 	{
-		public JsonArray Data;
+		JsonValue ToJson();
+	}
+
+	public struct SearchResult<T>: IJsonable where T : Model
+	{
+		public ModelList<T> Data;
+		public int Limit;
 		public int Total;
 		public int Offset;
+
+		public JsonValue ToJson()
+		{
+			if (Limit > 0)
+			{
+				return new JsonObject
+				{
+					["total"] = Total,
+					["page"] = (Offset / Limit) + 1,
+					["data"] = Data
+				};
+			}
+			else
+				return Data.ToJson();
+		}
+
+		public static implicit operator HttpContent(SearchResult<T> searchResult)
+		{
+			return new JsonContent(searchResult.ToJson());
+		}
 	}
 
 	public class XmlContent : StreamContent
@@ -70,6 +96,11 @@ namespace Laclasse
 
 	public static class HttpContextExtensions
 	{
+		public static Setup GetSetup(this HttpContext context)
+		{
+			return (Setup)context.Data["setup"];
+		}
+
 		public static string SelfURL(this HttpContext context)
 		{
 			var publicUrl = (string)context.Data["publicUrl"];

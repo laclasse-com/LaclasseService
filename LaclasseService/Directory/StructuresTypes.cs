@@ -25,6 +25,8 @@
 // THE SOFTWARE.
 //
 
+using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -40,18 +42,18 @@ namespace Laclasse.Directory
 		public string contrat_type { get { return GetField<string>(nameof(contrat_type), null); } set { SetField(nameof(contrat_type), value); } }
 		[ModelField]
 		public string aaf_type { get { return GetField<string>(nameof(aaf_type), null); } set { SetField(nameof(aaf_type), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			if (right != Right.Read)
+				await context.EnsureIsSuperAdminAsync();
+		}
 	}
 
 	public class StructuresTypes: ModelService<StructureType>
 	{
 		public StructuresTypes(string dbUrl) : base(dbUrl)
 		{
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) =>
-			{
-				if (c.Request.Method != "GET")
-					await c.EnsureIsAuthenticatedAsync();
-			};
 		}
 	}
 }

@@ -28,6 +28,7 @@
 
 using System;
 using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -57,6 +58,11 @@ namespace Laclasse.Directory
 
 		[ModelExpandField(Name = nameof(users), ForeignModel = typeof(GroupUser))]
 		public ModelList<GroupUser> users { get { return GetField<ModelList<GroupUser>>(nameof(users), null); } set { SetField(nameof(users), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			await context.EnsureHasRightsOnGroupAsync(this, true, (right == Right.Update), (right == Right.Create) || (right == Right.Delete));
+		}
 	}
 
 	public class Groups : ModelService<Group>

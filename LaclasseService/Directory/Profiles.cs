@@ -30,6 +30,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -109,6 +110,15 @@ namespace Laclasse.Directory
 					await profile.DiffWithId(new UserProfile { active = true }).UpdateAsync(db);
 			}
 			return res;
+		}
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			var user = new User { id = user_id };
+			using (var db = await DB.CreateAsync(context.GetSetup().database.url))
+				await user.LoadAsync(db, true);
+
+			await context.EnsureHasRightsOnUserAsync(user, true, right == Right.Update, right == Right.Create || right == Right.Delete);
 		}
 	}
 

@@ -26,6 +26,8 @@
 //
 
 using System;
+using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -49,6 +51,15 @@ namespace Laclasse.Directory
 		public DateTime? aaf_mtime { get { return GetField<DateTime?>(nameof(aaf_mtime), null); } set { SetField(nameof(aaf_mtime), value); } }
 		[ModelField]
 		public bool pending_validation { get { return GetField(nameof(pending_validation), false); } set { SetField(nameof(pending_validation), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			var group = new Group { id = group_id };
+			using (var db = await DB.CreateAsync(context.GetSetup().database.url))
+				await group.LoadAsync(db, true);
+
+			await context.EnsureHasRightsOnGroupAsync(group, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+		}
 	}
 
 	public class GroupsUsers : ModelService<GroupUser>

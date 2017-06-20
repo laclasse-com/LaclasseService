@@ -36,15 +36,15 @@ using Erasme.Json;
 
 namespace Laclasse.Authentication
 {
-	[Model(Table = "session", PrimaryKey = "id")]
+	[Model(Table = "session", PrimaryKey = nameof(id))]
 	public class Session : Model
 	{
 		[ModelField]
-		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
+		public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public string user { get { return GetField<string>("user", null); } set { SetField("user", value); } }
+		public string user { get { return GetField<string>(nameof(user), null); } set { SetField(nameof(user), value); } }
 		[ModelField]
-		public DateTime start { get { return GetField("start", DateTime.Now); } set { SetField("start", value); } }
+		public DateTime start { get { return GetField(nameof(start), DateTime.Now); } set { SetField(nameof(start), value); } }
 		public TimeSpan duration;
 	}
 
@@ -63,6 +63,24 @@ namespace Laclasse.Authentication
 			GetAsync["/current"] = async (p, c) =>
 			{
 				var session = await GetCurrentSessionAsync(c);
+				if (session == null)
+					c.Response.StatusCode = 404;
+				else
+				{
+					c.Response.StatusCode = 200;
+					c.Response.Content = new JsonObject
+					{
+						["id"] = session.id,
+						["start"] = session.start,
+						["duration"] = session.duration.TotalSeconds,
+						["user"] = session.user,
+					};
+				}
+			};
+
+			GetAsync["/{id}"] = async (p, c) =>
+			{
+				var session = await GetSessionAsync((string)p["id"]);
 				if (session == null)
 					c.Response.StatusCode = 404;
 				else
@@ -132,7 +150,7 @@ namespace Laclasse.Authentication
 				// delete old sessions
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					await db.DeleteAsync("DELETE FROM session WHERE TIMESTAMPDIFF(SECOND, start, NOW()) >= ?", sessionTimeout);
+					await db.DeleteAsync("DELETE FROM `session` WHERE TIMESTAMPDIFF(SECOND, start, NOW()) >= ?", sessionTimeout);
 				}
 			}
 		}
@@ -153,7 +171,7 @@ namespace Laclasse.Authentication
 		public async Task DeleteSessionAsync(string sessionId)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-				await db.DeleteAsync("DELETE FROM session WHERE id=?", sessionId);
+				await db.DeleteAsync("DELETE FROM `session` WHERE `id`=?", sessionId);
 		}
 
 		public async Task<Session> GetCurrentSessionAsync(HttpContext context)

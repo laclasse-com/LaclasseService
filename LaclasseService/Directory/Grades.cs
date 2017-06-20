@@ -27,6 +27,8 @@
 // THE SOFTWARE.
 //
 
+using System.Threading.Tasks;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -42,18 +44,18 @@ namespace Laclasse.Directory
 		public string rattach { get { return GetField<string>(nameof(rattach), null); } set { SetField(nameof(rattach), value); } }
 		[ModelField]
 		public string stat { get { return GetField<string>(nameof(stat), null); } set { SetField(nameof(stat), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			if (right != Right.Read)
+				await context.EnsureIsSuperAdminAsync();
+		}
 	}
 
 	public class Grades : ModelService<Grade>
 	{
 		public Grades(string dbUrl) : base(dbUrl)
 		{
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) =>
-			{
-				if (c.Request.Method != "GET")
-					await c.EnsureIsAuthenticatedAsync();
-			};
 		}
 	}
 }

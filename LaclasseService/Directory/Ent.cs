@@ -24,7 +24,11 @@
 // THE SOFTWARE.
 //
 
-namespace Laclasse.Directory
+using System.Threading.Tasks;
+using Erasme.Http;
+using Laclasse.Authentication;
+
+namespace Laclasse.Directory                  
 {
 	[Model(Table = "ent", PrimaryKey = nameof(id))]
 	public class Ent : Model
@@ -39,5 +43,11 @@ namespace Laclasse.Directory
 		public string ent_letter { get { return GetField<string>(nameof(ent_letter), null); } set { SetField(nameof(ent_letter), value); } }
 		[ModelField]
 		public int ent_digit { get { return GetField(nameof(ent_digit), 0); } set { SetField(nameof(ent_digit), value); } }
+
+		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		{
+			if (right != Right.Read)
+				await context.EnsureIsSuperAdminAsync();
+		}
 	}
 }

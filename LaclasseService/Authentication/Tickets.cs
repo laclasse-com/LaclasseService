@@ -29,23 +29,22 @@
 
 using System;
 using System.Text;
-using System.Linq;
 using System.Threading.Tasks;
 using System.Runtime.Remoting.Messaging;
 
 namespace Laclasse.Authentication
 {
-	[Model(Table = "ticket", PrimaryKey = "id")]
+	[Model(Table = "ticket", PrimaryKey = nameof(id))]
 	public class Ticket : Model
 	{
 		[ModelField]
-		public string id { get { return GetField<string>("id", null); } set { SetField("id", value); } }
+		public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
 		[ModelField(Required = true)]
-		public string session { get { return GetField<string>("session", null); } set { SetField("session", value); } }
+		public string session { get { return GetField<string>(nameof(session), null); } set { SetField(nameof(session), value); } }
 		[ModelField]
-		public DateTime start { get { return GetField("start", DateTime.Now); } set { SetField("start", value); } }
+		public DateTime start { get { return GetField(nameof(start), DateTime.Now); } set { SetField(nameof(start), value); } }
 		[ModelField]
-		public string code { get { return GetField<string>("code", null); } set { SetField("code", value); } }
+		public string code { get { return GetField<string>(nameof(code), null); } set { SetField(nameof(code), value); } }
 	}
 
 	public class Tickets

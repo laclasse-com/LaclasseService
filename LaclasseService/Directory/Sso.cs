@@ -107,12 +107,9 @@ namespace Laclasse.Directory
 
 			GetAsync["/nginx"] = async (p, c) =>
 			{
-				// TODO: ensure super admin only
-				try
-				{
-					await c.EnsureIsAuthenticatedAsync();
-				}
-				catch
+				// ensure super admin only
+				var authUser = await c.GetAuthenticatedUserAsync();
+				if ((authUser == null) || !authUser.IsSuperAdmin)
 				{
 					c.Response.StatusCode = 200;
 					c.Response.Headers["Auth-Status"] = "Invalid login or password";
@@ -126,7 +123,7 @@ namespace Laclasse.Directory
 					var login = c.Request.Headers["auth-user"];
 					var password = c.Request.Headers["auth-pass"];
 					// check in the users
-					userId = await ((Directory.Users)c.Data["users"]).CheckPasswordAsync(login, password);
+					userId = await ((Users)c.Data["users"]).CheckPasswordAsync(login, password);
 				}
 				if (userId == null)
 				{

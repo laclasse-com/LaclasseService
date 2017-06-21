@@ -484,12 +484,16 @@ namespace Laclasse.Directory
 								var ids = ((JsonArray)json).Select((arg) => Convert.ChangeType(arg.Value, details.PrimaryKeyType));
 								using (DB db = await DB.CreateAsync(dbUrl, true))
 								{
-									// TODO: handle Delete right
-									int count = await db.DeleteAsync($"DELETE FROM `{details.TableName}` WHERE {db.InFilter(details.PrimaryKeyName, ids)}");
-									if (count == 0)
-										c.Response.StatusCode = 404;
-									else
-										c.Response.StatusCode = 200;
+									foreach (var id in ids)
+									{
+										var item = await db.SelectRowAsync<T>(id);
+										if (item != null)
+										{
+											await item.EnsureRightAsync(c, Right.Delete);
+											await item.DeleteAsync(db);
+										}
+									}
+									c.Response.StatusCode = 200;
 									db.Commit();
 								}
 							}

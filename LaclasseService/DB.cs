@@ -1231,7 +1231,7 @@ namespace Laclasse
 					filter += value;
 			}
 			if (filter == "")
-				filter = "TRUE";
+				filter = "FALSE";
 			else
 				filter = "`" + field + "` IN (" + filter + ")";
 			return filter;

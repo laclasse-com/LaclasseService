@@ -221,7 +221,16 @@ namespace Laclasse
 					{
 						if ((fieldAttribute.RegexMatch != null) && !Regex.IsMatch(val.Value.ToString(), fieldAttribute.RegexMatch))
 							throw new WebException(400, $"Invalid field '{property.Name}' value '{val.Value}'");
-						Fields[property.Name] = Convert.ChangeType(val.Value, property.PropertyType);
+
+						var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
+						if (nullableType == null)
+							Fields[property.Name] = Convert.ChangeType(val.Value, property.PropertyType);
+						else
+							Fields[property.Name] = Convert.ChangeType(val.Value, nullableType);
+					}
+					else if (val == null)
+					{
+						Fields[property.Name] = null;
 					}
 				}
 				var expandFieldAttribute = (ModelExpandFieldAttribute)property.GetCustomAttribute(typeof(ModelExpandFieldAttribute));

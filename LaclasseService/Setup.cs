@@ -62,6 +62,11 @@ namespace Laclasse
 		public MailServer server = new MailServer();
 	}
 
+	public class SmsSetup
+	{
+		public string url = "http://sen.laclasse.local/sms/";
+	}
+
 	public class AafSsoEndPointSetup
 	{
 		public string url;
@@ -114,6 +119,7 @@ namespace Laclasse
 		public AafSetup aaf = new AafSetup();
 		public WebRtcSetup webRTC = new WebRtcSetup();
 		public MailSetup mail = new MailSetup();
+		public SmsSetup sms = new SmsSetup();
 		public AuthenticationSetup authentication = new AuthenticationSetup();
 	}
 }

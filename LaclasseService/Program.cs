@@ -154,7 +154,7 @@ namespace Laclasse
 			mapper.Add("/sso", new Cas(
 				dbUrl, sessions, users, setup.authentication.session.cookie,
 				setup.authentication.cas.ticketTimeout,
-				setup.authentication.aafSso, setup.mail));
+				setup.authentication.aafSso, setup.mail, setup.sms));
 
 			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path));
 

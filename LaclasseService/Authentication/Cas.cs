@@ -75,15 +75,17 @@ namespace Laclasse.Authentication
 		readonly Users users;
 		readonly string cookieName;
 		readonly MailSetup mailSetup;
+		readonly SmsSetup smsSetup;
 
 		public Cas(string dbUrl, Sessions sessions, Users users,
-		           string cookieName, double ticketTimeout, AafSsoSetup aafSsoSetup, MailSetup mailSetup)
+		           string cookieName, double ticketTimeout, AafSsoSetup aafSsoSetup, MailSetup mailSetup, SmsSetup smsSetup)
 		{
 			this.dbUrl = dbUrl;
 			this.sessions = sessions;
 			this.users = users;
 			this.cookieName = cookieName;
 			this.mailSetup = mailSetup;
+			this.smsSetup = smsSetup;
 			tickets = new Tickets(dbUrl, ticketTimeout);
 
 			var agentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.agents.cert));
@@ -1205,23 +1207,28 @@ namespace Laclasse.Authentication
 				// search for mobile phone
 				else
 				{
-					var tel1 = Regex.Replace(rescue, @"\s+", "");
-					string tel2;
-					if (tel1.StartsWith("+33", StringComparison.InvariantCulture))
-						tel2 = "0" + tel1.Substring(3);
-					else if (tel1.StartsWith("0", StringComparison.InvariantCulture))
-						tel2 = "+33" + tel1.Substring(1);
+					bool frenchTel = false;
+
+					var tel = Regex.Replace(rescue, @"\s+", "");
+					if (tel.StartsWith("+33", StringComparison.InvariantCulture))
+					{
+						tel = tel.Substring(3);
+						frenchTel = true;
+					}
+					else if (tel.StartsWith("0", StringComparison.InvariantCulture))
+					{
+						tel = tel.Substring(1);
+						frenchTel = true;
+					}
+					var regexTel = "";
+					foreach (var ch in tel)
+						regexTel += ch + @" *";
+					regexTel += "$";
+					if (frenchTel)
+						regexTel = @"^(\+33|0) *" + regexTel;
 					else
-						tel2 = tel1;
-					var regexTel1 = @"^\s*";
-					foreach (var ch in tel1)
-						regexTel1 += ch + @"\s*";
-					regexTel1 += "$";
-					var regexTel2 = @"^\s*";
-					foreach (var ch in tel2)
-						regexTel2 += ch + @"\s*";
-					regexTel2 += "$";
-					var phones = await db.SelectAsync<Phone>("SELECT * FROM `phone` WHERE `number` REGEXP ? OR `number` REGEXP ?", regexTel1, regexTel2);
+						regexTel = @"^ *" + regexTel;
+					var phones = await db.SelectAsync<Phone>("SELECT * FROM `phone` WHERE `number` REGEXP ?", regexTel);
 					foreach (var phone in phones)
 						if (!userIds.Contains(phone.user_id))
 							userIds.Add(phone.user_id);
@@ -1274,8 +1281,19 @@ namespace Laclasse.Authentication
 				}
 				else
 				{
-					// TODO: send an SMS
-					throw new NotImplementedException("SMS SERVICE NOT YET IMPLEMENTED");
+					var uri = new Uri(smsSetup.url);
+					using (var client = HttpClient.Create(uri.Host, uri.Port))
+					{
+						var clientRequest = new HttpClientRequest();
+						clientRequest.Method = "POST";
+						clientRequest.Path = uri.PathAndQuery;
+						clientRequest.Headers["content-type"] = "application/x-www-form-urlencoded";
+						var jsonData = new JsonObject { ["message"] = $"Laclasse code: {ticket.code}", ["numeros"] = new JsonArray { rescue } };
+						clientRequest.Content = "data=" + HttpUtility.UrlEncode(jsonData.ToString());
+						client.SendRequest(clientRequest);
+						var response = client.GetResponse();
+						Console.WriteLine($"Send SMS rescue code to {rescue} got HTTP status {response.Status}");
+					}
 				}
 
 				c.Response.Content = (new CasView

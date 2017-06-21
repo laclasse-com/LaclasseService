@@ -666,6 +666,8 @@ namespace Laclasse.Aaf
 								}
 								diff.groups.change.Add(itemDiff);
 							}
+							// synchronize the group's grades
+							await entClasse.LoadExpandFieldAsync(db, nameof(Group.grades));
 						}
 						else
 						{
@@ -676,10 +678,8 @@ namespace Laclasse.Aaf
 								await aafClasse.SaveAsync(db, true);
 							entClasse = aafClasse;
 							diff.groups.add.Add(aafClasse);
+							entClasse.grades = new ModelList<GroupGrade>();
 						}
-
-						// synchronize the group's grades
-						await entClasse.LoadExpandFieldAsync(db, nameof(Group.grades));
 
 						var aafClasseGrades = (IEnumerable<string>)aafClasses[classeId].Fields["aaf_grades"];
 

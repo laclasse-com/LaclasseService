@@ -1527,6 +1527,9 @@ namespace Laclasse.Aaf
 			if (attrs.ContainsKey("ENTEleveStructRattachId"))
 				user.aaf_struct_rattach_id = int.Parse(attrs["ENTEleveStructRattachId"]);
 
+			if (attrs.ContainsKey("ENTEleveMEF"))
+				user.student_grade_id = attrs["ENTEleveMEF"];
+
 			// normalize the firstname. Lower the givenName and capitalize the first letters
 			if (attrs.ContainsKey("givenName"))
 				user.firstname = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attrs["givenName"].ToLower());

@@ -494,27 +494,28 @@ namespace Laclasse.Authentication
 			["DOC"] = "National_3"
 		};
 
-		async Task<Dictionary<string, string>> UserToSsoAttributesAsync(DB db, JsonValue user)
+		async Task<Dictionary<string, string>> UserToSsoAttributesAsync(DB db, User user)
 		{
 			// TODO: add ENTEleveClasses and ENTEleveNivFormation
 			// TODO: add MailAdressePrincipal
 
 			EmailBackend emailBackend = null;
-			if (user.ContainsKey("email_backend_id") && (user["email_backend_id"] != null))
-				emailBackend = await db.SelectRowAsync<EmailBackend>((int)user["email_backend_id"]);
-			var primaryEmail = (await db.SelectAsync<Email>("SELECT * FROM `email` WHERE `user_id`=? AND `primary`=TRUE", (string)user["id"])).SingleOrDefault();
+			if (user.email_backend_id != null)
+				emailBackend = await db.SelectRowAsync<EmailBackend>((int)user.email_backend_id);
+			var primaryEmail = (await db.SelectAsync<Email>("SELECT * FROM `email` WHERE `user_id`=? AND `primary`=TRUE", user.id)).SingleOrDefault();
 
 			string ENTPersonStructRattachRNE = null;
 			string ENTPersonProfils = null;
+			string ENTEleveNivFormation = null;
 			string categories = null;
-			foreach (var p in (JsonArray)user["profiles"])
+			foreach (var p in user.profiles)
 			{
-				if ((bool)p["active"])
+				if (p.active)
 				{
-					ENTPersonStructRattachRNE = p["structure_id"];
-					if (ProfilIdToSdet3.ContainsKey(p["type"]))
-						categories = ProfilIdToSdet3[p["type"]];
-					if (p["type"] == "ELV")
+					ENTPersonStructRattachRNE = p.structure_id;
+					if (ProfilIdToSdet3.ContainsKey(p.type))
+						categories = ProfilIdToSdet3[p.type];
+					if (p.type == "ELV")
 					{
 					}
 				}
@@ -523,24 +524,31 @@ namespace Laclasse.Authentication
 					ENTPersonProfils = "";
 				else
 					ENTPersonProfils += ",";
-				ENTPersonProfils += p["type"] + ":" + p["structure_id"];
+				ENTPersonProfils += p.type + ":" + p.structure_id;
+			}
+			if (user.student_grade_id != null)
+			{
+				var grade = new Grade { id = user.student_grade_id };
+				await grade.LoadAsync(db);
+				ENTEleveNivFormation = grade.name;
 			}
 
 			return new Dictionary<string, string>
 			{
-				["uid"] = user["id"],
-				["user"] = user["id"],
-				["login"] = user["login"],
-				["nom"] = user["lastname"],
-				["prenom"] = user["firstname"],
-				["dateNaissance"] = (user["birthdate"] == null) ? null : DateTime.Parse(user["birthdate"]).ToString("yyyy-MM-dd"),
-				["codePostal"] = (user["zip_code"] == null) ? null : (string)user["zip_code"],
+				["uid"] = user.id,
+				["user"] = user.id,
+				["login"] = user.login,
+				["nom"] = user.lastname,
+				["prenom"] = user.firstname,
+				["dateNaissance"] = (user.birthdate == null) ? null : ((DateTime)user.birthdate).ToString("yyyy-MM-dd"),
+				["codePostal"] = user.zip_code,
 				["ENTPersonProfils"] = ENTPersonProfils,
 				["ENTPersonStructRattach"] = ENTPersonStructRattachRNE,
 				["ENTPersonStructRattachRNE"] = ENTPersonStructRattachRNE,
+				["ENTEleveNivFormation"] = ENTEleveNivFormation,
 				["categories"] = categories,
-				["LaclasseNom"] = user["lastname"],
-				["LaclassePrenom"] = user["firstname"],
+				["LaclasseNom"] = user.lastname,
+				["LaclassePrenom"] = user.firstname,
 				["MailBackend"] = (emailBackend == null) ? null : emailBackend.address,
 				["MailAdressePrincipal"] = (primaryEmail == null) ? null : primaryEmail.address
 			};

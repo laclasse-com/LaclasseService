@@ -704,13 +704,22 @@ namespace Laclasse
 				foreach (var itemKey in itemsTable.Keys)
 				{
 					var words = itemsTable[itemKey];
-					foreach (string word in words)
+
+					if (words.Count == 1)
 					{
 						if (first)
 							first = false;
 						else
 							filter += " AND ";
-						filter += "`" + itemKey + "`='" + db.EscapeString(word) + "'";
+						filter += "`" + itemKey + "`='" + db.EscapeString(words[0]) + "'";
+					}
+					else if (words.Count > 1)
+					{
+						if (first)
+							first = false;
+						else
+							filter += " AND ";
+						filter += db.InFilter(itemKey, words);
 					}
 				}
 				filter += ")";

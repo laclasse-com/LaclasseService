@@ -85,6 +85,8 @@ namespace Laclasse.Directory
 		public bool super_admin { get { return GetField(nameof(super_admin), false); } set { SetField(nameof(super_admin), value); } }
 		[ModelField]
 		public int? aaf_struct_rattach_id { get { return GetField<int?>(nameof(aaf_struct_rattach_id), null); } set { SetField(nameof(aaf_struct_rattach_id), value); } }
+		[ModelField(ForeignModel = typeof(Grade))]
+		public string student_grade_id { get { return GetField<string>(nameof(student_grade_id), null); } set { SetField(nameof(student_grade_id), value); } }
 
 		public async override Task<bool> InsertAsync(DB db)
 		{
@@ -172,28 +174,33 @@ namespace Laclasse.Directory
 		public override JsonObject ToJson()
 		{
 			var json = base.ToJson();
-			string jsonAvatar;
-			if ((avatar == null) || (avatar == "empty"))
+			if (IsSet(nameof(avatar)))
 			{
-				if (gender == "M")
-					jsonAvatar = "avatar/avatar_masculin.svg";
-				else if (gender == "F")
-					jsonAvatar = "avatar/avatar_feminin.svg";
+				string jsonAvatar;
+				if ((avatar == null) || (avatar == "empty"))
+				{
+					if (gender == "M")
+						jsonAvatar = "avatar/avatar_masculin.svg";
+					else if (gender == "F")
+						jsonAvatar = "avatar/avatar_feminin.svg";
+					else
+						jsonAvatar = "avatar/avatar_neutre.svg";
+				}
 				else
-					jsonAvatar = "avatar/avatar_neutre.svg";
+					jsonAvatar = "api/avatar/user/" +
+						id.Substring(0, 1) + "/" + id.Substring(1, 1) + "/" +
+						id.Substring(2, 1) + "/" + avatar;
+				json["avatar"] = jsonAvatar;
 			}
-			else
-				jsonAvatar = "api/avatar/user/" +
-					id.Substring(0, 1) + "/" + id.Substring(1, 1) + "/" +
-					id.Substring(2, 1) + "/" + avatar;
-			json["avatar"] = jsonAvatar;
 
-			var encodedPassword = password;
-			if ((encodedPassword != null) && (encodedPassword.StartsWith("clear:", StringComparison.InvariantCulture)))
-				json["password"] = encodedPassword.Substring(6);
-			else
-				json.Remove("password");
-
+			if (IsSet(nameof(password)))
+			{
+				var encodedPassword = password;
+				if ((encodedPassword != null) && (encodedPassword.StartsWith("clear:", StringComparison.InvariantCulture)))
+					json["password"] = encodedPassword.Substring(6);
+				else
+					json.Remove("password");
+			}
 			return json;
 		}
 

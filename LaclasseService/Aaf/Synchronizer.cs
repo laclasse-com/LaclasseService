@@ -642,7 +642,8 @@ namespace Laclasse.Aaf
 							name = tab[0],
 							description = string.IsNullOrEmpty(tab[1]) ? null : tab[1]
 						};
-						classe.Fields["grades"] = tab.Skip(2);
+						// TODO: change this
+						classe.Fields["aaf_grades"] = tab.Skip(2);
 						aafClasses[classe.aaf_name] = classe;
 					}
 
@@ -672,14 +673,15 @@ namespace Laclasse.Aaf
 							aafClasse.type = "CLS";
 							aafClasse.aaf_mtime = DateTime.Now;
 							if (apply)
-								await aafClasse.SaveAsync(db);
+								await aafClasse.SaveAsync(db, true);
 							entClasse = aafClasse;
 							diff.groups.add.Add(aafClasse);
 						}
 
 						// synchronize the group's grades
 						await entClasse.LoadExpandFieldAsync(db, nameof(entClasse.grades));
-						var aafClasseGrades = (IEnumerable<string>)aafClasses[classeId].Fields["grades"];
+
+						var aafClasseGrades = (IEnumerable<string>)aafClasses[classeId].Fields["aaf_grades"];
 
 						foreach (var classeGrade in entClasse.grades)
 						{

@@ -679,7 +679,7 @@ namespace Laclasse.Aaf
 						}
 
 						// synchronize the group's grades
-						await entClasse.LoadExpandFieldAsync(db, nameof(entClasse.grades));
+						await entClasse.LoadExpandFieldAsync(db, nameof(Group.grades));
 
 						var aafClasseGrades = (IEnumerable<string>)aafClasses[classeId].Fields["aaf_grades"];
 

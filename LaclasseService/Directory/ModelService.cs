@@ -41,7 +41,6 @@ namespace Laclasse.Directory
 		readonly ModelDetails details;
 
 		readonly string dbUrl;
-		readonly IEnumerable<string> searchAllowedFields;
 		readonly Dictionary<string,ModelExpandDetails> expandFields;
 
 		class ModelDetails
@@ -65,8 +64,6 @@ namespace Laclasse.Directory
 			this.dbUrl = dbUrl;
 
 			details = GetModelDetails(typeof(T));
-
-			searchAllowedFields = Model.GetSearchAllowedFieldsFromModel(typeof(T));
 
 			expandFields = new Dictionary<string, ModelExpandDetails>();
 			var properties = typeof(T).GetProperties();
@@ -133,10 +130,10 @@ namespace Laclasse.Directory
 							await RunBeforeAsync(null, context);
 							using (DB db = await DB.CreateAsync(dbUrl))
 							{
-								var result = await Model.SearchAsync<T>(db, searchAllowedFields, c);
+								var result = await Model.SearchAsync<T>(db, c);
 								foreach(var item in result.Data)
 									await item.EnsureRightAsync(c, Right.Read);
-								c.Response.Content = result;
+								c.Response.Content = result.ToJson(context);
 							}
 							c.Response.StatusCode = 200;
 						}
@@ -217,20 +214,20 @@ namespace Laclasse.Directory
 								else if (parts.Length == 2)
 								{
 									await RunBeforeAsync(null, context);
+									T item = null;
 									using (DB db = await DB.CreateAsync(dbUrl))
 									{
-										c.Request.QueryString[expandFields[parts[1]].ForeignField] = parts[0];
-										var task = typeof(Model).GetMethod(nameof(Model.SearchWithHttpContextAsync)).MakeGenericMethod(
-											expandFields[parts[1]].ForeignModel).Invoke(
-												null, new object[] { db, expandFields[parts[1]].ForeignSearchAllowedFields, c }
-											) as Task;
-										await task;
-
-										var searchType = typeof(SearchResult<>).MakeGenericType(expandFields[parts[1]].ForeignModel);
-										var resultProperty = typeof(Task<>).MakeGenericType(searchType).GetProperty("Result");
-										c.Response.Content = ((IJsonable)resultProperty.GetValue(task)).ToJson();
+										item = await db.SelectRowAsync<T>(id, true);
+										if (item != null)
+											await item.LoadExpandFieldAsync(db, parts[1]);
 									}
-									c.Response.StatusCode = 200;
+									
+									if ((item != null) && (item.Fields.ContainsKey(parts[1])))
+									{
+										await item.EnsureRightAsync(c, Right.Read);
+										c.Response.StatusCode = 200;
+										c.Response.Content = (item.Fields[parts[1]] as IModelList).ToJson();
+									}
 								}
 							}
 						}
@@ -252,6 +249,7 @@ namespace Laclasse.Directory
 										item.FromJson((JsonObject)jsonItem, null, c);
 										await item.EnsureRightAsync(c, Right.Create);
 										await item.SaveAsync(db, true);
+										await OnCreatedAsync(db, item);
 										result.Add(item);
 									}
 									db.Commit();
@@ -269,6 +267,7 @@ namespace Laclasse.Directory
 								using (DB db = await DB.CreateAsync(dbUrl, true))
 								{
 									await item.SaveAsync(db, true);
+									await OnCreatedAsync(db, item);
 									db.Commit();
 								}
 								c.Response.StatusCode = 200;
@@ -315,6 +314,7 @@ namespace Laclasse.Directory
 									T item = null;
 									item = await db.SelectRowAsync<T>(id, true);
 									await item.EnsureRightAsync(c, Right.Update);
+									await OnChangedAsync(db, item);
 									if (item != null)
 									{
 										c.Response.StatusCode = 200;
@@ -340,9 +340,12 @@ namespace Laclasse.Directory
 									{
 										var item = new T();
 										item.FromJson((JsonObject)jsonItem, null, c);
-										await item.EnsureRightAsync(c, Right.Update);
 										await item.UpdateAsync(db);
-										result.Add(await item.LoadAsync(db));
+										await item.LoadAsync(db, true);
+										// need a loaded user to check the rights
+										await item.EnsureRightAsync(c, Right.Update);
+										await OnChangedAsync(db, item);
+										result.Add(item);
 									}
 									db.Commit();
 								}
@@ -370,11 +373,13 @@ namespace Laclasse.Directory
 									var itemDiff = new T();
 									itemDiff.FromJson((JsonObject)json, null, c);
 									itemDiff.Fields[details.PrimaryKeyName] = id;
-									await itemDiff.EnsureRightAsync(c, Right.Update);
 									using (DB db = await DB.CreateAsync(dbUrl, true))
 									{
 										await itemDiff.UpdateAsync(db);
 										await itemDiff.LoadAsync(db, true);
+										// need a loaded user to check the rights
+										await itemDiff.EnsureRightAsync(c, Right.Update);
+										await OnChangedAsync(db, itemDiff);
 										db.Commit();
 									}
 									c.Response.StatusCode = 200;
@@ -433,6 +438,7 @@ namespace Laclasse.Directory
 											T item = null;
 											item = await db.SelectRowAsync<T>(id, true);
 											await item.EnsureRightAsync(c, Right.Update);
+											await OnChangedAsync(db, item);
 											if (item != null)
 											{
 												c.Response.StatusCode = 200;
@@ -461,6 +467,7 @@ namespace Laclasse.Directory
 										T item = null;
 										item = await db.SelectRowAsync<T>(id, true);
 										await item.EnsureRightAsync(c, Right.Update);
+										await OnChangedAsync(db, item);
 										if (item != null)
 										{
 											c.Response.StatusCode = 200;
@@ -486,11 +493,12 @@ namespace Laclasse.Directory
 								{
 									foreach (var id in ids)
 									{
-										var item = await db.SelectRowAsync<T>(id);
+										var item = await db.SelectRowAsync<T>(id, true);
 										if (item != null)
 										{
 											await item.EnsureRightAsync(c, Right.Delete);
 											await item.DeleteAsync(db);
+											await OnDeletedAsync(db, item);
 										}
 									}
 									c.Response.StatusCode = 200;
@@ -515,11 +523,12 @@ namespace Laclasse.Directory
 								T item = null;
 								using (DB db = await DB.CreateAsync(dbUrl, true))
 								{
-									item = await db.SelectRowAsync<T>(id);
+									item = await db.SelectRowAsync<T>(id, true);
 									if (item != null)
 									{
 										await item.EnsureRightAsync(c, Right.Delete);
 										await item.DeleteAsync(db);
+										await OnDeletedAsync(db, item);
 									}
 									db.Commit();
 								}
@@ -570,6 +579,7 @@ namespace Laclasse.Directory
 											T item = null;
 											item = await db.SelectRowAsync<T>(id, true);
 											await item.EnsureRightAsync(c, Right.Update);
+											await OnChangedAsync(db, item);
 											if (item != null)
 											{
 												c.Response.StatusCode = 200;
@@ -599,6 +609,7 @@ namespace Laclasse.Directory
 										T item = null;
 										item = await db.SelectRowAsync<T>(id, true);
 										await item.EnsureRightAsync(c, Right.Update);
+										await OnChangedAsync(db, item);
 										if (item != null)
 										{
 											c.Response.StatusCode = 200;
@@ -612,6 +623,21 @@ namespace Laclasse.Directory
 						break;
 				}
 			}
+		}
+
+		protected virtual Task OnCreatedAsync(DB db, T item)
+		{
+			return Task.FromResult(false);
+		}
+
+		protected virtual Task OnChangedAsync(DB db, T item)
+		{
+			return Task.FromResult(false);
+		}
+
+		protected virtual Task OnDeletedAsync(DB db, T item)
+		{
+			return Task.FromResult(false);
 		}
 
 		static ModelDetails GetModelDetails(Type model)

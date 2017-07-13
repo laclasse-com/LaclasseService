@@ -36,7 +36,6 @@ using System.Text.RegularExpressions;
 using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
-using System.Collections;
 using System.Collections.Generic;
 using System.Net.Mail;
 using Erasme.Http;
@@ -497,12 +496,15 @@ namespace Laclasse.Authentication
 		async Task<Dictionary<string, string>> UserToSsoAttributesAsync(DB db, User user)
 		{
 			// TODO: add ENTEleveClasses and ENTEleveNivFormation
-			// TODO: add MailAdressePrincipal
 
 			EmailBackend emailBackend = null;
 			if (user.email_backend_id != null)
 				emailBackend = await db.SelectRowAsync<EmailBackend>((int)user.email_backend_id);
 			var primaryEmail = (await db.SelectAsync<Email>("SELECT * FROM `email` WHERE `user_id`=? AND `primary`=TRUE", user.id)).SingleOrDefault();
+
+			var profilesTypes = new Dictionary<string, ProfileType>();
+			foreach (var profileType in await db.SelectAsync<ProfileType>("SELECT * FROM `profile_type`"))
+				profilesTypes[profileType.id] = profileType;
 
 			string ENTPersonStructRattachRNE = null;
 			string ENTPersonProfils = null;
@@ -515,16 +517,13 @@ namespace Laclasse.Authentication
 					ENTPersonStructRattachRNE = p.structure_id;
 					if (ProfilIdToSdet3.ContainsKey(p.type))
 						categories = ProfilIdToSdet3[p.type];
+					ENTPersonProfils = profilesTypes[p.type].code_national;
 					if (p.type == "ELV")
 					{
 					}
 				}
-
 				if (ENTPersonProfils == null)
-					ENTPersonProfils = "";
-				else
-					ENTPersonProfils += ",";
-				ENTPersonProfils += p.type + ":" + p.structure_id;
+					ENTPersonProfils = profilesTypes[p.type].code_national;
 			}
 			if (user.student_grade_id != null)
 			{
@@ -533,7 +532,7 @@ namespace Laclasse.Authentication
 				ENTEleveNivFormation = grade.name;
 			}
 
-			return new Dictionary<string, string>
+			var result = new Dictionary<string, string>
 			{
 				["uid"] = user.id,
 				["user"] = user.id,
@@ -545,13 +544,16 @@ namespace Laclasse.Authentication
 				["ENTPersonProfils"] = ENTPersonProfils,
 				["ENTPersonStructRattach"] = ENTPersonStructRattachRNE,
 				["ENTPersonStructRattachRNE"] = ENTPersonStructRattachRNE,
-				["ENTEleveNivFormation"] = ENTEleveNivFormation,
 				["categories"] = categories,
 				["LaclasseNom"] = user.lastname,
 				["LaclassePrenom"] = user.firstname,
 				["MailBackend"] = (emailBackend == null) ? null : emailBackend.address,
 				["MailAdressePrincipal"] = (primaryEmail == null) ? null : primaryEmail.address
 			};
+
+			if (ENTEleveNivFormation != null)
+				result["ENTEleveNivFormation"] = ENTEleveNivFormation;
+			return result;
 		}
 
 		async Task CasLoginAsync(HttpContext c, string uid, string service, bool wantTicket = true)
@@ -619,7 +621,7 @@ namespace Laclasse.Authentication
 			}
 		}
 
-		public string ServiceResponseSuccess(Dictionary<string, string> attributes)
+		public string ServiceResponseSuccess(Dictionary<string, string> attributes, string identityAttribute)
 		{
 			var dom = new XmlDocument();
 			var cas = "http://www.yale.edu/tp/cas";
@@ -635,7 +637,7 @@ namespace Laclasse.Authentication
 			serviceResponse.AppendChild(authenticationSuccess);
 
 			var casUser = dom.CreateElement("cas:user", cas);
-			casUser.InnerText = attributes["user"];
+			casUser.InnerText = identityAttribute;
 			authenticationSuccess.AppendChild(casUser);
 
 			var casAttributes = dom.CreateElement("cas:attributes", cas);
@@ -1430,11 +1432,10 @@ namespace Laclasse.Authentication
 			}
 
 			var attributes = FilterAttributesFromClient(client, userAttributes);
-			attributes["user"] = userAttributes[client.identity_attribute];
 
 			c.Response.StatusCode = 200;
 			c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-			c.Response.Content = ServiceResponseSuccess(attributes);
+			c.Response.Content = ServiceResponseSuccess(attributes, userAttributes[client.identity_attribute]);
 		}
 	}
 }

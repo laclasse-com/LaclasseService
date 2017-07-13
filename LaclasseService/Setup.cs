@@ -37,6 +37,7 @@ namespace Laclasse
 	public class AafSetup
 	{
 		public string path = "/var/lib/laclasse/aaf/";
+		public string zipPath = "/var/lib/laclasse/aafZip/";
 	}
 
 	public class StunSetup

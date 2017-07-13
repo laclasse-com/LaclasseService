@@ -28,6 +28,7 @@ using System;
 using System.IO;
 using System.Xml;
 using System.Text;
+using System.Linq;
 using System.Globalization;
 using System.Collections;
 using System.Collections.Generic;
@@ -38,17 +39,17 @@ namespace Laclasse
 {
 	public interface IJsonable
 	{
-		JsonValue ToJson();
+		JsonValue ToJson(HttpContext context);
 	}
 
-	public struct SearchResult<T>: IJsonable where T : Model
+	public class SearchResult<T>: IJsonable where T : Model
 	{
 		public ModelList<T> Data;
 		public int Limit;
 		public int Total;
 		public int Offset;
 
-		public JsonValue ToJson()
+		public JsonValue ToJson(HttpContext context = null)
 		{
 			if (Limit > 0)
 			{
@@ -60,7 +61,7 @@ namespace Laclasse
 				};
 			}
 			else
-				return Data.ToJson();
+				return Data;
 		}
 
 		public static implicit operator HttpContent(SearchResult<T> searchResult)
@@ -91,6 +92,126 @@ namespace Laclasse
 		public static implicit operator XmlContent(XmlDocument value)
 		{
 			return new XmlContent(value);
+		}
+	}
+
+	public static class HttpContextFilterExtension
+	{
+		public static Dictionary<string, List<string>> ToFilter(this HttpContext c)
+		{
+			var query = "";
+			if (c.Request.QueryString.ContainsKey("query"))
+				query = c.Request.QueryString["query"];
+
+			var parsedQuery = query.QueryParser();
+			foreach (var key in c.Request.QueryString.Keys)
+				if (!parsedQuery.ContainsKey(key))
+					parsedQuery[key] = new List<string> { c.Request.QueryString[key] };
+			foreach (var key in c.Request.QueryStringArray.Keys)
+				if (!parsedQuery.ContainsKey(key))
+					parsedQuery[key] = c.Request.QueryStringArray[key];
+
+			return parsedQuery;
+		}
+	}
+
+	public static class ModelFilterExtension
+	{
+		static bool IsFieldMatch(Model item, string fieldOp, List<string> values)
+		{
+			string field = fieldOp;
+			var op = CompareOperator.Equal;
+			if (fieldOp.EndsWith("!", StringComparison.InvariantCulture))
+			{
+				op = CompareOperator.NotEqual;
+				field = fieldOp.Substring(0, fieldOp.Length - 1);
+			}
+			else if (fieldOp.EndsWith("<", StringComparison.InvariantCulture))
+			{
+				op = CompareOperator.Less;
+				field = fieldOp.Substring(0, fieldOp.Length - 1);
+			}
+			else if (fieldOp.EndsWith("<=", StringComparison.InvariantCulture))
+			{
+				op = CompareOperator.LessOrEqual;
+				field = fieldOp.Substring(0, fieldOp.Length - 2);
+			}
+			else if (fieldOp.EndsWith(">", StringComparison.InvariantCulture))
+			{
+				op = CompareOperator.Greater;
+				field = fieldOp.Substring(0, fieldOp.Length - 1);
+			}
+			else if (fieldOp.EndsWith(">=", StringComparison.InvariantCulture))
+			{
+				op = CompareOperator.GreaterOrEqual;
+				field = fieldOp.Substring(0, fieldOp.Length - 2);
+			}
+
+			var pos = field.IndexOf('.');
+			if (pos == -1)
+			{
+				if (!item.Fields.ContainsKey(field))
+					return false;
+
+				var property = item.GetType().GetProperty(field);
+				if (property == null)
+					return false;
+				object value;
+				var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
+				if (nullableType == null)
+					value = Convert.ChangeType(values[0], property.PropertyType);
+				else
+					value = Convert.ChangeType(values[0], nullableType);
+
+				if ((op == CompareOperator.Equal) && (value.Equals(item.Fields[field])))
+					return true;
+				else if ((op == CompareOperator.NotEqual) && (!value.Equals(item.Fields[field])))
+					return true;
+				else if (value is IComparable)
+				{
+					var comp = ((IComparable)value).CompareTo(item.Fields[field]);
+					if ((op == CompareOperator.Greater) && (comp < 0))
+						return true;
+					if ((op == CompareOperator.GreaterOrEqual) && (comp <= 0))
+						return true;
+					if ((op == CompareOperator.Less) && (comp > 0))
+						return true;
+					if ((op == CompareOperator.LessOrEqual) && (comp >= 0))
+						return true;
+				}
+				return false;
+			}
+			else
+			{
+				var expandField = field.Substring(0, pos);
+				var remainField = field.Substring(pos + 1);
+
+				if (!item.Fields.ContainsKey(expandField))
+					return false;
+
+				if (item.Fields[expandField] is IModelList)
+				{
+					foreach (Model obj in (IModelList)item.Fields[expandField])
+					{
+						if (IsFieldMatch(obj, remainField, values))
+							return true;
+					}
+					return false;
+				}
+				if (item.Fields[expandField] is Model)
+					return IsFieldMatch((Model)item.Fields[expandField], remainField, values);
+				return false;
+			}
+		}
+
+		public static bool IsFilterMatch<T>(this T item, Dictionary<string, List<string>> filter) where T : Model
+		{
+			foreach (var field in filter.Keys)
+			{
+				if (!IsFieldMatch(item, field, filter[field]))
+					return false;
+			}
+			return true;
 		}
 	}
 

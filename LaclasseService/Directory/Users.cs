@@ -163,6 +163,7 @@ namespace Laclasse.Directory
 		{
 			var email = new Email
 			{
+				primary = true,
 				user_id = id,
 				address = await Emails.OfferEntEmailAsync(db, firstname, lastname),
 				type = "Ent"
@@ -214,6 +215,13 @@ namespace Laclasse.Directory
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
+			// password field only visible to the admin of the user
+			if (IsSet(nameof(password)))
+			{
+				var authUser = await context.GetAuthenticatedUserAsync();
+				if ((authUser == null) || !authUser.HasRightsOnUser(this, false, false, true))
+					Fields.Remove(nameof(password));
+			}
 			await context.EnsureHasRightsOnUserAsync(this, true, right == Right.Update, right == Right.Create || right == Right.Delete);
 		}
 	}
@@ -222,12 +230,6 @@ namespace Laclasse.Directory
 	{
 		readonly string dbUrl;
 		readonly string masterPassword;
-
-		readonly static List<string> searchAllowedFields = new List<string> {
-			"id", "login", "firstname", "lastname", "gender", "address", "city", "zip_code", "super_admin",
-			"aaf_struct_rattach_id", "profiles.type", "profiles.structure_id", "emails.adresse", "emails.type",
-			"groups.group_id"
-		};
 
 		public Users(string dbUrl, string storageDir, string masterPassword) : base(dbUrl)
 		{
@@ -356,7 +358,7 @@ namespace Laclasse.Directory
 			DB db, Dictionary<string, List<string>> queryFields, int offset = 0, int count = -1,
 			string orderBy = null, SortDirection sortDirection = SortDirection.Ascending)
 		{
-			return await Model.SearchAsync<User>(db, searchAllowedFields, queryFields, orderBy, sortDirection, true, offset, count);
+			return await Model.SearchAsync<User>(db, queryFields, orderBy, sortDirection, true, offset, count);
 		}
 
 		public async Task<User> GetUserByLoginAsync(string login)

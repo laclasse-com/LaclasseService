@@ -111,6 +111,12 @@ namespace Laclasse.Directory
 	{
 		public Structures(string dbUrl) : base(dbUrl)
 		{
+			GetAsync["/{id}/subjects"] = async (p, c) =>
+			{
+				c.Response.StatusCode = 200;
+				using (DB db = await DB.CreateAsync(dbUrl))
+					c.Response.Content = await db.SelectAsync<Grade>("SELECT * FROM subject WHERE id IN (SELECT `subject_id` FROM `group_user` WHERE `group_id` IN (SELECT id FROM `group` WHERE `structure_id`=?))", (string)p["id"]);
+			};
 		}
 	}
 }

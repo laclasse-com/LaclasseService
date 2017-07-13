@@ -9,3 +9,5 @@
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/Erasme.Http.dll
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/BCrypt.Net.dll
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/SharpCompress.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/DotNetZip.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/SgmlReaderDll.dll

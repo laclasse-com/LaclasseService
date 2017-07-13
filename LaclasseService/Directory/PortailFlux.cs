@@ -25,6 +25,12 @@
 // THE SOFTWARE.
 //
 
+using System;
+using System.Xml;
+using System.IO;
+using System.Linq;
+using System.ServiceModel.Syndication;
+using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
@@ -50,6 +56,102 @@ namespace Laclasse.Directory
 		{
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+		}
+	}
+
+	public class Rss : Model
+	{
+		[ModelField]
+		public string title { get { return GetField<string>(nameof(title), null); } set { SetField(nameof(title), value); } }
+		[ModelField]
+		public string content { get { return GetField<string>(nameof(content), null); } set { SetField(nameof(content), value); } }
+		[ModelField]
+		public DateTime pubDate { get { return GetField(nameof(pubDate), DateTime.Now); } set { SetField(nameof(pubDate), value); } }
+		[ModelField]
+		public string link { get { return GetField<string>(nameof(link), null); } set { SetField(nameof(link), value); } }
+		[ModelField]
+		public string image { get { return GetField<string>(nameof(image), null); } set { SetField(nameof(image), value); } }
+	}
+
+	public class StructureRss : HttpRouting
+	{ 
+		public StructureRss(string dbUrl)
+		{
+			// API only available to authenticated users
+			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+
+			GetAsync["/{uai}/rss"] = async (p, c) =>
+			{
+				var structure = new Structure { id = (string)p["uai"] };
+				using (DB db = await DB.CreateAsync(dbUrl))
+				{
+					if (await structure.LoadAsync(db))
+					{
+						await structure.LoadExpandFieldAsync(db, nameof(structure.flux));
+
+						var infos = new ModelList<Rss>();
+
+						foreach (var flux in structure.flux)
+						{
+							var settings = new XmlReaderSettings();
+							settings.IgnoreComments = true;
+							settings.DtdProcessing = DtdProcessing.Ignore;
+
+							var reader = XmlReader.Create(flux.url, settings);
+							var feed = SyndicationFeed.Load(reader);
+							reader.Close();
+							foreach (SyndicationItem item in feed.Items)
+							{
+								var rss = new Rss
+								{
+									title = item.Title.Text,
+									content = item.Summary.Text,
+									pubDate = item.PublishDate.DateTime
+								};
+
+								var encodedContent = item.ElementExtensions.SingleOrDefault((arg) => arg.OuterName == "encoded" && arg.OuterNamespace == "http://purl.org/rss/1.0/modules/content/");
+								if (encodedContent != null)
+									rss.content = encodedContent.GetObject<XmlElement>().InnerText;
+
+								// load the document using sgml reader
+								var document = new XmlDocument();
+								using (var sgmlReader = new Sgml.SgmlReader())
+								{
+									sgmlReader.CaseFolding = Sgml.CaseFolding.ToLower;
+									sgmlReader.DocType = "HTML";
+									sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
+
+									using (var sr = new StringReader(rss.content))
+									{
+										sgmlReader.InputStream = sr;
+										document.Load(sgmlReader);
+									}
+								}
+
+								string imageUrl = null;
+								var images = document.GetElementsByTagName("img");
+								foreach (XmlNode image in images)
+								{
+									if (image.Attributes["src"] != null)
+									{
+										imageUrl = image.Attributes["src"].Value;
+										break;
+									}
+								}
+								if (imageUrl != null)
+									rss.image = imageUrl;
+
+								if (item.Links.Count > 0)
+									rss.link = item.Links[0].Uri.AbsoluteUri;
+
+								infos.Add(rss);
+							}
+						}
+						c.Response.StatusCode = 200;
+						c.Response.Content = infos.Filter(c);
+					}
+				}
+			};
 		}
 	}
 }

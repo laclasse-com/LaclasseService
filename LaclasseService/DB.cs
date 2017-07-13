@@ -56,6 +56,16 @@ namespace Laclasse
 		Delete
 	}
 
+	public enum CompareOperator
+	{
+		Equal,
+		NotEqual,
+		Less,
+		LessOrEqual,
+		Greater,
+		GreaterOrEqual
+	}
+
 	[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
 	public class ModelAttribute : Attribute
 	{
@@ -84,6 +94,20 @@ namespace Laclasse
 
 	public class Model
 	{
+		internal enum State
+		{
+			New,
+			Diff
+		}
+
+		public virtual bool IsEmpty
+		{
+			get {
+				return Fields.Count == 0;
+			}
+		}
+
+		internal State state = State.New;
 		public Dictionary<string, object> Fields = new Dictionary<string, object>();
 
 		public static T CreateFromJson<T>(JsonValue value, params string[] filterFields) where T : Model, new()
@@ -133,16 +157,22 @@ namespace Laclasse
 				return false;
 			foreach (var key in obj.Fields.Keys)
 			{
-				if (Fields.ContainsKey(key))
+				if (!Fields.ContainsKey(key))
+					continue;
+
+				var prop = GetType().GetProperty(key);
+				if (prop == null)
+					continue;
+				var attr = prop.GetCustomAttribute(typeof(ModelFieldAttribute));
+				if (attr == null)
+					continue;
+				if (Fields[key] == null)
 				{
-					if (Fields[key] == null)
-					{
 						if (obj.Fields[key] != null)
-							return false;
-					}
-					else if (!Fields[key].Equals(obj.Fields[key]))
 						return false;
 				}
+				else if (!Fields[key].Equals(obj.Fields[key]))
+					return false;
 			}
 			return true;
 		}
@@ -155,15 +185,26 @@ namespace Laclasse
 		public T Diff<T>(T b) where T : Model, new()
 		{
 			var diff = new T();
+			diff.state = State.Diff;
 			foreach (var key in b.Fields.Keys)
 			{
-				if (Fields.ContainsKey(key))
+				if (!Fields.ContainsKey(key))
+					continue;
+
+				var prop = typeof(T).GetProperty(key);
+				if (prop == null)
+					continue;
+				var attr = (ModelFieldAttribute)prop.GetCustomAttribute(typeof(ModelFieldAttribute));
+				if (attr == null)
+					continue;
+
+				if (Fields[key] == null)
 				{
-					if ((Fields[key] == null) && (b.Fields[key] != null))
-						diff.Fields[key] = b.Fields[key];
-					else if (!Fields[key].Equals(b.Fields[key]))
+					if (b.Fields[key] != null)
 						diff.Fields[key] = b.Fields[key];
 				}
+				else if (!Fields[key].Equals(b.Fields[key]))
+					diff.Fields[key] = b.Fields[key];
 			}
 			return diff;
 		}
@@ -409,7 +450,10 @@ namespace Laclasse
 						var propAttr = (ModelExpandFieldAttribute)a;
 						if (propAttr.Search)
 						{
+							// allow search on empty join
+							searchAllowedFields.Add(propAttr.Name);
 							var fields = GetSearchAllowedFieldsFromModel(propAttr.ForeignModel, false);
+							// allow seach on foreign fields
 							foreach (var field in fields)
 								searchAllowedFields.Add(propAttr.Name + "." + field);
 							break;
@@ -418,6 +462,11 @@ namespace Laclasse
 				}
 			}
 			return searchAllowedFields;
+		}
+
+		public virtual async Task ApplyAsync(DB db)
+		{
+			await UpdateAsync(db);
 		}
 
 		public async Task<bool> SaveAsync(DB db, bool expand = false)
@@ -477,10 +526,41 @@ namespace Laclasse
 
 		public virtual async Task<bool> UpdateAsync(DB db)
 		{
+			var filterFields = new List<string>();
+			// check if all required fields are present
+			foreach (var property in GetType().GetProperties())
+			{
+				var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
+				if (fieldAttribute != null)
+					filterFields.Add(property.Name);
+			}
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
-			return (await db.UpdateRowAsync(tableName, primaryKey, Fields[primaryKey], Fields)) == 1;
+			var done = (await db.UpdateRowAsync(tableName, primaryKey, Fields[primaryKey], Fields, filterFields)) == 1;
+			// check if all required fields are present
+			foreach (var property in GetType().GetProperties())
+			{
+				var expandFieldAttribute = (ModelExpandFieldAttribute)property.GetCustomAttribute(typeof(ModelExpandFieldAttribute));
+				if (expandFieldAttribute != null)
+				{
+					if (Fields.ContainsKey(property.Name))
+					{
+						var list = Fields[property.Name] as IModelList;
+						if (list != null)
+						{
+							var foreignProp = FindForeignProperty(GetType(), expandFieldAttribute.ForeignModel, expandFieldAttribute.ForeignField);
+							if ((list.diff != null) && (list.diff.add != null))
+							{
+								foreach (Model item in list.diff.add)
+									item.Fields[foreignProp.Name] = Fields[primaryKey];
+							}
+							await list.ApplyAsync(db);
+						}
+					}
+				}
+			}
+			return done;
 		}
 
 		public virtual async Task<bool> DeleteAsync(DB db)
@@ -492,12 +572,12 @@ namespace Laclasse
 			return res;
 		}
 
-		public static Task<SearchResult<T>> SearchAsync<T>(DB db, IEnumerable<string> searchAllowedFields, HttpContext c) where T : Model, new()
+		public static Task<SearchResult<T>> SearchAsync<T>(DB db, HttpContext c) where T : Model, new()
 		{
-			return SearchWithHttpContextAsync<T>(db, searchAllowedFields, c);
+			return SearchWithHttpContextAsync<T>(db, c);
 		}
 
-		public static async Task<SearchResult<T>> SearchWithHttpContextAsync<T>(DB db, IEnumerable<string> searchAllowedFields, HttpContext c) where T : Model, new()
+		public static async Task<SearchResult<T>> SearchWithHttpContextAsync<T>(DB db, HttpContext c) where T : Model, new()
 		{
 			bool expand = true;
 			int offset = 0;
@@ -527,22 +607,15 @@ namespace Laclasse
 			foreach (var key in c.Request.QueryStringArray.Keys)
 				if (!parsedQuery.ContainsKey(key))
 					parsedQuery[key] = c.Request.QueryStringArray[key];
-			return await SearchAsync<T>(db, searchAllowedFields, parsedQuery, orderBy, orderDir, expand, offset, count);
-		}
-
-		enum CompareOperator
-		{
-			Equal,
-			Less,
-			LessOrEqual,
-			Greater,
-			GreaterOrEqual
+			return await SearchAsync<T>(db, parsedQuery, orderBy, orderDir, expand, offset, count);
 		}
 
 		static string CompareOperatorToSql(CompareOperator op)
 		{
 			string opStr = "=";
-			if (op == CompareOperator.Less)
+			if (op == CompareOperator.NotEqual)
+				opStr = "!=";
+			else if (op == CompareOperator.Less)
 				opStr =  "<";
 			else if (op == CompareOperator.LessOrEqual)
 				opStr =  "<=";
@@ -554,7 +627,7 @@ namespace Laclasse
 		}
 
 		public static async Task<SearchResult<T>> SearchAsync<T>(
-			DB db, IEnumerable<string> searchAllowedFields, Dictionary<string, List<string>> queryFields, string orderBy = null,
+			DB db, Dictionary<string, List<string>> queryFields, string orderBy = null,
 			SortDirection sortDir = SortDirection.Ascending, bool expand = true, int offset = 0, int count = -1) where T : Model, new()
 		{
 			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
@@ -571,29 +644,31 @@ namespace Laclasse
 			{
 				string key = keyOp;
 				var op = CompareOperator.Equal;
-				if (keyOp.EndsWith("<", StringComparison.InvariantCulture))
+				if (keyOp.EndsWith("!", StringComparison.InvariantCulture))
+				{
+					op = CompareOperator.NotEqual;
+					key = keyOp.Substring(0, keyOp.Length - 1);
+				}
+				else if (keyOp.EndsWith("<", StringComparison.InvariantCulture))
 				{
 					op = CompareOperator.Less;
-					key = keyOp.Substring(0, key.Length - 1);
+					key = keyOp.Substring(0, keyOp.Length - 1);
 				}
 				else if (keyOp.EndsWith("<=", StringComparison.InvariantCulture))
 				{
 					op = CompareOperator.LessOrEqual;
-					key = keyOp.Substring(0, key.Length - 2);
+					key = keyOp.Substring(0, keyOp.Length - 2);
 				}
 				else if (keyOp.EndsWith(">", StringComparison.InvariantCulture))
 				{
 					op = CompareOperator.Greater;
-					key = keyOp.Substring(0, key.Length - 1);
+					key = keyOp.Substring(0, keyOp.Length - 1);
 				}
 				else if (keyOp.EndsWith(">=", StringComparison.InvariantCulture))
 				{
 					op = CompareOperator.GreaterOrEqual;
-					key = key.Substring(0, key.Length - 2);
+					key = keyOp.Substring(0, keyOp.Length - 2);
 				}
-
-				if (!searchAllowedFields.Contains(key))
-					continue;
 
 				if (key.IndexOf('.') > 0)
 				{
@@ -612,24 +687,108 @@ namespace Laclasse
 				}
 				else
 				{
+					var keyProperty = typeof(T).GetProperty(key);
+					if (keyProperty == null)
+						continue;
+
+					var expandFieldAttr = (ModelExpandFieldAttribute)keyProperty.GetCustomAttribute(typeof(ModelExpandFieldAttribute));
+					var fieldAttr = (ModelFieldAttribute)keyProperty.GetCustomAttribute(typeof(ModelFieldAttribute));
+					if (expandFieldAttr == null && fieldAttr == null)
+						continue;
+					if (fieldAttr != null && !fieldAttr.Search)
+						continue;
+					if (expandFieldAttr != null && !expandFieldAttr.Search)
+						continue;
+
 					var words = queryFields[keyOp];
 					if (words.Count == 1)
 					{
 						if (filter != "")
 							filter += " AND ";
-						filter += "`" + key + "`" + CompareOperatorToSql(op) + "'" + db.EscapeString(words[0]) + "'";
+						if (words[0] == "NULL")
+						{
+							// handle empty foreign fields join
+							if (expandFieldAttr != null)
+							{
+								var foreignModelAttr = (ModelAttribute)expandFieldAttr.ForeignModel.GetCustomAttribute(typeof(ModelAttribute));
+								string foreignTableName = foreignModelAttr.Table;
+
+								PropertyInfo foreignProperty = null;
+								PropertyInfo[] properties;
+								if (expandFieldAttr.ForeignField != null)
+								{
+									var prop = expandFieldAttr.ForeignModel.GetProperty(expandFieldAttr.ForeignField);
+									if (prop != null)
+										properties = new PropertyInfo[] { prop };
+									else
+										properties = new PropertyInfo[] { };
+								}
+								else
+									properties = expandFieldAttr.ForeignModel.GetProperties();
+								foreach (var prop in properties)
+								{
+									var propAttrs = prop.GetCustomAttributes(typeof(ModelFieldAttribute), false);
+									foreach (var a in propAttrs)
+									{
+										var propAttr = (ModelFieldAttribute)a;
+										if (propAttr.ForeignModel == typeof(T))
+										{
+											foreignProperty = prop;
+											break;
+										}
+									}
+									if (foreignProperty != null)
+										break;
+								}
+								filter += $"`{primaryKey}` NOT IN (SELECT DISTINCT(`{foreignProperty.Name}`) FROM `{foreignTableName}`)";
+							}
+							else
+							{
+								if (op == CompareOperator.NotEqual)
+									filter += "`" + key + "` IS NOT NULL";
+								else
+									filter += "`" + key + "` IS NULL";
+							}
+						}
+						else
+							filter += "`" + key + "`" + CompareOperatorToSql(op) + "'" + db.EscapeString(words[0]) + "'";
 					}
 					else if (words.Count > 1)
 					{
+						List<string> inWords = words;
+						bool hasNull = false;
+						if (words.Any((arg) => arg == "NULL"))
+						{
+							hasNull = true;
+							inWords = words.FindAll((obj) => obj != "NULL");
+						}
 						if (filter != "")
 							filter += " AND ";
-						filter += db.InFilter(key, words);
+						filter += "(";
+						if (inWords.Count > 0)
+							filter += db.InFilter(key, inWords);
+						if (hasNull)
+						{
+							if (inWords.Count > 0)
+								filter += " OR ";
+							filter += $"`{key}` IS NULL";
+						}
+						filter += ")";
 					}
 				}
 			}
 
 			if (queryFields.ContainsKey("global"))
 			{
+				var properties = typeof(T).GetProperties();
+				var searchFields = new List<string>();
+				foreach (var prop in properties)
+				{
+					var attr = (ModelFieldAttribute)prop.GetCustomAttribute(typeof(ModelFieldAttribute));
+					if ((attr != null) && attr.Search)
+						searchFields.Add(prop.Name);
+				}
+
 				var words = queryFields["global"];
 				foreach (string word in words)
 				{
@@ -637,7 +796,7 @@ namespace Laclasse
 						filter += " AND ";
 					filter += "(";
 					var first = true;
-					foreach (var field in searchAllowedFields)
+					foreach (var field in searchFields)
 					{
 						if (field.IndexOf('.') > 0)
 							continue;
@@ -660,10 +819,13 @@ namespace Laclasse
 				if (fieldAttr.Length == 0)
 					continue;
 				var attr = (ModelExpandFieldAttribute)fieldAttr[0];
+				if (!attr.Search)
+					continue;
 
 				var foreignAttrs = attr.ForeignModel.GetCustomAttributes(typeof(ModelAttribute), false);
 				string foreignTableName = (foreignAttrs.Length > 0) ? ((ModelAttribute)foreignAttrs[0]).Table : attr.ForeignModel.Name;
 				PropertyInfo foreignProperty = null;
+				ModelFieldAttribute foreignFieldAttr = null;
 
 				PropertyInfo[] properties;
 				if (attr.ForeignField != null)
@@ -684,6 +846,7 @@ namespace Laclasse
 						var propAttr = (ModelFieldAttribute)a;
 						if (propAttr.ForeignModel == typeof(T))
 						{
+							foreignFieldAttr = propAttr;
 							foreignProperty = prop;
 							break;
 						}
@@ -693,6 +856,8 @@ namespace Laclasse
 				}
 
 				if (foreignProperty == null)
+					continue;
+				if (!foreignFieldAttr.Search)
 					continue;
 
 				if (filter != "")
@@ -749,21 +914,56 @@ namespace Laclasse
 			return result;
 		}
 
-		public static async Task SyncAsync<T>(DB db, IEnumerable<T> srcItems, IEnumerable<T> dstItems) where T : Model
+		public delegate bool MatchFunc<T>(T src, T dst);
+		public delegate T DiffFunc<T>(T src, T dst);
+
+		public static async Task<ModelListDiff<T>> SyncAsync<T>(DB db, IEnumerable<T> srcItems, IEnumerable<T> dstItems, MatchFunc<T> matchFunc = null) where T : Model, new()
 		{
+			var result = Diff(srcItems, dstItems, matchFunc);
+			await result.ApplyAsync(db);
+			return result;
+		}
+
+		public static ModelListDiff<T> Diff<T>(IEnumerable<T> srcItems, IEnumerable<T> dstItems, MatchFunc<T> matchFunc = null, DiffFunc<T> diffFunc = null) where T : Model, new()
+		{
+			var result = new ModelListDiff<T>();
+			result.add = new ModelList<T>();
+			result.change = new ModelList<T>();
+			result.remove = new ModelList<T>();
+
+			//bool testChange = true;
+			if (matchFunc == null)
+			{
+				//testChange = false;
+				matchFunc = (src, dst) => dst.EqualsIntersection(src);
+			}
+
+			if (diffFunc == null)
+				diffFunc = (src, dst) => src.DiffWithId(dst);
+
 			// delete before in case of DB constraint
 			foreach (var srcItem in srcItems)
 			{
-				if (!dstItems.Any(dstItem => dstItem.EqualsIntersection(srcItem)))
-					await srcItem.DeleteAsync(db);
+				if (!dstItems.Any(dstItem => matchFunc(srcItem, dstItem)))
+					result.remove.Add(srcItem);
 			}
 
 			foreach (var dstItem in dstItems)
 			{
-				var foundItem = srcItems.FirstOrDefault(srcItem => srcItem.EqualsIntersection(dstItem));
+				var foundItem = srcItems.FirstOrDefault(srcItem => matchFunc(srcItem, dstItem));
 				if (foundItem == null)
-					await dstItem.SaveAsync(db);
+					result.add.Add(dstItem);
+				else
+				{
+					var itemDiff = diffFunc(foundItem, dstItem);
+					if (itemDiff.Fields.Count > 1)
+						result.change.Add(itemDiff);
+					//if (testChange && !dstItem.EqualsIntersection(foundItem))
+					//	result.change.Add(diffFunc);
+				}
 			}
+
+			return result;
 		}
 
 		public async Task LoadExpandFieldAsync(DB db, string fieldName)
@@ -797,22 +997,38 @@ namespace Laclasse
 		}
 	}
 
-	interface IModelList: IList
+	public interface IModelList: IList
 	{
-		JsonArray ToJson();
+		IModelListDiff diff { get; }
+
+		JsonValue ToJson();
+
+		Task ApplyAsync(DB db);
 	}
 
 	public class ModelList<T> : List<T>, IModelList where T : Model
 	{
-		public JsonArray ToJson()
+		public ModelListDiff<T> diff;
+
+		IModelListDiff IModelList.diff
 		{
+			get {
+				return diff;
+			}
+		}
+
+		public JsonValue ToJson()
+		{
+			if (diff != null)
+				return diff.ToJson();
+
 			var json = new JsonArray();
 			foreach (var item in this)
 				json.Add(item.ToJson());
 			return json;
 		}
 
-		public static implicit operator JsonArray(ModelList<T> list)
+		public static implicit operator JsonValue(ModelList<T> list)
 		{
 			return list.ToJson();
 		}
@@ -820,6 +1036,90 @@ namespace Laclasse
 		public static implicit operator HttpContent(ModelList<T> list)
 		{
 			return new JsonContent(list.ToJson());
+		}
+
+		public ModelList<T> Filter(HttpContext c)
+		{
+			return Filter(c.ToFilter());
+		}
+
+		public ModelList<T> Filter(Dictionary<string, List<string>> filter)
+		{
+			var res = new ModelList<T>();
+			foreach (var item in this)
+				if (item.IsFilterMatch(filter))
+					res.Add(item);
+			return res;
+		}
+
+		public async Task ApplyAsync(DB db)
+		{
+			if (diff != null)
+				await diff.ApplyAsync(db);
+		}
+	}
+
+	public interface IModelListDiff
+	{
+		IModelList add { get; }
+		IModelList change { get; }
+		IModelList remove { get; }
+	}
+
+	public class ModelListDiff<T> : Model, IModelListDiff where T : Model
+	{
+		[ModelField]
+		public ModelList<T> add { get { return GetField<ModelList<T>>("add", null); } set { SetField("add", value); } }
+		[ModelField]
+		public ModelList<T> change { get { return GetField<ModelList<T>>("change", null); } set { SetField("change", value); } }
+		[ModelField]
+		public ModelList<T> remove { get { return GetField<ModelList<T>>("remove", null); } set { SetField("remove", value); } }
+
+		IModelList IModelListDiff.add
+		{
+			get {
+				return add;
+			}
+		}
+
+		IModelList IModelListDiff.change
+		{
+			get {
+				return change;
+			}
+		}
+
+		IModelList IModelListDiff.remove
+		{
+			get {
+				return remove;
+			}
+		}
+
+		public override bool IsEmpty
+		{
+			get {
+				return !add.Any() && !change.Any() && !remove.Any();
+			}
+		}
+
+		public override async Task ApplyAsync(DB db)
+		{
+			if (remove != null)
+			{
+				foreach (var item in remove)
+					await item.DeleteAsync(db);
+			}
+			if (change != null)
+			{
+				foreach (var item in change)
+					await item.ApplyAsync(db);
+			}
+			if (add != null)
+			{
+				foreach (var item in add)
+					await item.SaveAsync(db, true);
+			}
 		}
 	}
 
@@ -951,7 +1251,7 @@ namespace Laclasse
 			}
 			if (beforeExpand != null)
 				await beforeExpand();
-			if (ids.Count > 0)
+			if (ids.Any())
 			{
 				var properties = typeof(T).GetProperties();
 				foreach (var property in properties)
@@ -1048,6 +1348,7 @@ namespace Laclasse
 			if (foreignFieldProperty != null)
 			{
 				var sql = $"SELECT * FROM `{destTableName}` WHERE `{foreignFieldProperty.Name}`=?";
+				//result = await SelectExpandAsync<T>(sql, new object[] { sourceId });
 				result = await SelectAsync<T>(sql, sourceId);
 			}
 			else
@@ -1068,19 +1369,39 @@ namespace Laclasse
 			// if found, generate the needed SQL
 			if (foreignFieldProperty != null)
 			{
-				var sql = $"SELECT * FROM `{destTableName}` WHERE {InFilter(foreignFieldProperty.Name, sourceIds)} ORDER BY `{foreignFieldProperty.Name}`";
-				object currentSourceId = null;
-				ModelList<T> currentSourceItems = null;
-				foreach (var item in await SelectAsync<T>(sql))
-				{
-					if ((currentSourceId == null) || !currentSourceId.Equals(item.Fields[foreignFieldProperty.Name]))
+				var tmpIds = new List<object>();
+				var idsCount = 0;
+
+				Func<Task> loadForeign = async delegate {
+					var sql = $"SELECT * FROM `{destTableName}` WHERE {InFilter(foreignFieldProperty.Name, tmpIds)} ORDER BY `{foreignFieldProperty.Name}`";
+					object currentSourceId = null;
+					ModelList<T> currentSourceItems = null;
+					foreach (var item in await SelectAsync<T>(sql))
 					{
-						currentSourceId = item.Fields[foreignFieldProperty.Name];
-						currentSourceItems = new ModelList<T>();
-						result[currentSourceId] = currentSourceItems;
+						if ((currentSourceId == null) || !currentSourceId.Equals(item.Fields[foreignFieldProperty.Name]))
+						{
+							currentSourceId = item.Fields[foreignFieldProperty.Name];
+							currentSourceItems = new ModelList<T>();
+							result[currentSourceId] = currentSourceItems;
+						}
+						currentSourceItems.Add(item);
 					}
-					currentSourceItems.Add(item);
+				};
+
+				// batch request by a group of 200 because it is too slowest for bigger id group
+				foreach (var id in sourceIds)
+				{
+					tmpIds.Add(id);
+					idsCount++;
+					if (idsCount > 200)
+					{
+						await loadForeign();
+						tmpIds.Clear();
+						idsCount = 0;
+					}
 				}
+				if (idsCount > 0)
+					await loadForeign();
 			}
 			return result;
 		}
@@ -1184,7 +1505,7 @@ namespace Laclasse
 			return await cmd.ExecuteNonQueryAsync();
 		}
 
-		public async Task<int> UpdateRowAsync(string table, string idKey, object idValue, IDictionary values)
+		public async Task<int> UpdateRowAsync(string table, string idKey, object idValue, IDictionary values, IEnumerable<string> filterFields = null)
 		{
 			var setList = "";
 			foreach (object key in values.Keys)
@@ -1192,6 +1513,8 @@ namespace Laclasse
 				var strKey = key as string;
 				if (strKey != null)
 				{
+					if ((filterFields != null) && !filterFields.Contains(strKey))
+						continue;
 					if (strKey == idKey)
 						continue;
 					if (setList != "")
@@ -1209,6 +1532,8 @@ namespace Laclasse
 				var strKey = key as string;
 				if (strKey != null)
 				{
+					if ((filterFields != null) && !filterFields.Contains(strKey))
+						continue;
 					if (strKey == idKey)
 						continue;
 					cmd.Parameters.Add(new MySqlParameter(strKey, values[strKey]));

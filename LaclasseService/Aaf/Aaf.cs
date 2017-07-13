@@ -27,10 +27,8 @@
 
 using System;
 using System.IO;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+using System.Collections.Generic;
 using Erasme.Http;
-using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Aaf
@@ -38,34 +36,21 @@ namespace Laclasse.Aaf
 	public class Aaf : HttpRouting
 	{
 		readonly string syncFilesFolder;
+		readonly string zipFilesFolder;
 
-		public Aaf(string dbUrl, string syncFilesFolder)
+		public Aaf(string dbUrl, string syncFilesFolder, string zipFilesFolder)
 		{
 			this.syncFilesFolder = syncFilesFolder;
+			this.zipFilesFolder = zipFilesFolder;
 			//string syncLogsFolder = "/home/daniel/Programmation/laclassev4/aaf/logs";
 
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
-			GetAsync["/"] = async (p, c) =>
+			Get["/"] = (p, c) =>
 			{
-				var dir = new DirectoryInfo(syncFilesFolder);
-				var result = new JsonArray();
-				foreach (var file in dir.EnumerateFiles("*.zip"))
-				{
-					var jsonFile = new JsonObject { ["file"] = file.Name };
-					var matches = Regex.Match(file.Name, "ENT2D\\.(20\\d\\d)(\\d\\d)(\\d\\d).*\\.zip");
-					if (matches.Success)
-						jsonFile["date"] = new DateTime(
-							Convert.ToInt32(matches.Groups[1].Value),
-							Convert.ToInt32(matches.Groups[2].Value),
-							Convert.ToInt32(matches.Groups[3].Value));
-					result.Add(jsonFile);
-				}
 				c.Response.StatusCode = 200;
-				c.Response.Content = result;
-
-				await Task.Delay(0);
+				c.Response.Content = Synchronizer.GetFiles(syncFilesFolder, zipFilesFolder);
 			};
 
 			/*Get["/{id}"] = (p, c) =>
@@ -78,50 +63,179 @@ namespace Laclasse.Aaf
 				}
 			};*/
 
+			GetAsync["/{id}/structures"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				c.Response.Content = synchronizer.GetAafStructures().Filter(c);
+			};
+
+			GetAsync["/{id}/structures/diff"] = async (p, c) =>
+			{
+				List<string> ids = null;
+				if (c.Request.QueryStringArray.ContainsKey("id"))
+					ids = c.Request.QueryStringArray["id"];
+				
+				await c.EnsureIsSuperAdminAsync();
+				var synchronizer = new Synchronizer(
+					dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]), ids);
+				var res = await synchronizer.SynchronizeAsync(
+					structure: true);
+				c.Response.Content = res.structures;
+			};
+
+			GetAsync["/{id}/structures/sync"] = async (p, c) =>
+			{
+				List<string> ids = null;
+				if (c.Request.QueryStringArray.ContainsKey("id"))
+					ids = c.Request.QueryStringArray["id"];
+
+				await c.EnsureIsSuperAdminAsync();
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]), ids);
+				var res = await synchronizer.SynchronizeAsync(
+					structure: true, apply: true);
+				c.Response.Content = res.structures;
+			};
+
+			GetAsync["/{id}/subjects"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				c.Response.Content = synchronizer.GetAafSubjects().Filter(c);
+			};
+
+			GetAsync["/{id}/subjects/diff"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				var res = await synchronizer.SynchronizeAsync(subject: true);
+				c.Response.Content = res.subjects;
+			};
+
+			GetAsync["/{id}/subjects/sync"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				var res = await synchronizer.SynchronizeAsync(apply: true, subject: true);
+				c.Response.Content = res.subjects;
+			};
+
+			GetAsync["/{id}/grades"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				c.Response.Content = synchronizer.GetAafGrades().Filter(c);
+			};
+
+			GetAsync["/{id}/grades/diff"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				var res = await synchronizer.SynchronizeAsync(grade: true);
+				c.Response.Content = res.grades;
+			};
+
+			GetAsync["/{id}/grades/sync"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				var res = await synchronizer.SynchronizeAsync(apply: true, grade: true);
+				c.Response.Content = res.subjects;
+			};
+
+			GetAsync["/{id}/teachers"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				c.Response.Content = synchronizer.GetAafTeachers().Filter(c);
+			};
+
+			GetAsync["/{id}/teachers/diff"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				var res = await synchronizer.SynchronizeAsync(persEducNat: true);
+				c.Response.Content = res.persEducNat;
+			};
+
+			GetAsync["/{id}/students"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+
+				//var zipFile = new AafGlobalZipFile(Path.Combine(zipFilesFolder, (string)p["id"]));
+				//var structures = new AafStructures(zipFile);
+				//var groupResolver = new GroupResolver(structures.GetStructures());
+				//c.Response.Content = (new AafUsers(zipFile, groupResolver).GetStudents(structures.GetStructuresByAafId())).Filter(c);
+
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				c.Response.Content = synchronizer.GetAafStudents().Filter(c);
+			};
+
+			GetAsync["/{id}/parents"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+
+				//var zipFile = new AafGlobalZipFile(Path.Combine(zipFilesFolder, (string)p["id"]));
+				//var structures = new AafStructures(zipFile);
+				//var groupResolver = new GroupResolver(structures.GetStructures());
+				//c.Response.Content = (new AafUsers(zipFile, groupResolver).GetParents(structures.GetStructuresByAafId())).Filter(c);
+
+				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
+				c.Response.Content = synchronizer.GetAafParents().Filter(c);
+			};
+
 			GetAsync["/{id}"] = async (p, c) =>
 			{
 				var aafFile = GetFile((string)p["id"]);
 				if (aafFile != null)
 				{
-					//var json = await c.Request.ReadAsJsonAsync();
-					var apply = true;
+					List<string> ids = null;
+					if (c.Request.QueryStringArray.ContainsKey("structure_id"))
+						ids = c.Request.QueryStringArray["structure_id"];
+
+					var apply = false;
 					if (c.Request.QueryString.ContainsKey("apply"))
 						apply = Convert.ToBoolean(c.Request.QueryString["apply"]);
 
-					bool subject = true;
+					bool subject = false;
 					if (c.Request.QueryString.ContainsKey("subject"))
 						subject = Convert.ToBoolean(c.Request.QueryString["subject"]);
-					bool grade = true;
+					bool grade = false;
 					if (c.Request.QueryString.ContainsKey("grade"))
 						grade = Convert.ToBoolean(c.Request.QueryString["grade"]);
-					bool structure = true;
+					bool structure = false;
 					if (c.Request.QueryString.ContainsKey("structure"))
 						structure = Convert.ToBoolean(c.Request.QueryString["structure"]);
-					bool persEducNat = true;
+					bool persEducNat = false;
 					if (c.Request.QueryString.ContainsKey("persEducNat"))
 						persEducNat = Convert.ToBoolean(c.Request.QueryString["persEducNat"]);
-					bool eleve = true;
+					bool eleve = false;
 					if (c.Request.QueryString.ContainsKey("eleve"))
 						eleve = Convert.ToBoolean(c.Request.QueryString["eleve"]);
-					bool persRelEleve = true;
+					bool persRelEleve = false;
 					if (c.Request.QueryString.ContainsKey("persRelEleve"))
 						persRelEleve = Convert.ToBoolean(c.Request.QueryString["persRelEleve"]);
 					
-					var sync = new Synchronizer(dbUrl);
+					var sync = new Synchronizer(dbUrl, aafFile.FullName, ids);
 
-					var diff = await sync.Synchronize(
-						aafFile.FullName, subject, grade, structure, persEducNat, eleve, persRelEleve, apply);
+					var diff = await sync.SynchronizeAsync(
+						subject: subject, grade: grade, structure: structure,
+						persEducNat: persEducNat, eleve: eleve, persRelEleve: persRelEleve, apply: apply);
 
 					c.Response.StatusCode = 200;
 					c.Response.Content = diff;
 				}
-				//json.RequireFields("structures", "persEducNat", ""
 			};
 		}
 
 		FileInfo GetFile(string id)
 		{
-			var dir = new DirectoryInfo(syncFilesFolder);
+			var dir = new DirectoryInfo(zipFilesFolder);
 			foreach (var file in dir.EnumerateFiles("*.zip"))
 				if (file.Name == id)
 					return file;

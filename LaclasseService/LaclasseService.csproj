@@ -48,7 +48,11 @@
     <Reference Include="System.Security" />
     <Reference Include="Mono.Posix" />
     <Reference Include="SharpCompress">
-      <HintPath>..\packages\SharpCompress.0.16.1\lib\net45\SharpCompress.dll</HintPath>
+      <HintPath>..\packages\SharpCompress.0.17.1\lib\net45\SharpCompress.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ServiceModel" />
+    <Reference Include="SgmlReaderDll">
+      <HintPath>..\packages\Microsoft.Xml.SgmlReader.1.8.14\lib\net45\SgmlReaderDll.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -98,6 +102,9 @@
     <Compile Include="Manage\IManageExtension.cs" />
     <Compile Include="Setup.cs" />
     <Compile Include="Directory\SetupService.cs" />
+    <Compile Include="Aaf\AafGlobalZipFile.cs" />
+    <Compile Include="Aaf\NotImplentedException.cs" />
+    <Compile Include="Directory\Publipostages.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

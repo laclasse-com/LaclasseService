@@ -133,13 +133,13 @@ namespace Laclasse.Directory
 
 			GetAsync["/offer_ent"] = async (p, c) =>
 			{
-				var json = await c.Request.ReadAsJsonAsync();
-				json.RequireFields("firstname", "lastname");
+				c.Request.QueryString.RequireFields("firstname", "lastname");
 				c.Response.StatusCode = 200;
 				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = new JsonPrimitive(await OfferEntEmailAsync(db, json["firstname"], json["lastname"]));
+					c.Response.Content = new JsonPrimitive(await OfferEntEmailAsync(db, c.Request.QueryString["firstname"], c.Request.QueryString["lastname"]));
 			};
 
+			// TODO: remove this useless API
 			GetAsync["/mail_available"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();

@@ -40,14 +40,27 @@ using SharpCompress.Writers;
 
 namespace Laclasse.Aaf
 {
+	public enum GroupType
+	{
+		CLS,
+		GRP
+	}
+
 	public class Synchronizer
 	{
 		readonly string dbUrl;
+		readonly AafGlobalZipFile zipFile;
+		readonly List<string> structuresIds = null;
+		int tutUserIdGenerator = 0;
+		int ensUserIdGenerator = 0;
+		int elvUserIdGenerator = 0;
+		int groupIdGenerator = 0;
+		readonly List<string> errors = new List<string>();
 
 		/// <summary>
 		/// Convert user to user link type from the AAF 2D id to the ENT id
 		/// </summary>
-		Dictionary<int, string> aafRelationType = new Dictionary<int, string>
+		public readonly static Dictionary<int, string> aafRelationType = new Dictionary<int, string>
 		{
 			[1] = "PERE",
 			[2] = "MERE",
@@ -61,7 +74,7 @@ namespace Laclasse.Aaf
 		/// <summary>
 		/// Convert an AAF fonction to the ENT profile
 		/// </summary>
-		Dictionary<string, string> aafFonctionToProfile = new Dictionary<string, string>
+		public readonly static Dictionary<string, string> aafFonctionToProfile = new Dictionary<string, string>
 		{
 			["ENS"] = "ENS",
 			["DOC"] = "DOC",
@@ -83,22 +96,103 @@ namespace Laclasse.Aaf
 			["TEC"] = "ETA"
 		};
 
-		Dictionary<int, Structure> structures;
-		Dictionary<string, ProfileType> profilesTypes;
-		Dictionary<string, Dictionary<string, Group>> structuresGroupsClasses;
-		Dictionary<string, Dictionary<string, Group>> structuresGroupsGroupes;
-		Dictionary<int, Group> groups;
-		Dictionary<string, Subject> subjects;
+		public readonly static string[] persEducNatProfiles = { "ACA", "DIR", "DOC", "ENS", "ETA", "EVS" };
 
-		public Synchronizer(string dbUrl)
+		public static string[] userMulFields = {
+			"ENTAuxEnsClassesPrincipal", "ENTAuxEnsClassesMatieres", "ENTAuxEnsGroupesMatieres", "ENTPersonFonctions",
+			"ENTEleveClasses", "ENTEleveGroupes", "ENTEleveCodeEnseignements",
+			"ENTEleveEnseignements", "ENTPersonAutresPrenoms", "ENTElevePersRelEleve",
+			"mobile", "mail"
+		};
+
+		ModelList<Structure> aafStructures;
+		ModelList<Structure> entStructures;
+		Dictionary<int, Structure> aafStructuresByAafId;
+		Dictionary<int, Structure> entStructuresByAafId;
+		Dictionary<string, Structure> entStructuresById;
+
+		// all users seen in a given synchronization
+		Dictionary<string, User> entSyncSeenUsers;
+		IEnumerable<string> interStructuresIds;
+		Dictionary<string,bool> interStructures;
+		Dictionary<int, Group> aafGroupsById;
+		Dictionary<int, Group> entGroupsById;
+		Dictionary<string, Group> aafGroupByTypeStructureAafName;
+		Dictionary<string, Group> entGroupByTypeStructureAafName;
+
+		ModelList<Grade> aafGrades;
+		Dictionary<string, Grade> aafGradesById;
+
+		ModelList<Subject> aafSubjects;
+		Dictionary<string, Subject> aafSubjectsById;
+
+		ModelList<Subject> entSubjects;
+		Dictionary<string, Subject> entSubjectsById;
+
+		ModelList<User> aafParents;
+		Dictionary<long, User> aafParentsByAafId;
+
+		ModelList<User> aafStudents;
+
+		Dictionary<string, User> aafParentsById = null;
+
+		Dictionary<int, User> entUsersByAafId = null;
+		Dictionary<string, User> entUsersByAcademicEmail = null;
+		Dictionary<string, User> entUsersByNameBirthdate = null;
+		Dictionary<int, User> entUsersByStructRattachId = null;
+
+		public Synchronizer(string dbUrl, string file, List<string> structuresIds = null)
 		{
 			this.dbUrl = dbUrl;
+			zipFile = new AafGlobalZipFile(file);
+			this.structuresIds = structuresIds;
+		}
+
+		public class SyncFile : Model
+		{
+			[ModelField]
+			public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
+			[ModelField]
+			public DateTime? date { get { return GetField<DateTime?>(nameof(date), null); } set { SetField(nameof(date), value); } }
+			[ModelField]
+			public long size { get { return GetField<long>(nameof(size), 0); } set { SetField(nameof(size), value); } }
+		}
+
+		public static ModelList<SyncFile> GetFiles(string syncFilesFolder, string zipFilesFolder)
+		{
+			var result = new ModelList<SyncFile>();
+			var dir = new DirectoryInfo(syncFilesFolder);
+			var zipDir = new DirectoryInfo(zipFilesFolder);
+
+			// convert TGZ to ZIP if not already done
+			foreach (var file in dir.EnumerateFiles("*.tgz"))
+			{
+				var zipFile = Path.Combine(zipDir.FullName, file.Name.Substring(0, file.Name.Length - 4) + ".zip");
+				Console.WriteLine(zipFile);
+				//var zipFile = file.FullName.Substring(0, file.FullName.Length - 4) + ".zip";
+				if (!File.Exists(zipFile))
+					ConvertToZip(file.FullName, zipFile);
+			}
+
+			foreach (var file in zipDir.EnumerateFiles("*.zip"))
+			{
+				var syncFile = new SyncFile { id = file.Name, size = file.Length };
+				var matches = System.Text.RegularExpressions.Regex.Match(file.Name, "ENT2D\\.(20\\d\\d)(\\d\\d)(\\d\\d).*\\.zip");
+				if (matches.Success)
+					syncFile.date = new DateTime(
+						Convert.ToInt32(matches.Groups[1].Value),
+						Convert.ToInt32(matches.Groups[2].Value),
+						Convert.ToInt32(matches.Groups[3].Value));
+				result.Add(syncFile);
+			}
+
+			return result;
 		}
 
 		public static void ConvertToZip(string file, string destination)
 		{
-			using(var destStream = File.OpenWrite(destination))
-			using(var writer = WriterFactory.Open(destStream, ArchiveType.Zip, new WriterOptions(CompressionType.Deflate)))
+			using (var destStream = File.OpenWrite(destination))
+			using (var writer = WriterFactory.Open(destStream, ArchiveType.Zip, new WriterOptions(CompressionType.Deflate)))
 			using (Stream stream = File.OpenRead(file))
 			using (var reader = ReaderFactory.Open(stream))
 			{
@@ -106,71 +200,70 @@ namespace Laclasse.Aaf
 				{
 					if (reader.Entry.IsDirectory)
 						continue;
-					
-					using(var readerStream = reader.OpenEntryStream())
+
+					using (var readerStream = reader.OpenEntryStream())
 						writer.Write(reader.Entry.Key, readerStream);
 				}
 			}
 		}
 
-		List<XmlNode> LoadNodes(string zipFile, string regex)
-		{
-			var nodes = new List<XmlNode>();
-			using (var archive = SharpCompress.Archives.ArchiveFactory.Open(zipFile))
-			{
-				var list = from entry in archive.Entries where System.Text.RegularExpressions.Regex.IsMatch(entry.Key, regex) select entry;
-				foreach (var entry in list)
-				{
-					using (var entryStream = entry.OpenEntryStream())
-					{
-						var settings = new XmlReaderSettings();
-						settings.IgnoreComments = true;
-						settings.DtdProcessing = DtdProcessing.Ignore;
-						var reader = XmlReader.Create(entryStream, settings);
-						var doc = new XmlDocument();
-						doc.Load(reader);
-						nodes.AddRange(doc.SelectNodes("//addRequest").Cast<XmlNode>());
-					}
-				}
-			}
-			return nodes;
-		}
-
 		public class SyncStat : Model
 		{
 			[ModelField]
-			public int count { get { return GetField(nameof(count), 0); } set { SetField(nameof(count), value); } }
+			public int addCount { get { return GetField(nameof(addCount), 0); } set { SetField(nameof(addCount), value); } }
 			[ModelField]
-			public double total { get { return GetField<double>("total", 0); } set { SetField("total", value); } }
+			public int changeCount { get { return GetField(nameof(changeCount), 0); } set { SetField(nameof(changeCount), value); } }
 			[ModelField]
-			public double load { get { return GetField<double>("load", 0); } set { SetField("load", value); } }
+			public int removeCount { get { return GetField(nameof(removeCount), 0); } set { SetField(nameof(removeCount), value); } }
 			[ModelField]
-			public double sync { get { return GetField<double>("sync", 0); } set { SetField("sync", value); } }
+			public double total { get { return GetField<double>(nameof(total), 0); } set { SetField(nameof(total), value); } }
+			[ModelField]
+			public double load { get { return GetField<double>(nameof(load), 0); } set { SetField(nameof(load), value); } }
+			[ModelField]
+			public double entLoad { get { return GetField<double>(nameof(entLoad), 0); } set { SetField(nameof(entLoad), value); } }
+			[ModelField]
+			public double aafLoad { get { return GetField<double>(nameof(aafLoad), 0); } set { SetField(nameof(aafLoad), value); } }
+			[ModelField]
+			public double diff { get { return GetField<double>(nameof(diff), 0); } set { SetField(nameof(diff), value); } }
+			[ModelField]
+			public double sync { get { return GetField<double>(nameof(sync), 0); } set { SetField(nameof(sync), value); } }
 		}
 
 		public class SyncDiff : Model
 		{
 			[ModelField]
-			public SyncStat stats { get { return GetField<SyncStat>("stats", null); } set { SetField("stats", value); } }
+			public ModelList<Error> errors { get { return GetField<ModelList<Error>>(nameof(errors), null); } set { SetField(nameof(errors), value); } }
 			[ModelField]
-			public GradesDiff grades { get { return GetField<GradesDiff>("grades", null); } set { SetField("grades", value); } }
+			public SyncStat stats { get { return GetField<SyncStat>(nameof(stats), null); } set { SetField(nameof(stats), value); } }
 			[ModelField]
-			public SubjectsDiff subjects { get { return GetField<SubjectsDiff>("subjects", null); } set { SetField("subjects", value); } }
+			public GradesDiff grades { get { return GetField<GradesDiff>(nameof(grades), null); } set { SetField(nameof(grades), value); } }
 			[ModelField]
-			public StructuresDiff structures { get { return GetField<StructuresDiff>("structures", null); } set { SetField("structures", value); } }
+			public SubjectsDiff subjects { get { return GetField<SubjectsDiff>(nameof(subjects), null); } set { SetField(nameof(subjects), value); } }
 			[ModelField]
-			public PersEducNatDiff persEducNat { get { return GetField<PersEducNatDiff>("persEducNat", null); } set { SetField("persEducNat", value); } }
+			public StructuresDiff structures { get { return GetField<StructuresDiff>(nameof(structures), null); } set { SetField(nameof(structures), value); } }
 			[ModelField]
-			public ElevesDiff eleves { get { return GetField<ElevesDiff>("eleves", null); } set { SetField("eleves", value); } }
+			public GroupsDiff groups { get { return GetField<GroupsDiff>(nameof(groups), null); } set { SetField(nameof(groups), value); } }
 			[ModelField]
-			public ParentsDiff parents { get { return GetField<ParentsDiff>("parents", null); } set { SetField("parents", value); } }
+			public UsersDiff persEducNat { get { return GetField<UsersDiff>(nameof(persEducNat), null); } set { SetField(nameof(persEducNat), value); } }
+			[ModelField]
+			public UsersDiff eleves { get { return GetField<UsersDiff>(nameof(eleves), null); } set { SetField(nameof(eleves), value); } }
+			[ModelField]
+			public UsersDiff parents { get { return GetField<UsersDiff>(nameof(parents), null); } set { SetField(nameof(parents), value); } }
+			[ModelField]
+			public UsersDiff global { get { return GetField<UsersDiff>(nameof(global), null); } set { SetField(nameof(global), value); } }
+
 		}
 
-		public async Task<SyncDiff> Synchronize(
-			string file, bool subject = true, bool grade = true,
-			bool structure = true, bool persEducNat = true,
-			bool eleve = true, bool persRelEleve = true,
-			bool apply = true)
+		bool IsSyncStructure(string id)
+		{
+			return interStructures.ContainsKey(id);
+		}
+
+		public async Task<SyncDiff> SynchronizeAsync(
+			bool subject = false, bool grade = false,
+			bool structure = false, bool persEducNat = false,
+			bool eleve = false, bool persRelEleve = false,
+			bool apply = false)
 		{
 			var diff = new SyncDiff();
 			diff.stats = new SyncStat();
@@ -178,120 +271,245 @@ namespace Laclasse.Aaf
 			var totalWatch = new Stopwatch();
 			totalWatch.Start();
 
-			var stopWatch = new Stopwatch();
-			stopWatch.Start();
+			Stopwatch stopWatch;
 
 			using (DB db = await DB.CreateAsync(dbUrl, true))
 			{
-
-				structures = await LoadEntStructuresAsync(db);
-				profilesTypes = await LoadEntProfilesTypesAsync(db);
-				structuresGroupsClasses = await LoadEntStructuresGroupsAsync(db, GroupType.CLS);
-				structuresGroupsGroupes = await LoadEntStructuresGroupsAsync(db, GroupType.GRP);
-				groups = await LoadEntGroupsAsync(db);
-				stopWatch.Stop();
-
-				diff.stats.load = stopWatch.Elapsed.TotalSeconds;
-			
-				if (subject)
+				if (structure || eleve || persEducNat || persRelEleve)
 				{
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
-					var nodes = LoadNodes(file, @"_MatiereEducNat_\d+.xml$");
+					LoadAafSubjects();
 					stopWatch.Stop();
-					var load = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
-					diff.subjects = await SyncSubjectsAsync(db, nodes, apply);
+					await LoadEntStructuresAsync(db, structuresIds);
 					stopWatch.Stop();
-					diff.subjects.stats.load = load;
-					diff.subjects.stats.sync = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
+
+					stopWatch = new Stopwatch();
+					stopWatch.Start();
+					LoadAafStructures();
+					stopWatch.Stop();
+					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+
+					// find the structures concerned by this synchronization
+					if (structuresIds == null)
+						interStructuresIds = entStructures.FindAll((obj) => obj.aaf_sync_activated).Select((arg) => arg.id);
+					else
+						interStructuresIds = entStructures.Select((arg) => arg.id).Intersect(structuresIds);
+					interStructuresIds = interStructuresIds.Intersect(aafStructures.Select((arg) => arg.id));
+
+					interStructures = new Dictionary<string, bool>();
+					foreach (var id in interStructuresIds)
+						interStructures[id] = true;
+				}
+
+				if (subject)
+				{
+					diff.subjects = new SubjectsDiff();
+					diff.subjects.stats = new SyncStat();
+					stopWatch = new Stopwatch();
+					stopWatch.Start();
+					LoadAafSubjects();
+					stopWatch.Stop();
+					diff.subjects.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+
+					stopWatch = new Stopwatch();
+					stopWatch.Start();
+					await LoadEntSubjectsAsync(db);
+					stopWatch.Stop();
+					diff.subjects.stats.entLoad = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
+
+					stopWatch = new Stopwatch();
+					stopWatch.Start();
+					diff.subjects.diff = Model.Diff(entSubjects, aafSubjects, (src, dst) => src.id == dst.id);
+					stopWatch.Stop();
+					diff.subjects.stats.diff = stopWatch.Elapsed.TotalSeconds;
+					diff.subjects.stats.addCount += diff.subjects.diff.add.Count;
+					diff.subjects.stats.changeCount += diff.subjects.diff.change.Count;
+					diff.subjects.stats.removeCount += diff.subjects.diff.remove.Count;
+					diff.stats.diff += stopWatch.Elapsed.TotalSeconds;
+
+					if (apply)
+					{
+						stopWatch = new Stopwatch();
+						stopWatch.Start();
+						await diff.subjects.diff.ApplyAsync(db);
+						stopWatch.Stop();
+						diff.subjects.stats.sync = stopWatch.Elapsed.TotalSeconds;
+						diff.stats.sync += stopWatch.Elapsed.TotalSeconds;
+					}
 				}
 
 				if (grade)
 				{
+					diff.grades = new GradesDiff();
+					diff.grades.stats = new SyncStat();
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
-					var nodes = LoadNodes(file, @"_MefEducNat_\d+.xml$");
+					LoadAafGrades();
 					stopWatch.Stop();
-					var load = stopWatch.Elapsed.TotalSeconds;
+					diff.grades.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
-					diff.grades = await SyncGradesAsync(db, nodes, apply);
+					var entGrades = await db.SelectAsync<Grade>("SELECT * FROM `grade`");
 					stopWatch.Stop();
-					diff.grades.stats.load = load;
-					diff.grades.stats.sync = stopWatch.Elapsed.TotalSeconds;
+					diff.grades.stats.entLoad = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
+					stopWatch = new Stopwatch();
+					stopWatch.Start();
+					diff.grades.diff = Model.Diff(entGrades, aafGrades, (src, dst) => src.id == dst.id);
+					stopWatch.Stop();
+					diff.grades.stats.diff = stopWatch.Elapsed.TotalSeconds;
+					diff.grades.stats.addCount += diff.grades.diff.add.Count;
+					diff.grades.stats.changeCount += diff.grades.diff.change.Count;
+					diff.grades.stats.removeCount += diff.grades.diff.remove.Count;
+					diff.stats.diff += stopWatch.Elapsed.TotalSeconds;
+					if (apply)
+					{
+						stopWatch = new Stopwatch();
+						stopWatch.Start();
+						await diff.grades.diff.ApplyAsync(db);
+						stopWatch.Stop();
+						diff.grades.stats.sync = stopWatch.Elapsed.TotalSeconds;
+						diff.stats.sync += stopWatch.Elapsed.TotalSeconds;
+					}
 				}
 
 				if (structure)
 				{
+					diff.structures = new StructuresDiff();
+					diff.structures.stats = new SyncStat();
+
+					var entInterStructures = entStructures.FindAll((obj) => IsSyncStructure(obj.id));
+					var aafInterStructures = aafStructures.FindAll((obj) => IsSyncStructure(obj.id));
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
-					var nodes = LoadNodes(file, @"_EtabEducNat_\d+.xml$");
+					diff.structures.diff = Model.Diff(
+						entInterStructures, aafInterStructures,
+						(src, dst) => src.id == dst.id,
+						(src, dst) =>
+					{
+						var itemDiff = src.DiffWithId(dst);
+						var groupsDiff = Model.Diff(
+							src.groups.FindAll((obj) => obj.aaf_name != null), dst.groups,
+							(s, d) => s.type == d.type && s.aaf_name == d.aaf_name,
+							(s2, d2) =>
+						{
+							var groupDiff = s2.DiffWithId(d2);
+							var gradesDiff = Model.Diff(s2.grades, d2.grades, (s3, d3) => s3.grade_id == d3.grade_id);
+							if (!gradesDiff.IsEmpty)
+							{
+								groupDiff.grades = new ModelList<GroupGrade>();
+								groupDiff.grades.diff = gradesDiff;
+							}
+							return groupDiff;
+						});
+						if (!groupsDiff.IsEmpty)
+						{
+							itemDiff.groups = new ModelList<Group>();
+							itemDiff.groups.diff = groupsDiff;
+							foreach (var addGroup in groupsDiff.add)
+							{
+								addGroup.Fields.Remove(nameof(addGroup.id));
+								addGroup.name = addGroup.aaf_name;
+								addGroup.aaf_mtime = DateTime.Now;
+							}
+						}
+						return itemDiff;
+					});
 					stopWatch.Stop();
-					var load = stopWatch.Elapsed.TotalSeconds;
+					diff.structures.stats.diff = stopWatch.Elapsed.TotalSeconds;
+					diff.structures.stats.changeCount = diff.structures.diff.change.Count;
+					diff.stats.diff += stopWatch.Elapsed.TotalSeconds;
+
+					diff.structures.diff.Fields.Remove(nameof(diff.structures.diff.remove));
+					diff.structures.diff.Fields.Remove(nameof(diff.structures.diff.add));
+					if (apply)
+					{
+						stopWatch = new Stopwatch();
+						stopWatch.Start();
+						await diff.structures.diff.ApplyAsync(db);
+						stopWatch.Stop();
+						diff.structures.stats.sync = stopWatch.Elapsed.TotalSeconds;
+						diff.stats.sync += stopWatch.Elapsed.TotalSeconds;
+					}
+				}
+
+				if (persEducNat || eleve || persRelEleve)
+				{
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
-					diff.structures = await SyncStructuresAsync(db, nodes, apply);
+					await LoadEntUsersAsync(db);
 					stopWatch.Stop();
-					diff.structures.stats.load = load;
-					diff.structures.stats.sync = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
+					entSyncSeenUsers = new Dictionary<string, User>();
+					// build the group resolver service
+					if (structure && apply)
+						await LoadEntStructuresAsync(db, interStructuresIds);
+					// use the ENT known groups to resolv groups for users
+					BuildEntGroupByTypeStructureAafName();
 				}
 
 				if (persEducNat)
 				{
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
-					var nodes = LoadNodes(file, @"_PersEducNat_\d+.xml$");
+					var aafTeachers = GetAafTeachers();
 					stopWatch.Stop();
-					var load = stopWatch.Elapsed.TotalSeconds;
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					diff.persEducNat = await SyncPersEducNatAsync(db, nodes, apply);
-					stopWatch.Stop();
-					diff.persEducNat.stats.load = load;
-					diff.persEducNat.stats.sync = stopWatch.Elapsed.TotalSeconds;
-				}
-
-				//var stopWatch = new Stopwatch();
-				//stopWatch.Start();
-				//stopWatch.Stop();
-				//Console.WriteLine($"LOAD PARENTS ELAPSE TIME: {stopWatch.Elapsed.TotalSeconds} s");
-
-				if (eleve)
-				{
-					diff.parents = new ParentsDiff();
-					diff.parents.stats = new SyncStat();
-
-					Dictionary<long, User> aafParents = null;
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					aafParents = LoadPersRelEleveEducNatAsync(LoadNodes(file, @"_PersRelEleve_\d+.xml$"));
-					stopWatch.Stop();
-					diff.parents.stats.load = stopWatch.Elapsed.TotalSeconds;
-
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					var nodes = LoadNodes(file, @"_Eleve_\d+.xml$");
-					stopWatch.Stop();
-					var load = stopWatch.Elapsed.TotalSeconds;
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					diff.eleves = await SyncEleveAsync(db, nodes, persRelEleve, aafParents, apply);
-					stopWatch.Stop();
-					diff.eleves.stats.load = load;
-					diff.eleves.stats.sync = stopWatch.Elapsed.TotalSeconds;
+					diff.persEducNat = await SyncPersEducNatAsync(db, aafTeachers, apply);
+					diff.persEducNat.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+					diff.stats.diff += diff.persEducNat.stats.diff;
+					diff.stats.sync += diff.persEducNat.stats.sync;
 				}
 
 				if (persRelEleve)
 				{
-					// sync parents profiles
-					foreach (var structureItem in structures.Values)
-						await SyncStructureParentsProfilesAsync(db, structureItem.id, apply);
+					stopWatch = new Stopwatch();
+					stopWatch.Start();
+					LoadAafPersRelEleve();
+					LoadAafEleve();
+					stopWatch.Stop();
+					diff.parents = await SyncPersRelEleveAsync(db, aafParents, apply);
+					diff.parents.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+					diff.stats.diff += diff.parents.stats.diff;
+					diff.stats.sync += diff.parents.stats.sync;
+				}
+
+				if (eleve)
+				{
+					stopWatch = new Stopwatch();
+					stopWatch.Start();
+					LoadAafEleve();
+					stopWatch.Stop();
+					diff.eleves = await SyncEleveAsync(db, aafStudents, apply);
+					diff.eleves.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+					diff.stats.diff += diff.eleves.stats.diff;
+					diff.stats.sync += diff.eleves.stats.sync;
+				}
+
+				if (persEducNat || persRelEleve || eleve)
+				{
+					diff.global = await SyncNotSeenUsersAsync(db, persEducNat, persRelEleve, eleve, apply);
+					diff.stats.diff += diff.global.stats.diff;
+					diff.stats.sync += diff.global.stats.sync;
 				}
 
 				db.Commit();
 			}
+
+			diff.errors = new ModelList<Error>();
+			foreach (string error in errors)
+				diff.errors.Add(new Error { message = error });
 
 			totalWatch.Stop();
 			diff.stats.total = totalWatch.Elapsed.TotalSeconds;
@@ -303,84 +521,7 @@ namespace Laclasse.Aaf
 			[ModelField]
 			public SyncStat stats { get { return GetField<SyncStat>("stats", null); } set { SetField("stats", value); } }
 			[ModelField]
-			public ModelList<Error> errors { get { return GetField<ModelList<Error>>("errors", null); } set { SetField("errors", value); } }
-			[ModelField]
-			public ModelList<Subject> add { get { return GetField<ModelList<Subject>>("add", null); } set { SetField("add", value); } }
-			[ModelField]
-			public ModelList<Subject> change { get { return GetField<ModelList<Subject>>("change", null); } set { SetField("change", value); } }
-			[ModelField]
-			public ModelList<Subject> remove { get { return GetField<ModelList<Subject>>("remove", null); } set { SetField("remove", value); } }
-		}
-
-		public async Task<SubjectsDiff> SyncSubjectsAsync(DB db, List<XmlNode> nodes, bool apply)
-		{
-			Console.WriteLine("SUBJECTS SYNCHRONIZE");
-
-			var diff = new SubjectsDiff();
-			diff.stats = new SyncStat();
-			diff.errors = new ModelList<Error>();
-			diff.add = new ModelList<Subject>();
-			diff.change = new ModelList<Subject>();
-			diff.remove = new ModelList<Subject>();
-
-			var aafSubjects = new Dictionary<string, Subject>();
-
-			foreach (XmlNode node in nodes)
-			{
-				var id = node["identifier"]["id"].InnerText;
-				string ENTMatJointure = null;
-				string ENTLibelleMatiere = null;
-				foreach (XmlNode attr in node["attributes"])
-				{
-					if (attr.Attributes["name"].Value == "ENTMatJointure")
-						ENTMatJointure = attr["value"].InnerText;
-					else if (attr.Attributes["name"].Value == "ENTLibelleMatiere")
-						ENTLibelleMatiere = attr["value"].InnerText;
-				}
-				if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(ENTMatJointure) &&
-				   !string.IsNullOrEmpty(ENTLibelleMatiere) && (ENTMatJointure == id))
-					aafSubjects[id] = new Subject { id = id, name = ENTLibelleMatiere };
-			}
-
-			var entSubjects = new Dictionary<string, Subject>();
-			var items = await db.SelectAsync<Subject>("SELECT * FROM subject");
-			foreach (var item in items)
-				entSubjects[item.id] = item;
-
-			foreach (var id in aafSubjects.Keys)
-			{
-				if (entSubjects.ContainsKey(id))
-				{
-					if (entSubjects[id].name != aafSubjects[id].name)
-					{
-						Console.WriteLine($"SUBJECT CHANGED {id} {entSubjects[id].name} => {aafSubjects[id].name}");
-						var subjectDiff = entSubjects[id].DiffWithId(aafSubjects[id]);
-						if (apply)
-							await subjectDiff.UpdateAsync(db);
-						diff.change.Add(subjectDiff);
-					}
-				}
-				else
-				{
-					Console.WriteLine($"SUBJECT NEW {id} {aafSubjects[id].name}");
-					if (apply)
-						await aafSubjects[id].SaveAsync(db);
-					diff.add.Add(aafSubjects[id]);
-				}
-			}
-
-			foreach (var id in entSubjects.Keys)
-			{
-				if (!aafSubjects.ContainsKey(id))
-				{
-					Console.WriteLine($"SUBJECT REMOVE {id} {entSubjects[id].name}");
-					if (apply)
-						await entSubjects[id].DeleteAsync(db);
-					diff.remove.Add(entSubjects[id]);
-				}
-			}
-
-			return diff;
+			public ModelListDiff<Subject> diff { get { return GetField<ModelListDiff<Subject>>(nameof(diff), null); } set { SetField(nameof(diff), value);	} }
 		}
 
 		public class Error : Model
@@ -394,1063 +535,740 @@ namespace Laclasse.Aaf
 			[ModelField]
 			public SyncStat stats { get { return GetField<SyncStat>("stats", null); } set { SetField("stats", value); } }
 			[ModelField]
-			public ModelList<Error> errors { get { return GetField<ModelList<Error>>("errors", null); } set { SetField("errors", value); } }
-			[ModelField]
-			public ModelList<Grade> add { get { return GetField<ModelList<Grade>>("add", null); } set { SetField("add", value); } }
-			[ModelField]
-			public ModelList<Grade> change { get { return GetField<ModelList<Grade>>("change", null); } set { SetField("change", value); } }
-			[ModelField]
-			public ModelList<Grade> remove { get { return GetField<ModelList<Grade>>("remove", null); } set { SetField("remove", value); } }
-		}
-
-		public async Task<GradesDiff> SyncGradesAsync(DB db, List<XmlNode> nodes, bool apply)
-		{
-			Console.WriteLine("GRADES SYNCHRONIZE");
-
-			var diff = new GradesDiff();
-			diff.stats = new SyncStat();
-			diff.errors = new ModelList<Error>();
-			diff.add = new ModelList<Grade>();
-			diff.change = new ModelList<Grade>();
-			diff.remove = new ModelList<Grade>();
-
-			var aafGrades = new Dictionary<string, Grade>();
-
-			foreach (XmlNode node in nodes)
-			{
-				var id = node["identifier"]["id"].InnerText;
-				string ENTMefJointure = null;
-				string ENTLibelleMef = null;
-				string ENTMEFRattach = null;
-				string ENTMEFSTAT11 = null;
-				foreach (XmlNode attr in node["attributes"])
-				{
-					switch (attr.Attributes["name"].Value)
-					{
-						case "ENTMefJointure":
-							ENTMefJointure = attr["value"].InnerText;
-							break;
-						case "ENTLibelleMef":
-							ENTLibelleMef = attr["value"].InnerText;
-							break;
-						case "ENTMEFRattach":
-							ENTMEFRattach = attr["value"].InnerText;
-							break;
-						case "ENTMEFSTAT11":
-							ENTMEFSTAT11 = attr["value"].InnerText;
-							break;
-					}
-				}
-				if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(ENTMefJointure) &&
-					!string.IsNullOrEmpty(ENTLibelleMef) && !string.IsNullOrEmpty(ENTMEFRattach) &&
-					!string.IsNullOrEmpty(ENTMEFSTAT11) && (ENTMefJointure == id))
-				{
-					// only take "l'école primaire et secondaire". They starts with
-					// 0 and 1
-					if (id.StartsWith("0", StringComparison.InvariantCulture) ||
-					    id.StartsWith("1", StringComparison.InvariantCulture))
-					{
-						aafGrades[id] = new Grade
-						{
-							id = id,
-							name = ENTLibelleMef,
-							rattach = ENTMEFRattach,
-							stat = ENTMEFSTAT11
-						};
-					}
-				}
-			}
-
-			var entGrades = new Dictionary<string, Grade>();
-
-			var items = await db.SelectAsync<Grade>("SELECT * FROM grade");
-			foreach (var item in items)
-				entGrades[item.id] = item;
-			
-			foreach (var id in aafGrades.Keys)
-			{
-				if (entGrades.ContainsKey(id))
-				{
-					if (entGrades[id] != aafGrades[id])
-					{
-						Console.WriteLine($"GRADE CHANGED {id} {entGrades[id].name} => {aafGrades[id].name}");
-						var gradeDiff = entGrades[id].DiffWithId(aafGrades[id]);
-						if (apply)
-							await gradeDiff.UpdateAsync(db);
-						diff.change.Add(gradeDiff);
-					}
-				}
-				else
-				{
-					Console.WriteLine($"GRADE NEW {id} {aafGrades[id].name}");
-					if (apply)
-						await aafGrades[id].SaveAsync(db);
-					diff.add.Add(aafGrades[id]);
-				}
-			}
-
-			foreach (var id in entGrades.Keys)
-			{
-				if (!aafGrades.ContainsKey(id))
-				{
-					Console.WriteLine($"GRADE REMOVE {id} {entGrades[id].name}");
-					if (apply)
-						await entGrades[id].DeleteAsync(db);
-					diff.remove.Add(entGrades[id]);
-				}
-			}
-
-			return diff;
+			public ModelListDiff<Grade> diff { get { return GetField<ModelListDiff<Grade>>("diff", null); } set { SetField("diff", value); } }
 		}
 
 		public class GroupsDiff : Model
 		{
 			[ModelField]
-			public ModelList<Group> add { get { return GetField<ModelList<Group>>("add", null); } set { SetField("add", value); } }
+			public SyncStat stats { get { return GetField<SyncStat>(nameof(stats), null); } set { SetField(nameof(stats), value); } }
 			[ModelField]
-			public ModelList<Group> change { get { return GetField<ModelList<Group>>("change", null); } set { SetField("change", value); } }
-			[ModelField]
-			public ModelList<Group> remove { get { return GetField<ModelList<Group>>("remove", null); } set { SetField("remove", value); } }
+			public ModelListDiff<Group> diff { get { return GetField<ModelListDiff<Group>>(nameof(diff), null); } set { SetField(nameof(diff), value); } }
 		}
-
 
 		public class StructuresDiff : Model
 		{
 			[ModelField]
-			public SyncStat stats { get { return GetField<SyncStat>("stats", null); } set { SetField("stats", value); } }
+			public SyncStat stats { get { return GetField<SyncStat>(nameof(stats), null); } set { SetField(nameof(stats), value); } }
 			[ModelField]
-			public ModelList<Error> errors { get { return GetField<ModelList<Error>>("errors", null); } set { SetField("errors", value); } }
-			[ModelField]
-			public ModelList<Structure> change { get { return GetField<ModelList<Structure>>("change", null); } set { SetField("change", value); } }
-			[ModelField]
-			public GroupsDiff groups { get { return GetField<GroupsDiff>("groups", null); } set { SetField("groups", value); } }
+			public ModelListDiff<Structure> diff { get { return GetField<ModelListDiff<Structure>>(nameof(diff), null); } set { SetField(nameof(diff), value); } }
 		}
 
-		public async Task<StructuresDiff> SyncStructuresAsync(DB db, List<XmlNode> nodes, bool apply)
+		void BuildEntGroupByTypeStructureAafName()
 		{
-			Console.WriteLine("STRUCTURES SYNCHRONIZE");
-
-			var diff = new StructuresDiff();
-			diff.stats = new SyncStat();
-			diff.errors = new ModelList<Error>();
-			diff.change = new ModelList<Structure>();
-			diff.groups = new GroupsDiff();
-			diff.groups.add = new ModelList<Group>();
-			diff.groups.change = new ModelList<Group>();
-			diff.groups.remove = new ModelList<Group>();
-
-			var aafEtabs = new Dictionary<string, Structure>();
-
-			foreach (XmlNode node in nodes)
-			{
-				var id = node["identifier"]["id"].InnerText;
-				List<string> ENTStructureClasses = null;
-				List<string> ENTStructureGroupes = null;
-				var attrs = new Dictionary<string, string>();
-				foreach (XmlNode attr in node["attributes"])
-				{
-					attrs[attr.Attributes["name"].Value] = attr["value"].InnerText;
-					if (attr.Attributes["name"].Value == "ENTStructureClasses")
-					{
-						ENTStructureClasses = new List<string>();
-						foreach (XmlNode childNode in attr.ChildNodes)
-							ENTStructureClasses.Add(childNode.InnerText);
-					}
-					else if (attr.Attributes["name"].Value == "ENTStructureGroupes")
-					{
-						ENTStructureGroupes = new List<string>();
-						foreach (XmlNode childNode in attr.ChildNodes)
-							ENTStructureGroupes.Add(childNode.InnerText);
-					}
-				}
-				attrs.RequireFields(
-					"ENTStructureJointure", "ENTStructureUAI", "ENTEtablissementUAI",
-					"ENTStructureSIREN", "ENTStructureNomCourant", "ENTStructureTypeStruct",
-					"ENTEtablissementMinistereTutelle", "ENTEtablissementContrat", "postOfficeBox",
-					"street", "postalCode", "l", "telephoneNumber", "facsimileTelephoneNumber",
-					"ENTEtablissementStructRattachFctl", "ENTEtablissementBassin", "ENTServAcAcademie");
-
-				var ENTStructureNomCourant = attrs["ENTStructureNomCourant"];
-				var ENTServAcAcademie = attrs["ENTServAcAcademie"];
-				// remove the Academie name at the end if present
-				ENTStructureNomCourant = System.Text.RegularExpressions.Regex.Replace(ENTStructureNomCourant, $"-ac-{ENTServAcAcademie}$", "");
-
-				aafEtabs[attrs["ENTStructureUAI"]] = new Structure
-				{
-					id = attrs["ENTStructureUAI"],
-					aaf_jointure_id = Convert.ToInt32(attrs["ENTStructureJointure"]),
-					siren = attrs["ENTStructureSIREN"],
-					name = ENTStructureNomCourant,
-					address = attrs["street"],
-					zip_code = attrs["postalCode"],
-					city = attrs["l"],
-					phone = attrs["telephoneNumber"],
-					fax = attrs["facsimileTelephoneNumber"]
-				};
-				aafEtabs[attrs["ENTStructureUAI"]].Fields["ENTStructureClasses"] = ENTStructureClasses;
-				aafEtabs[attrs["ENTStructureUAI"]].Fields["ENTStructureGroupes"] = ENTStructureGroupes;
-			}
-			var entStructs = new Dictionary<string, Structure>();
-			foreach (var item in structures.Values)
-				entStructs[item.id] = item;
-			diff.stats.count = entStructs.Values.Count;
-			Console.WriteLine($"ETABS ENT COUNT: {entStructs.Count}");
-
-			foreach (var id in aafEtabs.Keys)
-			{
-				if (entStructs.ContainsKey(id))
-				{
-					if (!entStructs[id].EqualsIntersection(aafEtabs[id]))
-					{
-						Console.WriteLine($"STRUCTURES CHANGED {id} {entStructs[id].name} => {aafEtabs[id].name}");
-						var itemDiff = entStructs[id].DiffWithId(aafEtabs[id]);
-						itemDiff.aaf_mtime = DateTime.Now;
-						if (apply)
-							await itemDiff.UpdateAsync(db);
-						diff.change.Add(itemDiff);
-					}
-
-					// check structure groups
-					var structGroups = await entStructs[id].GetGroupsAsync(db);
-					var entClasses = new Dictionary<string, Group>();
-					var entGroupes = new Dictionary<string, Group>();
-					foreach (var group in structGroups)
-					{
-						// only keep groups generated by the AAF
-						if (group.aaf_name == null)
-							continue;
-						if (group.type == "CLS")
-							entClasses[group.aaf_name] = group;
-						else if (group.type == "GRP")
-							entGroupes[group.aaf_name] = group;
-					}
-
-					// handle CLASSES
-					var aafClasses = new Dictionary<string, Group>();
-					foreach (var aafClasse in (List<string>)aafEtabs[id].Fields["ENTStructureClasses"])
-					{
-						if (string.IsNullOrEmpty(aafClasse))
-							continue;
-
-						var tab = aafClasse.Split('$');
-						if (tab.Length < 3)
-							throw new Exception($"For structure {id} Invalid classes define {aafClasse}");
-						var classe = new Group
-						{
-							aaf_name = tab[0],
-							structure_id = id,
-							name = tab[0],
-							description = string.IsNullOrEmpty(tab[1]) ? null : tab[1]
-						};
-						// TODO: change this
-						classe.Fields["aaf_grades"] = tab.Skip(2);
-						aafClasses[classe.aaf_name] = classe;
-					}
-
-					foreach (var classeId in aafClasses.Keys)
-					{
-						var aafClasse = aafClasses[classeId];
-						Group entClasse = null;
-						if (entClasses.ContainsKey(classeId))
-						{
-							entClasse = entClasses[classeId];
-							if (!entClasse.EqualsIntersection(aafClasse))
-							{
-								Console.WriteLine($"CLASSE CHANGED {classeId} {entClasse.name} => {aafClasse.name}");
-								var itemDiff = entClasse.DiffWithId(aafClasse);
-								itemDiff.aaf_mtime = DateTime.Now;
-								if (apply)
-								{
-									await itemDiff.UpdateAsync(db);
-									await entClasse.LoadAsync(db);
-								}
-								diff.groups.change.Add(itemDiff);
-							}
-							// synchronize the group's grades
-							await entClasse.LoadExpandFieldAsync(db, nameof(Group.grades));
-						}
-						else
-						{
-							Console.WriteLine($"CLASSE NEW {classeId} {aafClasse.name}");
-							aafClasse.type = "CLS";
-							aafClasse.aaf_mtime = DateTime.Now;
-							if (apply)
-								await aafClasse.SaveAsync(db, true);
-							entClasse = aafClasse;
-							diff.groups.add.Add(aafClasse);
-							entClasse.grades = new ModelList<GroupGrade>();
-						}
-
-						var aafClasseGrades = (IEnumerable<string>)aafClasses[classeId].Fields["aaf_grades"];
-
-						foreach (var classeGrade in entClasse.grades)
-						{
-							if (!aafClasseGrades.Contains(classeGrade.grade_id))
-							{
-								Console.WriteLine($"CLASSE {classeId} REMOVE GRADE {classeGrade.grade_id}");
-								if (apply)
-									await classeGrade.DeleteAsync(db);
-								// TODO: notify a group change
-							}
-						}
-
-						foreach (var gradeId in aafClasseGrades)
-						{
-							var foundGrade = entClasse.grades.FirstOrDefault((arg) => arg.grade_id == gradeId);
-							if (foundGrade == null)
-							{
-								Console.WriteLine($"CLASSE {classeId} ADD GRADE {gradeId}");
-								var newGroupGrade = new GroupGrade
-								{
-									group_id = entClasse.id,
-									grade_id = gradeId
-								};
-								if (apply)
-									await newGroupGrade.InsertAsync(db);
-								// TODO: notify a group change
-							}
-						}
-					}
-
-					foreach (var classeId in entClasses.Keys)
-					{
-						if (!aafClasses.ContainsKey(classeId))
-						{
-							Console.WriteLine($"CLASSE REMOVE {classeId} {entClasses[classeId].name}");
-							// remove the "classe"
-							if (apply)
-								await entClasses[classeId].DeleteAsync(db);
-							diff.groups.remove.Add(entClasses[classeId]);
-						}
-					}
-
-					// handle GROUPES ELEVES
-					var aafGroupes = new Dictionary<string, Group>();
-					foreach (var aafGroupe in (List<string>)aafEtabs[id].Fields["ENTStructureGroupes"])
-					{
-						if (string.IsNullOrEmpty(aafGroupe))
-							continue;
-
-						var tab = aafGroupe.Split('$');
-						if (tab.Length < 2)
-							throw new Exception($"For structure {id} invalid groupe define {aafGroupe}");
-						var groupe = new Group
-						{
-							aaf_name = tab[0],
-							structure_id = id,
-							name = tab[0],
-							description = string.IsNullOrEmpty(tab[1]) ? null : tab[1]
-						};
-						aafGroupes[groupe.aaf_name] = groupe;
-					}
-
-					foreach (var groupeId in aafGroupes.Keys)
-					{
-						if (entGroupes.ContainsKey(groupeId))
-						{
-							if (!entGroupes[groupeId].EqualsIntersection(aafGroupes[groupeId]))
-							{
-								Console.WriteLine($"GROUPE CHANGED {groupeId} {entGroupes[groupeId].name} => {aafGroupes[groupeId].name}");
-								var itemDiff = entGroupes[groupeId].DiffWithId(aafGroupes[groupeId]);
-								itemDiff.aaf_mtime = DateTime.Now;
-								if (apply)
-									await itemDiff.UpdateAsync(db);
-								diff.groups.change.Add(itemDiff);
-							}
-						}
-						else
-						{
-							Console.WriteLine($"GROUPE NEW {groupeId} {aafGroupes[groupeId].name}");
-							aafGroupes[groupeId].type = "GRP";
-							aafGroupes[groupeId].aaf_mtime = DateTime.Now;
-							if (apply)
-								await aafGroupes[groupeId].InsertAsync(db);
-							diff.groups.add.Add(aafGroupes[groupeId]);
-						}
-					}
-
-					foreach (var groupeId in entGroupes.Keys)
-					{
-						if (!aafGroupes.ContainsKey(groupeId))
-						{
-							Console.WriteLine($"GROUPE REMOVE {groupeId} {entGroupes[groupeId].name}");
-							if (apply)
-								await entGroupes[groupeId].DeleteAsync(db);
-							diff.groups.remove.Add(entGroupes[groupeId]);
-						}
-					}
-				}
-			}
-			return diff;
-		}
-
-		public async Task<Dictionary<int, Structure>> LoadEntStructuresAsync(DB db)
-		{
-			var entStructures = new Dictionary<int, Structure>();
-
-			var items = await db.SelectAsync<Structure>("SELECT * FROM `structure` WHERE `aaf_jointure_id` IS NOT NULL AND `aaf_sync_activated`=TRUE");
-			foreach (var item in items)
-				entStructures[(int)item.aaf_jointure_id] = item;
+			entGroupByTypeStructureAafName = new Dictionary<string, Group>();
 			
-			return entStructures;
-		}
-
-		public async Task<Dictionary<string, ProfileType>> LoadEntProfilesTypesAsync(DB db)
-		{
-			var entProfilesTypes = new Dictionary<string, ProfileType>();
-
-			var items = await db.SelectAsync<ProfileType>("SELECT * FROM `profile_type`");
-			foreach (var item in items)
-				entProfilesTypes[item.id] = item;
-			return entProfilesTypes;
-		}
-
-		public async Task<Dictionary<int, Group>> LoadEntGroupsAsync(DB db)
-		{
-			var entGroups = new Dictionary<int, Group>();
-
-			var items = await db.SelectAsync<Group>("SELECT * FROM `group` WHERE `aaf_name` IS NOT NULL");
-			foreach (var item in items)
-				entGroups[item.id] = item;
-			
-			return entGroups;
-		}
-
-		public enum GroupType
-		{
-			CLS,
-			GRP
-		}
-
-		public async Task<Dictionary<string, Dictionary<string,Group>>> LoadEntStructuresGroupsAsync(DB db, GroupType type)
-		{
-			var entStructuresGroups = new Dictionary<string, Dictionary<string,Group>>();
-			string currentStructId = null;
-			Dictionary<string, Group> currentStructGroups = null;
-
-			var items = await db.SelectAsync<Group>("SELECT * FROM `group` WHERE `aaf_name` IS NOT NULL AND `structure_id` IS NOT NULL AND `type`=? ORDER BY `structure_id`", type.ToString());
-			foreach (var item in items)
+			foreach (var struc in entStructures)
 			{
-				if (currentStructId != item.structure_id)
+				foreach (var group in struc.groups)
 				{
-					currentStructGroups = new Dictionary<string, Group>();
-					currentStructId = item.structure_id;
-					entStructuresGroups[currentStructId] = currentStructGroups;
-				}
-				currentStructGroups[item.aaf_name] = item;
-			}
-
-			return entStructuresGroups;
-		}
-
-		public Dictionary<long,User> LoadPersRelEleveEducNatAsync(List<XmlNode> nodes)
-		{
-			var aafParents = new Dictionary<long, User>();
-			var mulFields = new string[] { "mobile", "mail" };
-
-			long id;
-			Dictionary<string, string> attrs;
-			Dictionary<string, List<string>> attrsMul;
-
-			foreach (XmlNode node in nodes)
-			{
-				ReadAttributes(node, mulFields, out id, out attrs, out attrsMul);
-				var aafParent = AttributesToUser(id, attrs, attrsMul);
-				aafParent.Fields["attrs"] = attrs;
-				aafParent.Fields["attrsMul"] = attrsMul;
-				aafParents[id] = aafParent;
-			}
-			return aafParents;
-		}
-
-		async Task<Subject> GetOrCreateSubjectAsync(DB db, string id)
-		{
-			Subject subject = null;
-			if (subjects == null)
-			{
-				subjects = new Dictionary<string, Subject>();
-				foreach (var sub in await db.SelectAsync<Subject>("SELECT * FROM subject"))
-					subjects[sub.id] = sub;
-			}
-			if (subjects.ContainsKey(id))
-				subject = subjects[id];
-			else
-			{
-				subject = new Subject { id = id };
-				await subject.SaveAsync(db);
-				subjects[id] = subject;
-			}
-			return subject;
-		}
-
-		Group GetGroupByAaf(int aaf_structure_id, string aaf_name, GroupType type)
-		{
-			Group group = null;
-			if (structures.ContainsKey(aaf_structure_id))
-			{
-				var structure = structures[aaf_structure_id];
-				if (type == GroupType.CLS)
-				{
-					if (structuresGroupsClasses.ContainsKey(structure.id))
-					{
-						var structGroups = structuresGroupsClasses[structure.id];
-						if (structGroups.ContainsKey(aaf_name))
-							group = structGroups[aaf_name];
-					}
-				}
-				else
-				{
-					if (structuresGroupsGroupes.ContainsKey(structure.id))
-					{
-						var structGroups = structuresGroupsGroupes[structure.id];
-						if (structGroups.ContainsKey(aaf_name))
-							group = structGroups[aaf_name];
-					}
+					if ((group.type != "CLS") && (group.type != "GRP"))
+						continue;
+					if (group.aaf_name == null)
+						continue;
+					entGroupByTypeStructureAafName[$"{struc.id}${group.type}${group.aaf_name}"] = group;
 				}
 			}
-			return group;
 		}
 
-		public class PersEducNatDiff : Model
+		public async Task LoadEntStructuresAsync(DB db, IEnumerable<string> structuresIds = null)
+		{
+			var sql = "SELECT * FROM `structure`";
+			if (structuresIds != null)
+				sql += " WHERE " + db.InFilter("id", structuresIds);
+
+			entGroupsById = new Dictionary<int, Group>();
+			entStructuresByAafId = new Dictionary<int, Structure>();
+			entStructuresById = new Dictionary<string, Structure>();
+			entStructures = await db.SelectExpandAsync<Structure>(sql, new object[] { });
+			foreach (var structure in entStructures)
+			{
+				entStructuresById[structure.id] = structure;
+				if (structure.aaf_jointure_id != null)
+					entStructuresByAafId[(int)structure.aaf_jointure_id] = structure;
+				foreach (var group in structure.groups)
+				{
+					await group.LoadExpandFieldAsync(db, nameof(group.grades));
+					entGroupsById[group.id] = group;
+				}
+			}
+		}
+
+		public async Task LoadEntUsersAsync(DB db)
+		{
+			entUsersByAafId = new Dictionary<int, User>();
+			entUsersByAcademicEmail = new Dictionary<string, User>();
+			entUsersByNameBirthdate = new Dictionary<string, User>();
+			entUsersByStructRattachId = new Dictionary<int, User>();
+
+			var items = await db.SelectExpandAsync<User>("SELECT * FROM `user`", new object[] { });
+			foreach (var user in items)
+			{
+				if (user.aaf_jointure_id != null)
+					entUsersByAafId[(int)user.aaf_jointure_id] = user;
+				foreach (var email in user.emails)
+					if (email.type == "Academique")
+						entUsersByAcademicEmail[email.address.ToLower()] = user;
+				if ((user.firstname != null) && (user.lastname != null) && (user.birthdate != null))
+					entUsersByNameBirthdate[user.firstname.RemoveDiacritics().ToLowerInvariant() + "$" +
+					                        user.lastname.RemoveDiacritics().ToLowerInvariant() + "$" +
+					                        ((DateTime)user.birthdate).ToString("d")] = user;
+				if (user.aaf_struct_rattach_id != null)
+					entUsersByStructRattachId[(int)user.aaf_struct_rattach_id] = user;
+			}
+		}
+
+		void LoadAafPersRelEleve()
+		{
+			if (aafParentsByAafId != null)
+				return;
+
+			aafParentsById = new Dictionary<string, User>();
+			aafParentsByAafId = new Dictionary<long, User>();
+			aafParents = GetAafUsers(zipFile.LoadNodes(@"_PersRelEleve_\d+.xml$"));
+
+			foreach (var aafParent in aafParents)
+			{
+				aafParentsById[aafParent.id] = aafParent;
+				aafParentsByAafId[(long)aafParent.aaf_jointure_id] = aafParent;
+			}
+		}
+
+		void LoadAafEleve()
+		{
+			LoadAafPersRelEleve();
+			if (aafStudents != null)
+				return;
+
+			aafStudents = GetAafUsers(zipFile.LoadNodes(@"_Eleve_\d+.xml$"));
+		}
+
+		public User GetEntUserByAaf(int aaf_jointure_id)
+		{
+			return entUsersByAafId.ContainsKey(aaf_jointure_id) ? entUsersByAafId[aaf_jointure_id] : null;
+		}
+
+		public User GetUserByAcademicEmail(string email)
+		{
+			var key = email.ToLower();
+			return entUsersByAcademicEmail.ContainsKey(key) ? entUsersByAcademicEmail[key] : null;
+		}
+
+		public User GetEntUserByNameBirthdate(string firstname, string lastname, DateTime? birthdate)
+		{
+			if ((firstname == null) || (lastname == null) && (birthdate == null))
+				return null;
+			var key = firstname.RemoveDiacritics().ToLowerInvariant() + "$" +
+			    lastname.RemoveDiacritics().ToLowerInvariant() + "$" +
+			    ((DateTime)birthdate).ToString("d");
+			return entUsersByNameBirthdate.ContainsKey(key) ? entUsersByNameBirthdate[key] : null;
+		}
+
+		public User GetEntUserByStructRattachId(int? aaf_struct_rattach_id)
+		{
+			if (aaf_struct_rattach_id == null)
+				return null;
+			return entUsersByStructRattachId.ContainsKey((int)aaf_struct_rattach_id) ? entUsersByStructRattachId[(int)aaf_struct_rattach_id] : null;
+		}
+
+		Group GetEntGroupById(int id)
+		{
+			return entGroupsById.ContainsKey(id) ? entGroupsById[id] : null;
+		}
+
+		ModelList<GroupUser> AafGroupUserToEntGroupUser(ModelList<GroupUser> aafGroupUsers)
+		{
+			var userGroups = new ModelList<GroupUser>();
+			foreach (var aafGroupUser in aafGroupUsers)
+			{
+				if (!aafGroupsById.ContainsKey(aafGroupUser.group_id))
+					continue;
+				var aafGroup = aafGroupsById[aafGroupUser.group_id];
+				if (!IsSyncStructure(aafGroup.structure_id))
+					continue;
+				var entGroup = GetEntGroupByAafGroup(aafGroup);
+				if (entGroup != null)
+					userGroups.Add(new GroupUser { type = aafGroupUser.type, group_id = entGroup.id, subject_id = aafGroupUser.subject_id
+				});
+			}
+			return userGroups;
+		}
+
+		ModelList<UserChild> AafParentsToEntParents(ModelList<UserChild> aafUserChilds)
+		{
+			var userChilds = new ModelList<UserChild>();
+			foreach (var aafUserChild in aafUserChilds)
+			{
+				if (!aafParentsById.ContainsKey(aafUserChild.parent_id))
+					continue;
+				var aafParent = aafParentsById[aafUserChild.parent_id];
+				var entParent = GetEntUserByAaf((int)aafParent.aaf_jointure_id);
+				if (entParent != null)
+				{
+					var entUserChild = new UserChild();
+					foreach (var key in aafUserChild.Fields.Keys)
+						entUserChild.Fields[key] = aafUserChild.Fields[key];
+					entUserChild.Fields.Remove(nameof(entUserChild.child_id));
+					entUserChild.parent_id = entParent.id;
+					userChilds.Add(entUserChild);
+				}
+			}
+			return userChilds;
+		}
+
+		Group GetEntGroupByAafGroup(Group aafGroup)
+		{
+			var key = $"{aafGroup.structure_id}${aafGroup.type}${aafGroup.aaf_name}";
+			return entGroupByTypeStructureAafName.ContainsKey(key) ? entGroupByTypeStructureAafName[key] : null;
+		}
+
+		Group GetAafGroupByAaf(int aaf_structure_id, string aaf_name, GroupType type)
+		{
+			var key = $"{aaf_structure_id}${type}${aaf_name}";
+			return (aafGroupByTypeStructureAafName.ContainsKey(key)) ? aafGroupByTypeStructureAafName[key] : null;
+		}
+
+		Grade GetAafGradeById(string id)
+		{
+			return (aafGradesById.ContainsKey(id)) ? aafGradesById[id] : null;
+		}
+
+		Subject GetSubjectById(string id)
+		{
+			return (entSubjectsById.ContainsKey(id)) ? entSubjectsById[id] : null;
+		}
+
+		Subject GetAafSubjectById(string id)
+		{
+			return (aafSubjectsById.ContainsKey(id)) ? aafSubjectsById[id] : null;
+		}
+
+		public class UsersDiff : Model
 		{
 			[ModelField]
-			public SyncStat stats { get { return GetField<SyncStat>("stats", null); } set { SetField("stats", value); } }
+			public SyncStat stats { get { return GetField<SyncStat>(nameof(stats), null); } set { SetField(nameof(stats), value); } }
 			[ModelField]
-			public ModelList<Error> errors { get { return GetField<ModelList<Error>>("errors", null); } set { SetField("errors", value); } }
-			[ModelField]
-			public ModelList<User> add { get { return GetField<ModelList<User>>("add", null); } set { SetField("add", value); } }
-			[ModelField]
-			public ModelList<User> change { get { return GetField<ModelList<User>>("change", null); } set { SetField("change", value); } }
-			[ModelField]
-			public ModelList<User> remove { get { return GetField<ModelList<User>>("remove", null); } set { SetField("remove", value); } }
+			public ModelListDiff<User> diff { get { return GetField<ModelListDiff<User>>(nameof(diff), null); } set { SetField(nameof(diff), value); } }
 		}
 
-		public async Task<PersEducNatDiff> SyncPersEducNatAsync(DB db, List<XmlNode> nodes, bool apply)
+		public async Task<UsersDiff> SyncPersEducNatAsync(DB db, IEnumerable<User> aafTeachers, bool apply)
 		{
 			Console.WriteLine("PERSEDUCNAT SYNCHRONIZE");
 
-			var mulFields = new string[] {
-				"ENTAuxEnsClassesMatieres", "ENTAuxEnsGroupesMatieres", "ENTPersonFonctions"
-			};
-
-			var diff = new PersEducNatDiff();
+			var diff = new UsersDiff();
 			diff.stats = new SyncStat();
-			diff.stats.count = 0;
-			diff.errors = new ModelList<Error>();
-			diff.add = new ModelList<User>();
-			diff.change = new ModelList<User>();
-			diff.remove = new ModelList<User>();
+			diff.diff = new ModelListDiff<User>();
+			diff.diff.add = new ModelList<User>();
+			diff.diff.change = new ModelList<User>();
 
-			var structuresIds = structures.Values.Select((arg) => arg.id);
+			var stopWatch = new Stopwatch();
+			stopWatch.Start();
 
-			foreach (XmlNode node in nodes)
+			foreach (var aafUser in aafTeachers)
 			{
-				var id = Convert.ToInt64(node["identifier"]["id"].InnerText);
+				var aafUserProfiles = new ModelList<UserProfile>();
+				foreach (var profile in aafUser.profiles)
+					if (IsSyncStructure(profile.structure_id))
+						aafUserProfiles.Add(profile);
+				if (aafUserProfiles.Count == 0)
+					continue;
 
-				var ENTPersonFonctions = new Dictionary<int, string>();
-
-				Dictionary<string, string> attrs;
-				Dictionary<string, List<string>> attrsMul;
-				ReadAttributes(node, mulFields, out id, out attrs, out attrsMul);
-				var aafUser = AttributesToUser(id, attrs, attrsMul);
-
-				if (attrsMul.ContainsKey("ENTPersonFonctions"))
+				var entUser = GetEntUserByAaf((int)aafUser.aaf_jointure_id);
+				if ((entUser == null) && (aafUser.emails != null))
 				{
-					foreach (var fonction in attrsMul["ENTPersonFonctions"])
-					{
-						var tab = fonction.Split('$');
-						// WARNING: profile '-' exists and means nothing
-						if (tab.Length >= 3)
-						{
-							// convert the "fonction" to a profile
-							var profileId = "ETA";
-							if (aafFonctionToProfile.ContainsKey(tab[1]))
-								profileId = aafFonctionToProfile[tab[1]];
-
-							if (profilesTypes.ContainsKey(profileId))
-								ENTPersonFonctions[Convert.ToInt32(tab[0])] = profileId;
-						}
-					}
+					var acaEmail = aafUser.emails.Find((obj) => obj.type == "Academique");
+					if (acaEmail != null)
+						entUser = GetUserByAcademicEmail(acaEmail.address);
 				}
-
-				var entUser = (await db.SelectAsync<User>("SELECT * FROM `user` WHERE `aaf_jointure_id`=?", id)).SingleOrDefault();
-
-				// if user not found, try to find the user by its email
-				if ((entUser == null) && !string.IsNullOrWhiteSpace(attrs["mail"]))
-				{
-					entUser = (await db.SelectAsync<User>(
-						"SELECT * FROM `user` WHERE `aaf_jointure_id` IS NULL AND id IN "+
-						"(SELECT `user_id` FROM `email` WHERE `address` LIKE ? AND `type`='Academique')", attrs["mail"])).SingleOrDefault();
-				}
-
-				var interStructs = ENTPersonFonctions.Keys.Intersect(structures.Keys);
-				var interCount = interStructs.Count();
-
 				if (entUser == null)
 				{
-					// if the user is in a structure we handle
-					if (interCount > 0)
-					{
-						Console.WriteLine($"EDUCNATPERS NEW {aafUser.firstname} {aafUser.lastname}");
-						// create the user
-						if (apply)
-							await aafUser.SaveAsync(db);
-						diff.add.Add(aafUser);
-						Console.WriteLine($"RES CTIME: {aafUser.ctime}");
-						//await aafUser.InsertAsync(db);
-						// create the user "Academique" email
-						if (!string.IsNullOrWhiteSpace(attrs["mail"]))
-						{
-							var email = new Email
-							{
-								user_id = aafUser.id,
-								address = attrs["mail"],
-								type = "Academique"
-							};
-							if (apply)
-								await email.SaveAsync(db);
-						}
-						// create a user "Ent" email (the default for teachers)
-						if (apply)
-							await aafUser.CreateDefaultEntEmailAsync(db);
-						
-						// create the user profiles
-						foreach (var structId in interStructs)
-						{
-							var profile = new UserProfile
-							{
-								user_id = aafUser.id,
-								type = ENTPersonFonctions[structId],
-								structure_id = structures[structId].id,
-								aaf_mtime = DateTime.Now
-							};
-							if (apply)
-								await profile.SaveAsync(db);
-						}
-						// create the user groups
-						if (apply)
-							await SyncUserGroups(db, aafUser, attrsMul["ENTAuxEnsClassesMatieres"],
-							                         attrsMul["ENTAuxEnsGroupesMatieres"]);
-					}
+					aafUser.Fields.Remove(nameof(aafUser.id));
+					aafUser.groups = AafGroupUserToEntGroupUser(aafUser.groups);
+					aafUser.profiles = aafUserProfiles;
+					diff.diff.add.Add(aafUser);
 				}
 				else
 				{
-					if (!entUser.EqualsIntersection(aafUser))
+					// mark the user a seen
+					entSyncSeenUsers[entUser.id] = entUser;
+					var userDiff = entUser.DiffWithId(aafUser);
+					// handle phones
+					if (aafUser.phones != null)
 					{
-						Console.WriteLine($"EDUCNATPERS CHANGED {id} {entUser.firstname} {entUser.lastname} => {aafUser.firstname} {aafUser.lastname}");
-						var itemDiff = entUser.DiffWithId(aafUser);
-
-						if (apply)
-							await itemDiff.UpdateAsync(db);
-						diff.change.Add(itemDiff);
-					}
-					// synchronize fonctions/profiles
-					var aafProfiles = new ModelList<UserProfile>();
-					foreach (var structId in interStructs)
-					{
-						var aafProfile = new UserProfile
+						var phonesDiff = Model.Diff(entUser.phones, aafUser.phones, (s, d) => s.type == d.type && s.number == d.number);
+						if (!phonesDiff.IsEmpty)
 						{
-							user_id = entUser.id,
-							type = ENTPersonFonctions[structId],
-							structure_id = structures[structId].id,
-							aaf_mtime = DateTime.Now
-						};
-						aafProfiles.Add(aafProfile);
+							userDiff.phones = new ModelList<Phone>();
+							userDiff.phones.diff = phonesDiff;
+						}
 					}
-					await SyncUserProfiles(db, await entUser.GetProfilesAsync(db), aafProfiles, structuresIds, apply);
+					// handle emails
+					if (aafUser.emails != null)
+					{
+						var emailsDiff = Model.Diff(entUser.emails.FindAll((obj) => obj.type == "Academique"), aafUser.emails, (s, d) => s.type == d.type && s.address == d.address);
+						if (!emailsDiff.IsEmpty)
+						{
+							userDiff.emails = new ModelList<Email>();
+							userDiff.emails.diff = emailsDiff;
+						}
+					}
+					// handle profiles
+					var profilesDiff = Model.Diff(entUser.profiles.FindAll((obj) => obj.type != "ADM" && IsSyncStructure(obj.structure_id)), aafUserProfiles);
+					if (!profilesDiff.IsEmpty)
+					{
+						userDiff.profiles = new ModelList<UserProfile>();
+						userDiff.profiles.diff = profilesDiff;
+					}
+					// handle groups
+					var entInterGroups = entUser.groups.FindAll((obj) =>
+					{
+						var group = GetEntGroupById(obj.group_id);
+						return (group != null) && IsSyncStructure(group.structure_id);
+					});
+					var aafInterGroups = AafGroupUserToEntGroupUser(aafUser.groups);
+					var groupsDiff = Model.Diff(entInterGroups, aafInterGroups, (src, dst) => src.group_id == dst.group_id && src.type == dst.type && src.subject_id == dst.subject_id);
 
-					// synchronize "classes" and "groupe eleve"
-					if (apply)
-						await SyncUserGroups(db, entUser, attrsMul["ENTAuxEnsClassesMatieres"],
-						                     attrsMul["ENTAuxEnsGroupesMatieres"]);
+					if (!groupsDiff.IsEmpty)
+					{
+						userDiff.groups = new ModelList<GroupUser>();
+						userDiff.groups.diff = groupsDiff;
+					}
+					if (userDiff.Fields.Count > 1)
+						diff.diff.change.Add(userDiff);
 				}
 			}
-			// TODO: remove all profiles managed by the AAF but not seen by the synchronization for the AAF structures
-			// IDEA: always update aaf_mtime in a synchronisation and use the the aaf_mtime to remove old link
 
+			// find all users not seen in the current synchronization with PersEducNat profiles
+			// in the structures seen in the current synchronization and remove them
+			// TODO: improve perf by grouping this garbage collect process with other users types (Eleve, Parent)
+			/*foreach (var entUser in entUsersByAafId.Values)
+			{
+				if (entUser.aaf_jointure_id == null)
+					continue;
+				if (!entSyncSeenUsers.ContainsKey(entUser.id))
+				{
+					User changeUser = null;
+
+					var removeProfiles = entUser.profiles.FindAll((obj) => IsSyncStructure(obj.structure_id) && persEducNatProfiles.Contains(obj.type));
+					if (removeProfiles.Any())
+					{
+						var userRemoveProfiles = new ModelList<UserProfile>();
+						foreach (var userProfile in removeProfiles)
+							userRemoveProfiles.Add(userProfile);
+						changeUser = new User { id = entUser.id };
+						changeUser.profiles = new ModelList<UserProfile>();
+						changeUser.profiles.diff = new ModelListDiff<UserProfile>();
+						changeUser.profiles.diff.remove = userRemoveProfiles;
+					}
+					if (changeUser != null)
+						diff.diff.change.Add(changeUser);
+				}
+			}*/
+
+			stopWatch.Stop();
+			diff.stats.diff = stopWatch.Elapsed.TotalSeconds;
+			diff.stats.addCount = diff.diff.add.Count;
+			diff.stats.changeCount = diff.diff.change.Count;
+
+			if (apply)
+			{
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				await diff.diff.ApplyAsync(db);
+				// add ENT email for new teachers
+				foreach (var addUser in diff.diff.add)
+					await addUser.CreateDefaultEntEmailAsync(db);
+
+				stopWatch.Stop();
+				diff.stats.sync = stopWatch.Elapsed.TotalSeconds;
+			}
 			return diff;
 		}
 
-		async Task SyncUserGroups(DB db, User user, List<string> aafClasses,
-		                          List<string> aafGroupes)
+
+		public async Task<UsersDiff> SyncPersRelEleveAsync(DB db, IEnumerable<User> aafParents, bool apply)
 		{
-			// get the ENT groups handle by the AAF
-			var entGroups = from userGroup in (await user.GetGroupsAsync(db))
-					where groups.ContainsKey(userGroup.group_id) select userGroup;
-			
-			// convert to GroupUser list
-			var aafGroups = new ModelList<GroupUser>();
-			foreach (var classe in aafClasses)
+			Console.WriteLine("PERSRELELEVE SYNCHRONIZE");
+
+			var diff = new UsersDiff();
+			diff.stats = new SyncStat();
+			diff.diff = new ModelListDiff<User>();
+			diff.diff.add = new ModelList<User>();
+			diff.diff.change = new ModelList<User>();
+
+			var stopWatch = new Stopwatch();
+			stopWatch.Start();
+
+			foreach (var aafUser in aafParents)
 			{
-				var tab = classe.Split('$');
-				if (tab.Length == 2)
-				{
-					var group = GetGroupByAaf(Convert.ToInt32(tab[0]), tab[1], GroupType.CLS);
-					if (group != null)
-					{
-						aafGroups.Add(new GroupUser
-						{
-							type = "ELV",
-							user_id = user.id,
-							group_id = group.id,
-							pending_validation = false
-						});
-					}
-				}
-				else if (tab.Length == 3)
-				{
-					var group = GetGroupByAaf(Convert.ToInt32(tab[0]), tab[1], GroupType.CLS);
-					//Console.WriteLine($"AAF CLASSE: {classe}, GROUP: {group}");
-
-					if (group != null)
-					{
-						// ensure the subject exists. Some subject can be used by teacher
-						// but not given in the AAF
-						var sub = await GetOrCreateSubjectAsync(db, tab[2]);
-
-						aafGroups.Add(new GroupUser
-						{
-							type = "ENS",
-							user_id = user.id,
-							group_id = group.id,
-							subject_id = sub.id,
-							pending_validation = false
-						});
-					}
-				}
-			}
-			foreach (var groupe in aafGroupes)
-			{
-				var tab = groupe.Split('$');
-				if (tab.Length == 2)
-				{
-					var group = GetGroupByAaf(Convert.ToInt32(tab[0]), tab[1], GroupType.GRP);
-					if (group != null)
-					{
-						aafGroups.Add(new GroupUser
-						{
-							type = "ELV",
-							user_id = user.id,
-							group_id = group.id,
-							pending_validation = false
-						});
-					}
-				}
-				else if (tab.Length == 3)
-				{
-					var group = GetGroupByAaf(Convert.ToInt32(tab[0]), tab[1], GroupType.GRP);
-					if (group != null)
-					{
-						var sub = await GetOrCreateSubjectAsync(db, tab[2]);
-
-						aafGroups.Add(new GroupUser
-						{
-							type = "ENS",
-							user_id = user.id,
-							group_id = group.id,
-							subject_id = sub.id,
-							pending_validation = false
-						});
-					}
-				}
-			}
-			await Model.SyncAsync(db, entGroups, aafGroups);
-		}
-
-		async Task SyncUserProfiles(DB db, ModelList<UserProfile> entProfiles, ModelList<UserProfile> aafProfiles,
-		                            IEnumerable<string> structuresIds, bool apply)
-		{
-			foreach (var aafProfile in aafProfiles)
-			{
-				if (!structuresIds.Contains(aafProfile.structure_id))
+				var aafUserProfiles = new ModelList<UserProfile>();
+				foreach (var profile in aafUser.profiles)
+					if (IsSyncStructure(profile.structure_id))
+						aafUserProfiles.Add(profile);
+				if (aafUserProfiles.Count == 0)
 					continue;
-				var entProfile = entProfiles.SingleOrDefault(p => ((p.structure_id == aafProfile.structure_id) &&
-										   (p.user_id == aafProfile.user_id) && (p.type == aafProfile.type)));
-				if (entProfile == null)
+
+				var entUser = GetEntUserByAaf((int)aafUser.aaf_jointure_id);
+				if (entUser == null)
 				{
-					Console.WriteLine("ADD AAF PROFILE: " + aafProfile.type);
-					if (apply)
-						await aafProfile.SaveAsync(db);
+					aafUser.Fields.Remove(nameof(aafUser.id));
+					aafUser.Fields.Remove(nameof(aafUser.children));
+					aafUser.profiles = aafUserProfiles;
+					diff.diff.add.Add(aafUser);
 				}
-				else if (entProfile.aaf_mtime == null)
+				else
 				{
-					Console.WriteLine("CONVERT TO AAF PROFILE: " + aafProfile.type);
-					entProfile.aaf_mtime = DateTime.Now;
-					if (apply)
-						await entProfile.UpdateAsync(db);
+					// mark the user a seen
+					entSyncSeenUsers[entUser.id] = entUser;
+					var userDiff = entUser.DiffWithId(aafUser);
+					// handle phones
+					if (aafUser.phones != null)
+					{
+						var phonesDiff = Model.Diff(entUser.phones, aafUser.phones, (s, d) => s.type == d.type && s.number == d.number);
+						if (!phonesDiff.IsEmpty)
+						{
+							userDiff.phones = new ModelList<Phone>();
+							userDiff.phones.diff = phonesDiff;
+						}
+					}
+					// handle emails
+					if (aafUser.emails != null)
+					{
+						var emailsDiff = Model.Diff(entUser.emails.FindAll((obj) => obj.type == "Autre"), aafUser.emails, (s, d) => s.type == d.type && s.address == d.address);
+						if (!emailsDiff.IsEmpty)
+						{
+							userDiff.emails = new ModelList<Email>();
+							userDiff.emails.diff = emailsDiff;
+						}
+					}
+					// handle profiles
+					var profilesDiff = Model.Diff(entUser.profiles.FindAll((obj) => obj.type != "ADM" && IsSyncStructure(obj.structure_id)), aafUserProfiles);
+					if (!profilesDiff.IsEmpty)
+					{
+						userDiff.profiles = new ModelList<UserProfile>();
+						userDiff.profiles.diff = profilesDiff;
+					}
+					if (userDiff.Fields.Count > 1)
+						diff.diff.change.Add(userDiff);
 				}
 			}
 
-			foreach (var entProfile in entProfiles)
+			// find all users not seen in the current synchronization with PersEducNat profiles
+			// in the structures seen in the current synchronization and remove them
+			// TODO: improve perf by grouping this garbage collect process with other users types (Eleve, Parent)
+			/*foreach (var entUser in entUsersByAafId.Values)
 			{
-				// only handle profile for structure managed by the AAF
-				if (!structuresIds.Contains(entProfile.structure_id))
+				if (entUser.aaf_jointure_id == null)
 					continue;
-				// only remove profiles created by the AAF (not ADM for example)
-				if (entProfile.aaf_mtime == null)
-					continue;
-				if (!aafProfiles.Any((arg) => (arg.structure_id == entProfile.structure_id) &&
-									 (arg.user_id == entProfile.user_id) && (arg.type == entProfile.type)))
+				if (!entSyncSeenUsers.ContainsKey(entUser.id))
 				{
-					Console.WriteLine("DELETE ENT PROFILE: " + entProfile.type);
-					if (apply)
-						await entProfile.DeleteAsync(db);
+					var removeProfiles = entUser.profiles.FindAll((obj) => IsSyncStructure(obj.structure_id) && (obj.type == "TUT"));
+					if (removeProfiles.Any())
+					{
+						var userRemoveProfiles = new ModelList<UserProfile>();
+						foreach (var userProfile in removeProfiles)
+							userRemoveProfiles.Add(userProfile);
+						var changeUser = new User { id = entUser.id };
+						changeUser.profiles = new ModelList<UserProfile>();
+						changeUser.profiles.diff = new ModelListDiff<UserProfile>();
+						changeUser.profiles.diff.remove = userRemoveProfiles;
+						diff.diff.change.Add(changeUser);
+					}
 				}
+			}*/
+
+			stopWatch.Stop();
+			diff.stats.diff = stopWatch.Elapsed.TotalSeconds;
+			diff.stats.addCount = diff.diff.add.Count;
+			diff.stats.changeCount = diff.diff.change.Count;
+
+			if (apply)
+			{
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				await diff.diff.ApplyAsync(db);
+				// register newly created user to the ENT users
+				// needed for the students to find their parents
+				foreach (var newParent in diff.diff.add)
+				{
+					entSyncSeenUsers[newParent.id] = newParent;
+					entUsersByAafId[(int)newParent.aaf_jointure_id] = newParent;
+				}
+				stopWatch.Stop();
+				diff.stats.sync = stopWatch.Elapsed.TotalSeconds;
 			}
+			return diff;
 		}
 
-		public class ParentsDiff : Model
-		{
-			[ModelField]
-			public SyncStat stats { get { return GetField<SyncStat>("stats", null); } set { SetField("stats", value); } }
-		}
-
-		public class ElevesDiff : Model
-		{
-			[ModelField]
-			public SyncStat stats { get { return GetField<SyncStat>("stats", null); } set { SetField("stats", value); } }
-			[ModelField]
-			public ModelList<Error> errors { get { return GetField<ModelList<Error>>("errors", null); } set { SetField("errors", value); } }
-			[ModelField]
-			public ModelList<User> add { get { return GetField<ModelList<User>>("add", null); } set { SetField("add", value); } }
-			[ModelField]
-			public ModelList<User> change { get { return GetField<ModelList<User>>("change", null); } set { SetField("change", value); } }
-			[ModelField]
-			public ModelList<User> remove { get { return GetField<ModelList<User>>("remove", null); } set { SetField("remove", value); } }
-		}
-
-		public async Task<ElevesDiff> SyncEleveAsync(DB db, List<XmlNode> nodes, bool persRelEleve, Dictionary<long, User> aafParents, bool apply)
+		public async Task<UsersDiff> SyncEleveAsync(DB db, IEnumerable<User> aafStudents, bool apply)
 		{
 			Console.WriteLine("ELEVE SYNCHRONIZE");
 
-			var mulFields = new string[] {
-				"ENTEleveClasses", "ENTEleveGroupes", "ENTEleveCodeEnseignements",
-				"ENTEleveEnseignements", "ENTPersonAutresPrenoms", "ENTElevePersRelEleve" };
-
-			var diff = new ElevesDiff();
+			var diff = new UsersDiff();
 			diff.stats = new SyncStat();
-			diff.errors = new ModelList<Error>();
-			diff.add = new ModelList<User>();
-			diff.change = new ModelList<User>();
-			diff.remove = new ModelList<User>();
+			diff.diff = new ModelListDiff<User>();
+			diff.diff.add = new ModelList<User>();
+			diff.diff.change = new ModelList<User>();
 
-			var structuresIds = structures.Values.Select((arg) => arg.id);
+			var stopWatch = new Stopwatch();
+			stopWatch.Start();
 
-			foreach (var node in nodes)
+			foreach (var aafUser in aafStudents)
 			{
-				long id;
-				Dictionary<string, string> attrs;
-				Dictionary<string, List<string>> attrsMul;
-				ReadAttributes(node, mulFields, out id, out attrs, out attrsMul);
-				var aafUser = AttributesToUser(id, attrs, attrsMul);
-				var ENTPersonStructRattach = int.Parse(attrs["ENTPersonStructRattach"]);
-
-				// if the user is not in a structure we handle
-				if (!structures.ContainsKey(ENTPersonStructRattach))
+				var aafUserProfiles = new ModelList<UserProfile>();
+				foreach (var profile in aafUser.profiles)
+					if (IsSyncStructure(profile.structure_id))
+						aafUserProfiles.Add(profile);
+				if (aafUserProfiles.Count == 0)
 					continue;
-				
-				var entUser = (await db.SelectAsync<User>("SELECT * FROM `user` WHERE `aaf_jointure_id`=?", id)).SingleOrDefault();
 
-				// if user not found, try to find the user by its aaf_struct_rattach_id
-				if ((entUser == null) && (aafUser.aaf_struct_rattach_id != null))
+				var entUser = GetEntUserByAaf((int)aafUser.aaf_jointure_id);
+				if (entUser == null)
 				{
-					entUser = (await db.SelectAsync<User>(
-						"SELECT * FROM `user` WHERE `aaf_struct_rattach_id`=?", aafUser.aaf_struct_rattach_id)).SingleOrDefault();
+					entUser = GetEntUserByStructRattachId(aafUser.aaf_struct_rattach_id);
+					// only take it is an aaf_jointure_id is not already present
+					if (entUser != null)
+					{
+						if (entUser.aaf_jointure_id != null)
+						{
+							entUser = null;
+							errors.Add("ERROR: ELEVE FOUND BY aaf_struct_rattach_id BUT WITH ANOTHER aaf_jointure_id, "+
+							           "ELEVE MIGTH BE A DUPLICATE ACCOUNT "+
+							           $"(LASTNAME: {aafUser.lastname}, FIRSTNAME: {aafUser.firstname}, AAF_JOINTURE_ID: {aafUser.aaf_jointure_id})"+
+							           $" FOUND ENT (ID: {entUser.id}, AAF_JOINTURE_ID: {entUser.aaf_jointure_id})");
+						}
+					}
 				}
-				// try to find the Eleve with other attributes (firstname, lastname, birthdate)
-				if ((entUser == null) && !string.IsNullOrWhiteSpace(aafUser.firstname) &&
-				        !string.IsNullOrWhiteSpace(aafUser.lastname) &&
-				        (aafUser.birthdate != null))
+				if (entUser == null)
 				{
-					entUser = (await db.SelectAsync<User>(
-						"SELECT * FROM `user` WHERE `aaf_jointure_id` IS NULL AND `firstname`=? " +
-						"AND `lastname`=? AND `birthdate`=?", aafUser.firstname, aafUser.lastname,
-						aafUser.birthdate)).SingleOrDefault();
+					entUser = GetEntUserByNameBirthdate(aafUser.firstname, aafUser.lastname, aafUser.birthdate);
+					// only take it is an aaf_jointure_id is not already present
+					// we do this because some student might have multiples accounts
+					// and we dont want to have a flip / flop between the accounts
+					if (entUser != null)
+					{
+						if (entUser.aaf_jointure_id != null)
+						{
+							errors.Add("ERROR: ELEVE FOUND BY NAME AND BIRTHDATE BUT WITH ANOTHER aaf_jointure_id, " +
+									   "ELEVE MIGTH BE A DUPLICATE ACCOUNT " +
+									   $"(LASTNAME: {aafUser.lastname}, FIRSTNAME: {aafUser.firstname}, AAF_JOINTURE_ID: {aafUser.aaf_jointure_id})" +
+									   $" FOUND ENT (ID: {entUser.id}, AAF_JOINTURE_ID: {entUser.aaf_jointure_id})");
+							entUser = null;
+						}
+					}
 				}
 
 				if (entUser == null)
 				{
-					Console.WriteLine($"ELEVE NEW {aafUser.firstname} {aafUser.lastname}");
-					// create the user
-					if(apply)
-						await aafUser.SaveAsync(db);
-					entUser = aafUser;
-					// create a user "Ent" email (the default for students)
-					if (apply)
-						await entUser.CreateDefaultEntEmailAsync(db);
-					
-					// create the user profiles
-					var profile = new UserProfile
-					{
-						user_id = aafUser.id,
-						type = "ELV",
-						structure_id = structures[ENTPersonStructRattach].id,
-						aaf_mtime = DateTime.Now
-					};
-					if (apply)
-						await profile.SaveAsync(db);
-					
-					// create the user groups
-					if (apply)
-						await SyncUserGroups(db, aafUser, attrsMul["ENTEleveClasses"], attrsMul["ENTEleveGroupes"]);
-					diff.add.Add(entUser);
+					aafUser.Fields.Remove(nameof(aafUser.id));
+					aafUser.profiles = aafUserProfiles;
+					aafUser.groups = AafGroupUserToEntGroupUser(aafUser.groups);
+					aafUser.parents = AafParentsToEntParents(aafUser.parents);
+					diff.diff.add.Add(aafUser);
 				}
 				else
 				{
-					if (!entUser.EqualsIntersection(aafUser))
+					// mark the user a seen
+					entSyncSeenUsers[entUser.id] = entUser;
+					var userDiff = entUser.DiffWithId(aafUser);
+					// handle phones
+					if (aafUser.phones != null)
 					{
-						Console.WriteLine($"ELEVE CHANGED {id} {entUser.firstname} {entUser.lastname} => {aafUser.firstname} {aafUser.lastname}");
-						var userDiff = entUser.DiffWithId(aafUser);
-						if (apply)
+						var phonesDiff = Model.Diff(entUser.phones, aafUser.phones, (s, d) => s.type == d.type && s.number == d.number);
+						if (!phonesDiff.IsEmpty)
 						{
-							await userDiff.UpdateAsync(db);
-							await entUser.LoadAsync(db);
+							userDiff.phones = new ModelList<Phone>();
+							userDiff.phones.diff = phonesDiff;
 						}
-						diff.change.Add(userDiff);
 					}
-					// synchronize fonctions/profiles
-					var aafProfiles = new ModelList<UserProfile>();
-					aafProfiles.Add(new UserProfile 
+					// handle emails
+					if (aafUser.emails != null)
 					{
-						user_id = entUser.id,
-						type = "ELV",
-						structure_id = structures[ENTPersonStructRattach].id,
-						aaf_mtime = DateTime.Now
+						var emailsDiff = Model.Diff(entUser.emails.FindAll((obj) => obj.type == "Autre"), aafUser.emails, (s, d) => s.type == d.type && s.address == d.address);
+						if (!emailsDiff.IsEmpty)
+						{
+							userDiff.emails = new ModelList<Email>();
+							userDiff.emails.diff = emailsDiff;
+						}
+					}
+					// handle profiles
+					var profilesDiff = Model.Diff(entUser.profiles.FindAll((obj) => obj.type != "ADM" && IsSyncStructure(obj.structure_id)), aafUser.profiles);
+					if (!profilesDiff.IsEmpty)
+					{
+						userDiff.profiles = new ModelList<UserProfile>();
+						userDiff.profiles.diff = profilesDiff;
+					}
+
+
+					// handle groups
+					var entInterGroups = entUser.groups.FindAll((obj) =>
+					{
+						var group = GetEntGroupById(obj.group_id);
+						return (group != null) && IsSyncStructure(group.structure_id);
 					});
-					await SyncUserProfiles(db, await entUser.GetProfilesAsync(db), aafProfiles, structuresIds, apply);
-
-					// synchronize "classes" and "groupe eleve"
-					if (apply)
-						await SyncUserGroups(db, entUser, attrsMul["ENTEleveClasses"], attrsMul["ENTEleveGroupes"]);
-				}
-
-				// handle parents
-				if (persRelEleve && attrsMul.ContainsKey("ENTElevePersRelEleve"))
-				{
-					var aafUserChilds = new ModelList<UserChild>();
-
-					foreach (var relEleve in attrsMul["ENTElevePersRelEleve"])
+					var aafInterGroups = AafGroupUserToEntGroupUser(aafUser.groups);
+					var groupsDiff = Model.Diff(entInterGroups, aafInterGroups, (src, dst) => src.group_id == dst.group_id && src.type == dst.type && src.subject_id == dst.subject_id);
+					if (!groupsDiff.IsEmpty)
 					{
-						var tab = relEleve.Split('$');
-						if (tab.Length == 6)
-						{
-							var parent_aaf_jointure_id = long.Parse(tab[0]);
-							// ERROR: parent not found in the AAF...
-							if (!aafParents.ContainsKey(parent_aaf_jointure_id))
-							{
-								Console.WriteLine($"WARNING: INVALID ENTElevePersRelEleve PARENT WITH aaf_jointure_id {parent_aaf_jointure_id} NOT FOUND");
-								continue;
-							}
-
-							var aafParent = aafParents[parent_aaf_jointure_id];
-							var entParent = (await db.SelectAsync<User>("SELECT * FROM `user` WHERE `aaf_jointure_id`=?", parent_aaf_jointure_id)).SingleOrDefault();
-							// if parent not found, need to create it
-							// TODO: try to find the parent with other attributes
-							if (entParent == null)
-							{
-								if (apply)
-									await aafParent.SaveAsync(db);
-								entParent = aafParent;
-							}
-							else
-							{
-								if (!entParent.EqualsIntersection(aafParent))
-								{
-									Console.WriteLine($"PARENT CHANGED {parent_aaf_jointure_id} {entParent.firstname} {entParent.lastname} => {aafParent.firstname} {aafParent.lastname}");
-									var userDiff = entParent.DiffWithId(aafParent);
-									if (apply)
-									{
-										await userDiff.UpdateAsync(db);
-										await entParent.LoadAsync(db);
-									}
-								}
-							}
-
-							var parentAttrs = (Dictionary<string, string>)aafParent.Fields["attrs"];
-							var parentAttrsMul = (Dictionary<string, List<string>>)aafParent.Fields["attrsMul"];
-
-							// handle parent phones
-							var aafParentPhones = new ModelList<Phone>();
-							if (parentAttrs.ContainsKey("telephoneNumber") && !string.IsNullOrWhiteSpace(parentAttrs["telephoneNumber"]))
-							{
-								aafParentPhones.Add(new Phone
-								{
-									user_id = entParent.id,
-									number = parentAttrs["telephoneNumber"],
-									type = "TRAVAIL"
-								});
-							}
-							if (parentAttrs.ContainsKey("homePhone") && !string.IsNullOrWhiteSpace(parentAttrs["homePhone"]))
-							{
-								aafParentPhones.Add(new Phone
-								{
-									user_id = entParent.id,
-									number = parentAttrs["homePhone"],
-									type = "MAISON"
-								});
-							}
-							if (parentAttrsMul.ContainsKey("mobile"))
-							{
-								foreach (var mobile in parentAttrsMul["mobile"])
-								{
-									if (!string.IsNullOrWhiteSpace(mobile))
-									{
-										aafParentPhones.Add(new Phone
-										{
-											user_id = entParent.id,
-											number = mobile,
-											type = "PORTABLE"
-										});
-									}
-								}
-							}
-							if (apply)
-								await Model.SyncAsync(db, await entParent.GetPhonesAsync(db), aafParentPhones);
-							
-							// handle parent phones
-							var aafParentEmails = new ModelList<Email>();
-							if (parentAttrsMul.ContainsKey("mail"))
-							{
-								foreach (var mail in parentAttrsMul["mail"])
-								{
-									if (string.IsNullOrWhiteSpace(mail))
-										continue;
-									aafParentEmails.Add(new Email
-									{
-										address = mail,
-										user_id = entParent.id,
-										type = "Autre"
-									});
-								}
-							}
-							if (apply)
-								await Model.SyncAsync(db, await entParent.GetEmailsAsync(db), aafParentEmails);
-							
-							aafUserChilds.Add(new UserChild
-							{
-								type = aafRelationType[int.Parse(tab[1])],
-								parent_id = entParent.id,
-								child_id = entUser.id,
-								financial = tab[2] == "1",
-								legal = tab[3] == "1",
-								contact = tab[4] == "1"
-							});
-						}
-						else
-							Console.WriteLine($"WARNING: INVALID ENTElevePersRelEleve FOUND ({relEleve}) FOR USER {aafUser.aaf_jointure_id}"); 
+						userDiff.groups = new ModelList<GroupUser>();
+						userDiff.groups.diff = groupsDiff;
 					}
-					// handle user_child relation
-					if (apply)
-						await Model.SyncAsync(db, await entUser.GetParentsAsync(db), aafUserChilds);
+
+					// handle parents relations
+					var aafUserParents = AafParentsToEntParents(aafUser.parents);
+					var parentsDiff = Model.Diff(entUser.parents, aafUserParents);
+					if (!parentsDiff.IsEmpty)
+					{
+						userDiff.parents = new ModelList<UserChild>();
+						userDiff.parents.diff = parentsDiff;
+					}
+
+					if (userDiff.Fields.Count > 1)
+						diff.diff.change.Add(userDiff);
 				}
 			}
-			// TODO: remove all profiles managed by the AAF but not seen by the synchronization for the AAF structures
-			// IDEA: always update aaf_mtime in a synchronisation and use the the aaf_mtime to remove old link
 
-			// TODO: remove all groups managed by the AAF but not seen by the synchronization for the AAF structures
+			// find all users not seen in the current synchronization with PersEducNat profiles
+			// in the structures seen in the current synchronization and remove them
+			// TODO: improve perf by grouping this garbage collect process with other users types (Eleve, Parent)
+			/*foreach (var entUser in entUsersByAafId.Values)
+			{
+				if (entUser.aaf_jointure_id == null)
+					continue;
+				if (!entSyncSeenUsers.ContainsKey(entUser.id))
+				{
+					var removeProfiles = entUser.profiles.FindAll((obj) => IsSyncStructure(obj.structure_id) && obj.type == "ELV");
+					if (removeProfiles.Any())
+					{
+						var userRemoveProfiles = new ModelList<UserProfile>();
+						foreach (var userProfile in removeProfiles)
+							userRemoveProfiles.Add(userProfile);
+						var changeUser = new User { id = entUser.id };
+						changeUser.profiles = new ModelList<UserProfile>();
+						changeUser.profiles.diff = new ModelListDiff<UserProfile>();
+						changeUser.profiles.diff.remove = userRemoveProfiles;
+						diff.diff.change.Add(changeUser);
+					}
+				}
+			}*/
 
+			stopWatch.Stop();
+			diff.stats.diff = stopWatch.Elapsed.TotalSeconds;
+			diff.stats.addCount = diff.diff.add.Count;
+			diff.stats.changeCount = diff.diff.change.Count;
+
+			if (apply)
+			{
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				await diff.diff.ApplyAsync(db);
+				// add ENT email for new students
+				foreach (var addUser in diff.diff.add)
+					await addUser.CreateDefaultEntEmailAsync(db);
+
+				stopWatch.Stop();
+				diff.stats.sync = stopWatch.Elapsed.TotalSeconds;
+			}
 			return diff;
 		}
+
+		public async Task<UsersDiff> SyncNotSeenUsersAsync(DB db, bool persEducNat, bool persRelEleve, bool eleve, bool apply)
+		{
+			Console.WriteLine("NOTSEENUSERS SYNCHRONIZE");
+
+			var syncProfilesTypes = new List<string>();
+
+			if (persEducNat)
+				syncProfilesTypes.AddRange(persEducNatProfiles);
+			if (persRelEleve)
+				syncProfilesTypes.Add("TUT");
+			if (eleve)
+				syncProfilesTypes.Add("ELV");
+
+			var diff = new UsersDiff();
+			diff.stats = new SyncStat();
+			diff.diff = new ModelListDiff<User>();
+			diff.diff.change = new ModelList<User>();
+
+			var stopWatch = new Stopwatch();
+			stopWatch.Start();
+
+			// find all users not seen in the current synchronization with a profiles
+			// in the structures seen in the current synchronization and remove them
+			foreach (var entUser in entUsersByAafId.Values)
+			{
+				if (entUser.aaf_jointure_id == null)
+					continue;
+				if (!entSyncSeenUsers.ContainsKey(entUser.id))
+				{
+					User changeUser = null;
+					var userProfiles = entUser.profiles;
+
+					var removeProfiles = entUser.profiles.FindAll((obj) => IsSyncStructure(obj.structure_id) && syncProfilesTypes.Contains(obj.type));
+					if (removeProfiles.Any())
+					{
+						var userRemoveProfiles = new ModelList<UserProfile>();
+						foreach (var userProfile in removeProfiles)
+						{
+							userRemoveProfiles.Add(userProfile);
+							userProfiles.Remove(userProfile);
+						}
+						changeUser = new User { id = entUser.id };
+						changeUser.profiles = new ModelList<UserProfile>();
+						changeUser.profiles.diff = new ModelListDiff<UserProfile>();
+						changeUser.profiles.diff.remove = userRemoveProfiles;
+					}
+					// TODO: FINISH THIS
+
+					// garbage collect user in structure's group where the user has no profile
+					if (entUser.groups != null)
+					{
+						foreach (var userGroup in entUser.groups)
+						{
+							var entGroup = GetEntGroupById(userGroup.group_id);
+							if (entGroup == null)
+								continue;
+							if (entGroup.aaf_name == null)
+								continue;
+							if (entGroup.structure_id == null)
+								continue;
+							if (!IsSyncStructure(entGroup.structure_id))
+								continue;
+							if (userProfiles.Any((arg) => entGroup.structure_id == arg.structure_id))
+								continue;
+
+							if (changeUser == null)
+								changeUser = new User { id = entUser.id };
+
+							if (changeUser.groups == null)
+							{
+								changeUser.groups = new ModelList<GroupUser>();
+								changeUser.groups.diff = new ModelListDiff<GroupUser>();
+								changeUser.groups.diff.remove = new ModelList<GroupUser>();
+							}
+							changeUser.groups.diff.remove.Add(userGroup);
+						}
+					}
+					if (changeUser != null)
+						diff.diff.change.Add(changeUser);
+				}
+			}
+
+			stopWatch.Stop();
+			diff.stats.diff = stopWatch.Elapsed.TotalSeconds;
+			diff.stats.changeCount = diff.diff.change.Count;
+
+			if (apply)
+			{
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				await diff.diff.ApplyAsync(db);
+				stopWatch.Stop();
+				diff.stats.sync = stopWatch.Elapsed.TotalSeconds;
+			}
+			return diff;
+		}
+
 
 		/// <summary>
 		/// Syncs the structure parents profiles async.
@@ -1472,14 +1290,37 @@ namespace Laclasse.Aaf
 				await Model.SyncAsync(db, entParents, expectParents);
 		}
 
-		void ReadAttributes(XmlNode node, string[] mulFields, out long id, out Dictionary<string,string> attrs, out Dictionary<string,List<string>> attrsMul)
+		public User NodeToUser(XmlNode node, Dictionary<int, Structure> structures)
+		{
+			long id;
+			string categoriePersonne;
+			Dictionary<string, string> attrs;
+			Dictionary<string, List<string>> attrsMul;
+
+			ReadAttributes(node, userMulFields, out id, out categoriePersonne, out attrs, out attrsMul);
+			return AttributesToUser(id, categoriePersonne, attrs, attrsMul, structures);
+		}
+
+		public static void ReadAttributes(XmlNode node, string[] mulFields, out long id, out string categoriePersonne, out Dictionary<string,string> attrs, out Dictionary<string,List<string>> attrsMul)
 		{
 			id = Convert.ToInt64(node["identifier"]["id"].InnerText);
+			categoriePersonne = null;
 			attrs = new Dictionary<string, string>();
 			attrsMul = new Dictionary<string, List<string>>();
 
+			foreach (XmlNode attr in node["operationalAttributes"])
+			{
+				if (attr.NodeType != XmlNodeType.Element)
+					continue;
+				if (attr.Attributes["name"].Value == "categoriePersonne")
+					categoriePersonne = attr["value"].InnerText;
+			}
+
 			foreach (XmlNode attr in node["attributes"])
 			{
+				if (attr.NodeType != XmlNodeType.Element)
+					continue;
+
 				var name = attr.Attributes["name"].Value;
 				if (mulFields.Contains(name))
 				{
@@ -1493,7 +1334,9 @@ namespace Laclasse.Aaf
 			}
 		}
 
-		User AttributesToUser(long id, Dictionary<string, string> attrs, Dictionary<string, List<string>> attrsMul)
+		public User AttributesToUser(
+			long id, string categoriePersonne, Dictionary<string, string> attrs,
+			Dictionary<string, List<string>> attrsMul, Dictionary<int, Structure> structures)
 		{
 			var user = new User { aaf_jointure_id = id };
 			string gender = null;
@@ -1504,6 +1347,15 @@ namespace Laclasse.Aaf
 					gender = "M";
 			if (gender != null)
 				user.gender = gender;
+
+			if (categoriePersonne == "PersRelEleve")
+				user.id = "TUT" + (++tutUserIdGenerator).ToString("D5");
+			else if (categoriePersonne == "Eleve")
+				user.id = "ELV" + (++elvUserIdGenerator).ToString("D5");
+			else if (categoriePersonne == "PersEducNat")
+				user.id = "ENS" + (++ensUserIdGenerator).ToString("D5");
+			else
+				throw new Exception($"Unknown categoriePersonne '{categoriePersonne}'");
 
 			if (attrs.ContainsKey("ENTPersonDateNaissance") && !string.IsNullOrWhiteSpace(attrs["ENTPersonDateNaissance"]))
 			{
@@ -1536,10 +1388,661 @@ namespace Laclasse.Aaf
 			if (attrs.ContainsKey("givenName"))
 				user.firstname = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attrs["givenName"].ToLower());
 
+			// normalize the lastname. Uppercase
 			if (attrs.ContainsKey("sn"))
-				user.lastname = attrs["sn"];
+				user.lastname = attrs["sn"].ToUpper();
+
+			// handle phones
+			if (attrs.ContainsKey("telephoneNumber") && !string.IsNullOrWhiteSpace(attrs["telephoneNumber"]))
+			{
+				if (user.phones == null)
+					user.phones = new ModelList<Phone>();
+
+				user.phones.Add(new Phone
+				{
+					number = attrs["telephoneNumber"],
+					type = "TRAVAIL"
+				});
+			}
+			if (attrs.ContainsKey("homePhone") && !string.IsNullOrWhiteSpace(attrs["homePhone"]))
+			{
+				if (user.phones == null)
+					user.phones = new ModelList<Phone>();
+				
+				user.phones.Add(new Phone
+				{
+					number = attrs["homePhone"],
+					type = "MAISON"
+				});
+			}
+			if (attrsMul.ContainsKey("mobile"))
+			{
+				foreach (var mobile in attrsMul["mobile"])
+				{
+					if (!string.IsNullOrWhiteSpace(mobile))
+					{
+						if (user.phones == null)
+							user.phones = new ModelList<Phone>();
+
+						user.phones.Add(new Phone
+						{
+							number = mobile,
+							type = "PORTABLE"
+						});
+					}
+				}
+			}
+
+			// handle emails
+			if (attrsMul.ContainsKey("mail"))
+			{
+				if (user.emails == null)
+					user.emails = new ModelList<Email>();
+
+				foreach (var mail in attrsMul["mail"])
+				{
+					if (string.IsNullOrWhiteSpace(mail))
+						continue;
+
+					user.emails.Add(new Email
+					{
+						address = mail,
+						type = (categoriePersonne == "PersEducNat") ? "Academique" : "Autre"
+					});
+				}
+			}
+
+			// handle student's classes
+			if (attrsMul.ContainsKey("ENTEleveClasses"))
+			{
+				if (user.groups == null)
+					user.groups = new ModelList<GroupUser>();
+
+				foreach (var classe in attrsMul["ENTEleveClasses"])
+				{
+					var tab = classe.Split('$');
+					if (tab.Length == 2)
+					{
+						var group = GetAafGroupByAaf(Convert.ToInt32(tab[0]), tab[1], GroupType.CLS);
+
+						if (group != null)
+						{
+							user.groups.Add(new GroupUser
+							{
+								type = "ELV",
+								group_id = group.id,
+								pending_validation = false
+							});
+						}
+					}
+				}
+			}
+
+			// handle student's groups
+			if (attrsMul.ContainsKey("ENTEleveGroupes"))
+			{
+				if (user.groups == null)
+					user.groups = new ModelList<GroupUser>();
+
+				foreach (var groupe in attrsMul["ENTEleveGroupes"])
+				{
+					var tab = groupe.Split('$');
+					if (tab.Length == 2)
+					{
+						var group = GetAafGroupByAaf(Convert.ToInt32(tab[0]), tab[1], GroupType.GRP);
+
+						if (group != null)
+						{
+							user.groups.Add(new GroupUser
+							{
+								type = "ELV",
+								group_id = group.id,
+								pending_validation = false
+							});
+						}
+					}
+				}
+			}
+
+			// handle teacher's classes
+			if (attrsMul.ContainsKey("ENTAuxEnsClassesMatieres"))
+			{
+				if (user.groups == null)
+					user.groups = new ModelList<GroupUser>();
+
+				foreach (var classe in attrsMul["ENTAuxEnsClassesMatieres"])
+				{
+					var tab = classe.Split('$');
+					if (tab.Length == 3)
+					{
+						var group = GetAafGroupByAaf(Convert.ToInt32(tab[0]), tab[1], GroupType.CLS);
+
+						//Console.WriteLine($"AAF CLASSE: {classe}, GROUP: {group}");
+
+						if (group != null)
+						{
+							// ensure the subject exists. Some subject can be used by teacher
+							// but not given in the AAF
+							var subject = GetAafSubjectById(tab[2]);
+							var subjectId = tab[2];
+							if (subject == null)
+							{
+								subjectId = null;
+								errors.Add($"ERROR: ADD USER {user.firstname} {user.lastname} {user.id} TO GROUP {group.id} {group.name} WITH NONE EXISTING SUBJECT ({tab[2]}) USE NULL");
+							}
+
+							user.groups.Add(new GroupUser
+							{
+								type = "ENS",
+								group_id = group.id,
+								subject_id = subjectId,
+								pending_validation = false
+							});
+						}
+					}
+				}
+			}
+
+			// handle teacher's groups
+			if (attrsMul.ContainsKey("ENTAuxEnsGroupesMatieres"))
+			{
+				if (user.groups == null)
+					user.groups = new ModelList<GroupUser>();
+
+				foreach (var classe in attrsMul["ENTAuxEnsGroupesMatieres"])
+				{
+					var tab = classe.Split('$');
+
+					if (tab.Length == 3)
+					{
+						var group = GetAafGroupByAaf(Convert.ToInt32(tab[0]), tab[1], GroupType.GRP);
+
+						//Console.WriteLine($"AAF GROUPE: {classe}, GROUP: {group}");
+
+						if (group != null)
+						{
+							// ensure the subject exists. Some subject can be used by teacher
+							// but not given in the AAF
+							//	var sub = await GetOrCreateSubjectAsync(db, tab[2]);
+
+							user.groups.Add(new GroupUser
+							{
+								type = "ENS",
+								group_id = group.id,
+								subject_id = tab[2],
+								pending_validation = false
+							});
+						}
+					}
+				}
+			}
+
+			// handle teacher's "prof principal"
+			if (attrsMul.ContainsKey("ENTAuxEnsClassesPrincipal"))
+			{
+				if (user.groups == null)
+					user.groups = new ModelList<GroupUser>();
+
+				foreach (var classe in attrsMul["ENTAuxEnsClassesPrincipal"])
+				{
+					var tab = classe.Split('$');
+
+					if (tab.Length == 2)
+					{
+						var group = GetAafGroupByAaf(Convert.ToInt32(tab[0]), tab[1], GroupType.CLS);
+
+						if (group != null)
+						{
+							user.groups.Add(new GroupUser
+							{
+								type = "PRI",
+								group_id = group.id,
+								pending_validation = false
+							});
+						}
+					}
+				}
+
+			}
+
+			// handle teacher's profiles in structures
+			if (attrsMul.ContainsKey("ENTPersonFonctions"))
+			{
+				if (user.profiles == null)
+					user.profiles = new ModelList<UserProfile>();
+
+				foreach (var fonction in attrsMul["ENTPersonFonctions"])
+				{
+					var tab = fonction.Split('$');
+					// WARNING: profile '-' exists and means nothing
+					if (tab.Length >= 3)
+					{
+						// convert the "fonction" to a profile
+						var profileId = "ETA";
+						if (aafFonctionToProfile.ContainsKey(tab[1]))
+							profileId = aafFonctionToProfile[tab[1]];
+
+						var aaf_jointure_id = Convert.ToInt32(tab[0]);
+
+						if (structures.ContainsKey(aaf_jointure_id))
+						{
+							if (!user.profiles.Any((arg) => arg.type == profileId))
+							{
+								user.profiles.Add(new UserProfile
+								{
+									type = profileId,
+									structure_id = structures[aaf_jointure_id].id,
+								});
+							}
+						}
+					}
+				}
+			}
+
+			// handle student's structure profile
+			if (attrs.ContainsKey("ENTPersonStructRattach") && !string.IsNullOrEmpty(attrs["ENTPersonStructRattach"]) && (categoriePersonne == "Eleve"))
+			{
+				if (user.profiles == null)
+					user.profiles = new ModelList<UserProfile>();
+
+				var ENTPersonStructRattach = int.Parse(attrs["ENTPersonStructRattach"]);
+
+				if (structures.ContainsKey(ENTPersonStructRattach))
+				{
+					user.profiles.Add(new UserProfile
+					{
+						type = "ELV",
+						structure_id = structures[ENTPersonStructRattach].id
+					});
+				}
+			}
+
+			// handle parents
+			if (attrsMul.ContainsKey("ENTElevePersRelEleve"))
+			{
+				user.parents = new ModelList<UserChild>();
+				foreach (var relEleve in attrsMul["ENTElevePersRelEleve"])
+				{
+					var tab = relEleve.Split('$');
+					if (tab.Length == 6)
+					{
+						var parent_aaf_jointure_id = long.Parse(tab[0]);
+						// ERROR: parent not found in the AAF...
+						if (!aafParentsByAafId.ContainsKey(parent_aaf_jointure_id))
+						{
+							Console.WriteLine($"WARNING: INVALID ENTElevePersRelEleve PARENT WITH aaf_jointure_id {parent_aaf_jointure_id} NOT FOUND");
+							continue;
+						}
+						else
+						{
+							user.parents.Add(new UserChild
+							{
+								type = aafRelationType[int.Parse(tab[1])],
+								parent_id = aafParentsByAafId[parent_aaf_jointure_id].id,
+								child_id = user.id,
+								financial = tab[2] == "1",
+								legal = tab[3] == "1",
+								contact = tab[4] == "1"
+							});
+
+							// copy the child relation to the parent
+							var parent = aafParentsByAafId[parent_aaf_jointure_id];
+							if (parent.children == null)
+								parent.children = new ModelList<UserChild>();
+							if (!parent.children.Any((arg) => arg.child_id == user.id))
+								parent.children.Add(new UserChild {
+									type = aafRelationType[int.Parse(tab[1])],
+									parent_id = parent.id,
+									child_id = user.id,
+									financial = tab[2] == "1",
+									legal = tab[3] == "1",
+									contact = tab[4] == "1"
+								});
+							// convert the child profiles to parent profiles in the structures
+							if (user.profiles != null)
+							{
+								if (parent.profiles == null)
+									parent.profiles = new ModelList<UserProfile>();
+								foreach (var profile in user.profiles.FindAll((obj) => obj.type == "ELV"))
+									if (!parent.profiles.Any((arg) => arg.type == "TUT" && arg.structure_id == profile.structure_id))
+										parent.profiles.Add(new UserProfile { type = "TUT", structure_id = profile.structure_id });
+							}
+						}
+					}
+				}
+			}
 
 			return user;
+		}
+
+		public ModelList<Grade> GetAafGrades()
+		{
+			LoadAafGrades();
+			return aafGrades;
+		}
+
+		void LoadAafGrades()
+		{
+			if (aafGrades != null)
+				return;
+
+			aafGrades = new ModelList<Grade>();
+			aafGradesById = new Dictionary<string, Grade>();
+			foreach (var node in zipFile.LoadNodes(@"_MefEducNat_\d+.xml$"))
+			{
+				var grade = NodeToGrade(node);
+				if (grade != null)
+				{
+					aafGrades.Add(grade);
+					aafGradesById[grade.id] = grade;
+				}
+			}
+		}
+
+		Grade NodeToGrade(XmlNode node)
+		{
+			var id = node["identifier"]["id"].InnerText;
+			string ENTMefJointure = null;
+			string ENTLibelleMef = null;
+			string ENTMEFRattach = null;
+			string ENTMEFSTAT11 = null;
+			foreach (XmlNode attr in node["attributes"])
+			{
+				if (attr.NodeType != XmlNodeType.Element)
+					continue;
+				switch (attr.Attributes["name"].Value)
+				{
+					case "ENTMefJointure":
+						ENTMefJointure = attr["value"].InnerText;
+						break;
+					case "ENTLibelleMef":
+						ENTLibelleMef = attr["value"].InnerText;
+						break;
+					case "ENTMEFRattach":
+						ENTMEFRattach = attr["value"].InnerText;
+						break;
+					case "ENTMEFSTAT11":
+						ENTMEFSTAT11 = attr["value"].InnerText;
+						break;
+				}
+			}
+			if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(ENTMefJointure) &&
+				!string.IsNullOrEmpty(ENTLibelleMef) && !string.IsNullOrEmpty(ENTMEFRattach) &&
+				!string.IsNullOrEmpty(ENTMEFSTAT11) && (ENTMefJointure == id))
+			{
+				return new Grade
+				{
+					id = id,
+					name = ENTLibelleMef,
+					rattach = ENTMEFRattach,
+					stat = ENTMEFSTAT11
+				};
+			}
+			return null;
+		}
+
+		public ModelList<Subject> GetAafSubjects()
+		{
+			LoadAafSubjects();
+			return aafSubjects;
+		}
+
+		async Task LoadEntSubjectsAsync(DB db)
+		{
+			entSubjects = await db.SelectAsync<Subject>("SELECT * FROM `subject`");
+			entSubjectsById = new Dictionary<string, Subject>();
+			foreach (var subject in entSubjects)
+			{
+				entSubjectsById[subject.id] = subject;
+			}
+		}
+
+		void LoadAafSubjects()
+		{
+			if (aafSubjects != null)
+				return;
+			
+			aafSubjects = new ModelList<Subject>();
+			aafSubjectsById = new Dictionary<string, Subject>();
+
+			foreach (XmlNode node in zipFile.LoadNodes(@"_MatiereEducNat_\d+.xml$"))
+			{
+				var aafSubject = NodeToSubject(node);
+				if (aafSubject != null)
+				{
+					aafSubjects.Add(aafSubject);
+					aafSubjectsById[aafSubject.id] = aafSubject;
+				}
+			}
+		}
+
+		Subject NodeToSubject(XmlNode node)
+		{
+			var id = node["identifier"]["id"].InnerText;
+			string ENTMatJointure = null;
+			string ENTLibelleMatiere = null;
+			foreach (XmlNode attr in node["attributes"])
+			{
+				if (attr.NodeType != XmlNodeType.Element)
+					continue;
+				if (attr.Attributes["name"].Value == "ENTMatJointure")
+					ENTMatJointure = attr["value"].InnerText;
+				else if (attr.Attributes["name"].Value == "ENTLibelleMatiere")
+					ENTLibelleMatiere = attr["value"].InnerText;
+			}
+			if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(ENTMatJointure) &&
+			   !string.IsNullOrEmpty(ENTLibelleMatiere) && (ENTMatJointure == id))
+				return new Subject { id = id, name = ENTLibelleMatiere };
+			else
+			{
+				errors.Add("Invalid SUBJECT FOUND. Some fields are null or empty "+
+				           $"(id: {id}, EntMatJointure: {ENTMatJointure}, ENTLibelleMatiere: {ENTLibelleMatiere})");
+				return null;
+			}
+		}
+
+		public ModelList<Structure> GetAafStructures()
+		{
+			LoadAafStructures();
+			return aafStructures;
+		}
+
+		void LoadAafStructures()
+		{
+			if (aafStructures != null)
+				return;
+
+			LoadAafGrades();
+			aafStructures = new ModelList<Structure>();
+			aafStructuresByAafId = new Dictionary<int, Structure>();
+			aafGroupsById = new Dictionary<int, Group>();
+			aafGroupByTypeStructureAafName = new Dictionary<string, Group>();
+
+			foreach (XmlNode node in zipFile.LoadNodes(@"_EtabEducNat_\d+.xml$"))
+			{
+				if (node.NodeType != XmlNodeType.Element)
+					continue;
+				var aafStructure = NodeToStructure(node);
+				if (aafStructure != null)
+				{
+					aafStructures.Add(aafStructure);
+					aafStructuresByAafId[(int)aafStructure.aaf_jointure_id] = aafStructure;
+					foreach (var group in aafStructure.groups)
+					{
+						// copy the group because we want to keep the AAF version
+						// and if the group is created with a SaveAsync it will be transform in the ENT version
+						var groupCopy = new Group();
+						foreach (var key in group.Fields.Keys)
+							groupCopy.Fields[key] = group.Fields[key];
+						aafGroupsById[group.id] = groupCopy;
+						aafGroupByTypeStructureAafName[$"{aafStructure.aaf_jointure_id}${group.type}${group.aaf_name}"] = groupCopy;
+					}
+				}
+			}
+		}
+
+		Structure NodeToStructure(XmlNode node)
+		{
+			var id = node["identifier"]["id"].InnerText;
+			List<string> ENTStructureClasses = null;
+			List<string> ENTStructureGroupes = null;
+			var attrs = new Dictionary<string, string>();
+			foreach (XmlNode attr in node["attributes"])
+			{
+				if (attr.NodeType != XmlNodeType.Element)
+					continue;
+				attrs[attr.Attributes["name"].Value] = string.IsNullOrEmpty(attr["value"].InnerText) ? null : attr["value"].InnerText;
+				if (attr.Attributes["name"].Value == "ENTStructureClasses")
+				{
+					ENTStructureClasses = new List<string>();
+					foreach (XmlNode childNode in attr.ChildNodes)
+					{
+						if (childNode.NodeType != XmlNodeType.Element)
+							continue;
+						ENTStructureClasses.Add(childNode.InnerText);
+					}
+				}
+				else if (attr.Attributes["name"].Value == "ENTStructureGroupes")
+				{
+					ENTStructureGroupes = new List<string>();
+					foreach (XmlNode childNode in attr.ChildNodes)
+					{
+						if (childNode.NodeType != XmlNodeType.Element)
+							continue;
+						ENTStructureGroupes.Add(childNode.InnerText);
+					}
+				}
+			}
+			attrs.RequireFields(
+				"ENTStructureJointure", "ENTStructureUAI", "ENTEtablissementUAI",
+				"ENTStructureSIREN", "ENTStructureNomCourant", "ENTStructureTypeStruct",
+				"ENTEtablissementMinistereTutelle", "ENTEtablissementContrat", "postOfficeBox",
+				"street", "postalCode", "l", "telephoneNumber", "facsimileTelephoneNumber",
+				"ENTEtablissementStructRattachFctl", "ENTEtablissementBassin", "ENTServAcAcademie");
+
+			var ENTStructureNomCourant = attrs["ENTStructureNomCourant"];
+			var ENTServAcAcademie = attrs["ENTServAcAcademie"];
+			// remove the Academie name at the end if present
+			ENTStructureNomCourant = System.Text.RegularExpressions.Regex.Replace(ENTStructureNomCourant, $"-ac-{ENTServAcAcademie}$", "");
+
+			var aafStructure = new Structure
+			{
+				id = attrs["ENTStructureUAI"],
+				aaf_jointure_id = Convert.ToInt32(attrs["ENTStructureJointure"]),
+				siren = attrs["ENTStructureSIREN"],
+				name = ENTStructureNomCourant,
+				address = attrs["street"],
+				zip_code = attrs["postalCode"],
+				city = attrs["l"],
+				phone = attrs["telephoneNumber"],
+				fax = attrs["facsimileTelephoneNumber"],
+				groups = new ModelList<Group>()
+			};
+
+			// handle CLASSES
+			foreach (var aafClasse in ENTStructureClasses)
+			{
+				if (string.IsNullOrEmpty(aafClasse))
+					continue;
+
+				var tab = aafClasse.Split('$');
+				if (tab.Length < 2)
+					throw new Exception($"For structure {id} Invalid classes define {aafClasse}");
+				var classe = new Group
+				{
+					id = --groupIdGenerator,
+					type = "CLS",
+					aaf_name = tab[0],
+					structure_id = aafStructure.id,
+					description = string.IsNullOrEmpty(tab[1]) ? null : tab[1],
+					grades = new ModelList<GroupGrade>()
+				};
+				// only add if the aaf_name is not already defined because some "classe" are defined
+				// multiples times
+				if (!aafStructure.groups.Any((arg) => (arg.type == classe.type) && (arg.aaf_name == classe.aaf_name)))
+				{
+					aafStructure.groups.Add(classe);
+					//handle group's grades
+					var aafClasseGrades = tab.Skip(2);
+					foreach (var classeGrade in aafClasseGrades)
+					{
+						var grade = GetAafGradeById(classeGrade);
+						if (grade == null)
+							errors.Add($"ERROR: GRADE WITH ID {classeGrade} NOT FOUND BUT USED IN GROUP "+
+							           $"(ID: {classe.id}, STRUCTURE: {classe.structure_id}, NAME: {classe.aaf_name}");
+						else
+							classe.grades.Add(new GroupGrade { grade_id = grade.id });
+					}
+				}
+				else
+					errors.Add($"ERROR: GROUP NAME DUPLICATE (STRUCTURE: {classe.structure_id}, TYPE: {classe.type}, NAME: {classe.aaf_name})");
+			}
+
+			// handle GROUPES ELEVES
+			foreach (var aafGroupe in ENTStructureGroupes)
+			{
+				if (string.IsNullOrEmpty(aafGroupe))
+					continue;
+
+				var tab = aafGroupe.Split('$');
+				if (tab.Length < 2)
+					throw new Exception($"For structure {id} invalid groupe define {aafGroupe}");
+				var groupe = new Group
+				{
+					id = --groupIdGenerator,
+					type = "GRP",
+					aaf_name = tab[0],
+					structure_id = aafStructure.id,
+					description = string.IsNullOrEmpty(tab[1]) ? null : tab[1],
+					grades = new ModelList<GroupGrade>()
+				};
+				// only add if the aaf_name is not already defined because some "groupe" are defined
+				// multiples times
+				if (!aafStructure.groups.Any((arg) => (arg.type == groupe.type) && (arg.aaf_name == groupe.aaf_name)))
+					aafStructure.groups.Add(groupe);
+				else
+					errors.Add($"ERROR: GROUP NAME DUPLICATE (STRUCTURE: {groupe.structure_id}, TYPE: {groupe.type}, NAME: {groupe.aaf_name})");
+			}
+			return aafStructure;
+		}
+
+		ModelList<User> GetAafUsers(IEnumerable<XmlNode> nodes)
+		{
+			LoadAafSubjects();
+			LoadAafStructures();
+
+			var aafUsers = new ModelList<User>();
+			foreach (XmlNode node in nodes)
+			{
+				if (node == null)
+					continue;
+				if (node.NodeType != XmlNodeType.Element)
+					continue;
+				var user = NodeToUser(node, aafStructuresByAafId);
+				// dont keep user without profiles in our structures
+				if ((user.profiles == null) || (user.profiles.Count > 0))
+					aafUsers.Add(user);
+			}
+			return aafUsers;
+		}
+
+		public ModelList<User> GetAafTeachers()
+		{
+			return GetAafUsers(zipFile.LoadNodes(@"_PersEducNat_\d+.xml$"));
+		}
+
+		public ModelList<User> GetAafStudents()
+		{
+			LoadAafEleve();
+			return aafStudents;
+		}
+
+		public ModelList<User> GetAafParents()
+		{
+			LoadAafPersRelEleve();
+			// load students too to complete the parents profiles
+			LoadAafEleve();
+			return aafParents;
 		}
 	}
 }

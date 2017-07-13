@@ -27,6 +27,7 @@
 //
 
 using System;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Erasme.Http;
@@ -80,8 +81,16 @@ namespace Laclasse.Authentication
 			// user himself and admins in structure the user is have write right
 			if (write)
 				return (this.user.id == user.id) || user.profiles.Exists((obj) => HasRightsOnStructure(new Structure { id = obj.structure_id }, false, false, true));
+			if (this.user.id == user.id)
+				return true;
 			// parents have read right on their children
 			if (this.user.children.Exists((obj) => obj.child_id == user.id))
+				return true;
+			// all users except parents and students and user without any profiles have read access on other users
+			if (this.user.profiles.Exists(obj => (obj.type != "ELV") && (obj.type != "TUT")))
+				return true;
+			// if the users are in common group, allow read access
+			if (this.user.groups.Any((arg) => user.groups.Any((arg2) => arg.group_id == arg2.group_id)))
 				return true;
 			// all user with a read right on a structure have read right on the user
 			return user.profiles.Exists((obj) => HasRightsOnStructure(new Structure { id = obj.structure_id }, true, false, false));
@@ -91,12 +100,18 @@ namespace Laclasse.Authentication
 		{
 			if (IsSuperAdmin)
 				return true;
-			if ((group.structure_id != null) && HasRightsOnStructure(new Structure { id = group.structure_id }, false, false, true))
-				return true;
 			if (admin)
+			{
+				if ((group.structure_id != null) && HasRightsOnStructure(new Structure { id = group.structure_id }, false, false, true))
+					return true;
 				return user.groups.Exists((obj) => (obj.group_id == group.id) && ((obj.type == "PRI") || (obj.type == "ADM")));
+			}
 			if (write)
 				return user.groups.Exists((obj) => (obj.group_id == group.id));
+			if ((group.structure_id != null) && HasRightsOnStructure(new Structure { id = group.structure_id }, true, false, false))
+				return true;
+			if (group.structure_id == null)
+				return true;
 			if (user.groups.Exists((obj) => (obj.group_id == group.id)))
 				return true;
 			foreach (var child in user.children)
@@ -113,7 +128,9 @@ namespace Laclasse.Authentication
 				return true;
 			if (admin || write)
 				return user.profiles.Exists((obj) => (obj.structure_id == structure.id) && (obj.type == "ADM" || obj.type == "DIR"));
-			return user.profiles.Exists((obj) => obj.structure_id == structure.id);
+			// read right for all user with a profile in the structure or all user
+			// that are not just only ELV (student) or TUT (parent)
+			return user.profiles.Exists((obj) => obj.structure_id == structure.id || ((obj.type != "ELV") && (obj.type != "TUT")));
 		}
 	}
 

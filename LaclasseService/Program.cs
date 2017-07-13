@@ -28,7 +28,6 @@
 
 using System;
 using System.IO;
-using System.Reflection;
 using System.Text;
 using Mono.Unix;
 using Mono.Unix.Native;
@@ -146,6 +145,9 @@ namespace Laclasse
 			mapper.Add("/api/news", new PortailNews(dbUrl));
 			mapper.Add("/api/users", new PortailRss(dbUrl));
 			mapper.Add("/api/logs", new Logs(dbUrl));
+			mapper.Add("/api/publipostages", new Publipostages(dbUrl, setup.mail));
+
+			mapper.Add("/api/structures", new StructureRss(dbUrl));
 
 			mapper.Add("/api/avatar/user", new StaticFiles(
 				Path.Combine(setup.server.storage, "avatar"),
@@ -156,7 +158,7 @@ namespace Laclasse
 				setup.authentication.cas.ticketTimeout,
 				setup.authentication.aafSso, setup.mail, setup.sms));
 
-			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path));
+			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path, setup.aaf.zipPath));
 
 			mapper.Add("/api/setup", new SetupService(setup));
 			mapper.Add("/api/manage", new Manage.ManageService());

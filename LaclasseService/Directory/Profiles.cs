@@ -114,11 +114,10 @@ namespace Laclasse.Directory
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
-			var user = new User { id = user_id };
+			var structure = new Structure { id = structure_id };
 			using (var db = await DB.CreateAsync(context.GetSetup().database.url))
-				await user.LoadAsync(db, true);
-
-			await context.EnsureHasRightsOnUserAsync(user, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+				await structure.LoadAsync(db, true);
+			await context.EnsureHasRightsOnStructureAsync(structure, false, false, true);
 		}
 	}
 

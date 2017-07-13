@@ -29,6 +29,8 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Linq;
+using System.Threading.Tasks;
 using Mono.Unix;
 using Mono.Unix.Native;
 using Erasme.Http;
@@ -198,49 +200,11 @@ namespace Laclasse
 			//Console.WriteLine(log.Fields["primary"].GetType());
 			//return;
 
-			//Aaf.Synchronizer.ConvertToZip("/home/daniel/Programmation/laclassev4/aaf/Complet69-ENT2D.20170327-global.tgz", "/tmp/test.zip");
-			//return;
-
-			//var sync = new Aaf.Synchronizer(dbUrl);
-			//sync.TestZip();
-			//return;
-			//sync.Synchronize().Wait();
-			//return;
-
 			//var diff = new Aaf.Synchronizer.SyncDiff();
 			//diff.grades = new Aaf.Synchronizer.GradesDiff();
 			//diff.grades.added = new ModelList<Grade>();
 			//Console.WriteLine(diff.ToJson().ToString());
 			//return;
-
-			/*using (DB db = DB.Create(dbUrl, true))
-			{
-				var task = db.SelectRowAsync<User>("VAA60025");
-				task.Wait();
-				var user = task.Result;
-				user.lastname = "COULANGE2";
-				var task2 = user.UpdateAsync(db);
-				task2.Wait();
-
-				throw new Exception("BOOM");
-
-				user.lastname = "COULANGE";
-				task2 = user.UpdateAsync(db);
-				task2.Wait();
-				db.Commit();
-			}*/
-
-			//var json = JsonValue.Parse("{\"type\":\"CLS\",\"name\":\"TEST\",\"structure_id\":\"0000001A\",\"grades\": [{\"grade_id\":\"10310019110\"}]}");
-			//var myGroup = Model.CreateFromJson<Directory.Group>(json);
-			//Console.WriteLine(myGroup.Dump());
-
-			/*using (DB db = DB.Create(dbUrl))
-			{
-				var group = new Directory.Group { id = 7871 };
-				var task = group.LoadAsync(db, true);
-				task.Wait();
-				Console.WriteLine(group.Dump());
-			}*/
 
 			server.Start();
 

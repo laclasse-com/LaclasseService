@@ -30,6 +30,7 @@ using System.Xml;
 using System.IO;
 using System.Linq;
 using System.ServiceModel.Syndication;
+using System.Threading.Tasks;
 using Erasme.Http;
 using Laclasse.Authentication;
 
@@ -91,62 +92,82 @@ namespace Laclasse.Directory
 
 						var infos = new ModelList<Rss>();
 
-						foreach (var flux in structure.flux)
+						// parallel loading
+						await Task.WhenAll(structure.flux.Select((flux) => Task.Run(() =>
 						{
-							var settings = new XmlReaderSettings();
-							settings.IgnoreComments = true;
-							settings.DtdProcessing = DtdProcessing.Ignore;
-
-							var reader = XmlReader.Create(flux.url, settings);
-							var feed = SyndicationFeed.Load(reader);
-							reader.Close();
-							foreach (SyndicationItem item in feed.Items)
+							try
 							{
-								var rss = new Rss
+								var settings = new XmlReaderSettings();
+								settings.IgnoreComments = true;
+								settings.DtdProcessing = DtdProcessing.Ignore;
+
+								var uri = new Uri(flux.url);
+								using (var client = HttpClient.Create(uri))
 								{
-									title = item.Title.Text,
-									content = item.Summary.Text,
-									pubDate = item.PublishDate.DateTime
-								};
+									var clientRequest = new HttpClientRequest();
+									clientRequest.Method = "GET";
+									clientRequest.Path = uri.PathAndQuery;
+									client.SendRequest(clientRequest);
 
-								var encodedContent = item.ElementExtensions.SingleOrDefault((arg) => arg.OuterName == "encoded" && arg.OuterNamespace == "http://purl.org/rss/1.0/modules/content/");
-								if (encodedContent != null)
-									rss.content = encodedContent.GetObject<XmlElement>().InnerText;
+									var response = client.GetResponse();
 
-								// load the document using sgml reader
-								var document = new XmlDocument();
-								using (var sgmlReader = new Sgml.SgmlReader())
-								{
-									sgmlReader.CaseFolding = Sgml.CaseFolding.ToLower;
-									sgmlReader.DocType = "HTML";
-									sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
-
-									using (var sr = new StringReader(rss.content))
+									var reader = XmlReader.Create(response.InputStream, settings);
+									var feed = SyndicationFeed.Load(reader);
+									reader.Close();
+									foreach (SyndicationItem item in feed.Items)
 									{
-										sgmlReader.InputStream = sr;
-										document.Load(sgmlReader);
+										var rss = new Rss
+										{
+											title = item.Title.Text,
+											content = item.Summary.Text,
+											pubDate = item.PublishDate.DateTime
+										};
+
+										var encodedContent = item.ElementExtensions.SingleOrDefault((arg) => arg.OuterName == "encoded" && arg.OuterNamespace == "http://purl.org/rss/1.0/modules/content/");
+										if (encodedContent != null)
+											rss.content = encodedContent.GetObject<XmlElement>().InnerText;
+
+										// load the document using sgml reader
+										var document = new XmlDocument();
+										using (var sgmlReader = new Sgml.SgmlReader())
+										{
+											sgmlReader.CaseFolding = Sgml.CaseFolding.ToLower;
+											sgmlReader.DocType = "HTML";
+											sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
+
+											using (var sr = new StringReader(rss.content))
+											{
+												sgmlReader.InputStream = sr;
+												document.Load(sgmlReader);
+											}
+										}
+
+										string imageUrl = null;
+										var images = document.GetElementsByTagName("img");
+										foreach (XmlNode image in images)
+										{
+											if (image.Attributes["src"] != null)
+											{
+												imageUrl = image.Attributes["src"].Value;
+												break;
+											}
+										}
+										if (imageUrl != null)
+											rss.image = imageUrl;
+
+										if (item.Links.Count > 0)
+											rss.link = item.Links[0].Uri.AbsoluteUri;
+
+										lock (infos)
+											infos.Add(rss);
 									}
 								}
-
-								string imageUrl = null;
-								var images = document.GetElementsByTagName("img");
-								foreach (XmlNode image in images)
-								{
-									if (image.Attributes["src"] != null)
-									{
-										imageUrl = image.Attributes["src"].Value;
-										break;
-									}
-								}
-								if (imageUrl != null)
-									rss.image = imageUrl;
-
-								if (item.Links.Count > 0)
-									rss.link = item.Links[0].Uri.AbsoluteUri;
-
-								infos.Add(rss);
 							}
-						}
+							catch (Exception)
+							{
+								Console.WriteLine($"ERROR: invalid RSS feed '{flux.url}'");
+							}
+						})));
 						c.Response.StatusCode = 200;
 						c.Response.Content = infos.Filter(c);
 					}

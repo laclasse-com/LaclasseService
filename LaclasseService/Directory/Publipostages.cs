@@ -1,6 +1,9 @@
 ﻿using System;
+using System.IO;
+using System.Text;
 using System.Linq;
 using System.Net.Mail;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Erasme.Http;
@@ -37,7 +40,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
 		[ModelField]
-		public DateTime date { get { return GetField<DateTime>(nameof(date), DateTime.Now); } set { SetField(nameof(date), value); } }
+		public DateTime date { get { return GetField(nameof(date), DateTime.Now); } set { SetField(nameof(date), value); } }
 		[ModelField]
 		public string message { get { return GetField<string>(nameof(message), null); } set { SetField(nameof(message), value); } }
 		[ModelField]
@@ -76,22 +79,157 @@ namespace Laclasse.Directory
 	{
 		MailSetup mailSetup;
 
-		class RecipientUser
+		class RecipientUser : Model
 		{
-			public Group group;
-			public User user;
-			public User child;
-			public string message;
+			[ModelField]
+			public Group group { get { return GetField<Group>(nameof(group), null); } set { SetField(nameof(group), value); } }
+
+			[ModelField]
+			public User user { get { return GetField<User>(nameof(user), null); } set { SetField(nameof(user), value); } }
+
+			[ModelField]
+			public User child { get { return GetField<User>(nameof(child), null); } set { SetField(nameof(child), value); } }
+
+			[ModelField]
+			public string message { get { return GetField<string>(nameof(message), null); } set { SetField(nameof(message), value); } }
 		}
 
 		public Publipostages(string dbUrl, MailSetup mailSetup) : base(dbUrl)
 		{
 			this.mailSetup = mailSetup;
+
+			GetAsync["/{id:int}/pdf"] = async (p, c) =>
+			{
+				var publi = new Publipostage { id = (int)p["id"] };
+				using (DB db = await DB.CreateAsync(dbUrl))
+				{
+					if (await publi.LoadAsync(db, true))
+					{
+						c.Response.StatusCode = 302;
+						c.Response.Headers["location"] = "pdf/" + HttpUtility.UrlEncode(publi.descriptif) + ".pdf?" +
+							HttpUtility.QueryStringToString(c.Request.QueryString);
+					}
+				}
+			};
+
+			GetAsync["/{id:int}/pdf/{filename}"] = async (p, c) =>
+			{
+				var pageSize = PageSize.A4;
+				if (c.Request.QueryString.ContainsKey("pageSize"))
+					Enum.TryParse(c.Request.QueryString["pageSize"], out pageSize);
+
+				var html = new StringBuilder();
+				var publi = new Publipostage { id = (int)p["id"] };
+				using (DB db = await DB.CreateAsync(dbUrl))
+				{
+					if (await publi.LoadAsync(db, true))
+					{
+						html.Append("<!DOCTYPE html>\n<html>\n<head>\n");
+						html.Append("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>\n");
+						html.Append("<style>* { font-family: sans-serif; }</style>");
+						html.Append("</head>\n");
+
+						var recipients = await GetRecipientsMessagesAsync(db, publi);
+						bool first = true;
+						foreach (var recipient in recipients)
+						{
+							if (first)
+								html.Append("<div>");
+							else
+								html.Append("<div style=\"page-break-before: always;\">");
+							html.Append(recipient.message);
+							html.Append("</div>\n");
+							first = false;
+						}
+						html.Append("</html>\n");
+
+						c.Response.StatusCode = 200;
+						c.Response.Headers["content-type"] = "application/pdf";
+						c.Response.Content = HtmlToPdf(html.ToString(), publi.descriptif, pageSize);
+					}
+				}
+			};
+
+			PostAsync["/preview"] = async (p, c) =>
+			{
+				var publi = Model.CreateFromJson<Publipostage>(await c.Request.ReadAsJsonAsync());
+				using (DB db = await DB.CreateAsync(dbUrl))
+				{
+					await publi.EnsureRightAsync(c, Right.Read);
+					var recipientsMessages = await GetRecipientsMessagesAsync(db, publi);
+					foreach (var recipient in recipientsMessages)
+					{
+						if (recipient.user != null)
+							await recipient.user.EnsureRightAsync(c, Right.Read);
+						if (recipient.group != null)
+							await recipient.group.EnsureRightAsync(c, Right.Read);
+						if (recipient.child != null)
+							await recipient.child.EnsureRightAsync(c, Right.Read);
+					}
+					c.Response.StatusCode = 200;
+					c.Response.Content = recipientsMessages;
+				}
+			};
 		}
 
-		async Task<List<RecipientUser>> GetRecipientsAsync(DB db, Publipostage item)
+		public enum PageSize
 		{
-			var recipients = new List<RecipientUser>();
+			A1,
+			A2,
+			A3,
+			A4,
+			A5,
+			A6,
+			A7,
+			A8
+		}
+
+		static string BuildArguments(string[] args)
+		{
+			string res = "";
+			foreach (string arg in args)
+			{
+				var tmp = (string)arg.Clone();
+				tmp = tmp.Replace("'", "\\'");
+				if (res != "")
+					res += " ";
+				res += "'" + tmp + "'";
+			}
+			return res;
+		}
+
+		public static Stream HtmlToPdf(string html, string title, PageSize pageSize = PageSize.A4)
+		{
+			var startInfo = new ProcessStartInfo("/usr/bin/wkhtmltopdf", BuildArguments(new string[] {
+				"--title", title, "--page-size", pageSize.ToString(), "-", "-" }));
+			startInfo.RedirectStandardOutput = true;
+			startInfo.RedirectStandardError = true;
+			startInfo.RedirectStandardInput = true;
+			startInfo.UseShellExecute = false;
+			int exitCode;
+			var memStream = new MemoryStream();
+
+			using (var process = new Process())
+			{
+				process.StartInfo = startInfo;
+				process.Start();
+
+				//Console.WriteLine(html);
+
+				// write the HTML script to stdin
+				process.StandardInput.Write(html);
+				process.StandardInput.Close();
+				process.WaitForExit();
+				process.StandardOutput.BaseStream.CopyTo(memStream);
+				memStream.Seek(0, SeekOrigin.Begin);
+				exitCode = process.ExitCode;
+			}
+			return memStream;
+		}
+
+		async Task<ModelList<RecipientUser>> GetRecipientsAsync(DB db, Publipostage item)
+		{
+			var recipients = new ModelList<RecipientUser>();
 
 			if ((item.groups != null) && (item.groups.Count > 0))
 			{
@@ -150,14 +288,10 @@ namespace Laclasse.Directory
 			return recipients;
 		}
 
-		protected override async Task OnCreatedAsync(DB db, Publipostage item)
+		async Task<ModelList<RecipientUser>> GetRecipientsMessagesAsync(DB db, Publipostage item)
 		{
-			await base.OnCreatedAsync(db, item);
-
-			Console.WriteLine("Publipostages.OnCreatedAsync");
 			var recipients = await GetRecipientsAsync(db, item);
-			Console.WriteLine(recipients.Dump());
-			var compactRecipients = new List<RecipientUser>();
+			var compactRecipients = new ModelList<RecipientUser>();
 			// generate HTML message for all recipients
 			foreach (var recipient in recipients)
 				GenerateHtmlMessage(item.message, recipient);
@@ -167,8 +301,16 @@ namespace Laclasse.Directory
 				if (!compactRecipients.Any((arg) => (arg.user.id == recipient.user.id) && (arg.message == recipient.message)))
 					compactRecipients.Add(recipient);
 			}
+			return compactRecipients;
+		}
 
-			foreach (var recipient in compactRecipients)
+		protected override async Task OnCreatedAsync(DB db, Publipostage item)
+		{
+			await base.OnCreatedAsync(db, item);
+
+			var recipients = await GetRecipientsMessagesAsync(db, item);
+
+			foreach (var recipient in recipients)
 			{
 				if ((item.diffusion_type == "email") && (recipient.user.emails != null) && (recipient.user.emails.Count > 0))
 				{

@@ -226,7 +226,10 @@ namespace Laclasse.Directory
 									{
 										await item.EnsureRightAsync(c, Right.Read);
 										c.Response.StatusCode = 200;
-										c.Response.Content = (item.Fields[parts[1]] as IModelList).ToJson();
+										// filter the result
+										var modelListType = item.GetType().GetProperty(parts[1]).PropertyType;
+										var resultFiltered = modelListType.GetMethod(nameof(ModelList<T>.Filter), new Type[] { typeof(HttpContext) }).Invoke(item.Fields[parts[1]], new object[] { c });
+										c.Response.Content = (resultFiltered as IModelList).ToJson();
 									}
 								}
 							}

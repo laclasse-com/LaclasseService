@@ -9,3 +9,16 @@
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/LaclasseService.exe
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe.mdb
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/HtmlRenderer.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/PdfSharp.Charting.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/PdfSharp.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/HtmlRenderer.PdfSharp.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/HtmlRenderer.WinForms.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/PdfSharp.Xps.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/Common.Logging.Core.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/Common.Logging.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/WkHtmlToXSharp.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/WkHtmlToXSharp.Linux32.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/WkHtmlToXSharp.Linux64.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/WkHtmlToXSharp.Win32.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/WkHtmlToXSharp.Win64.dll

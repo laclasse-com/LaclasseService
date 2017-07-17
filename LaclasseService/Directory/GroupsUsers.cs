@@ -57,6 +57,9 @@ namespace Laclasse.Directory
 			var group = new Group { id = group_id };
 			using (var db = await DB.CreateAsync(context.GetSetup().database.url))
 				await group.LoadAsync(db, true);
+			// every body is allowed to ask a pending validation
+			if ((right == Right.Create) && (pending_validation == true))
+				return;
 
 			await context.EnsureHasRightsOnGroupAsync(group, true, right == Right.Update, right == Right.Create || right == Right.Delete);
 		}

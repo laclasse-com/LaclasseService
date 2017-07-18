@@ -30,6 +30,7 @@ using System;
 using System.Xml;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Security.Cryptography.Xml;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -377,7 +378,7 @@ namespace Laclasse.Authentication
 				// find the corresponding user
 				var queryFields = new Dictionary<string, List<string>>();
 				queryFields["emails.type"] = new List<string>(new string[] { "Academique" });
-				queryFields["emails.adresse"] = new List<string>(new string[] { ctemail });
+				queryFields["emails.address"] = new List<string>(new string[] { ctemail });
 				//JsonValue userResult;
 				//using (DB db = await DB.CreateAsync(dbUrl))
 				//	userResult = (await Model.SearchAsync<User>(db, new string[] { "emails.type", "emails.adresse" }, queryFields)).Data.SingleOrDefault();
@@ -934,7 +935,7 @@ namespace Laclasse.Authentication
 			return GenerateSoapEnvelope(samlResponse);
 		}
 
-		XmlDocument VerifySignedXml(XmlDocument doc, X509Certificate2 cert)
+		public static XmlDocument VerifySignedXml(XmlDocument doc, X509Certificate2 cert)
 		{
 			var signedInfoDoc = VerifySignature(doc, cert);
 			if (signedInfoDoc == null)
@@ -951,7 +952,7 @@ namespace Laclasse.Authentication
 		/// </returns>
 		/// <param name="dom">The XML document</param>
 		/// <param name="signedInfoDoc">The XML document which contains the Digest</param>
-		XmlDocument VerifyDigest(XmlDocument dom, XmlDocument signedInfoDoc)
+		public static XmlDocument VerifyDigest(XmlDocument dom, XmlDocument signedInfoDoc)
 		{
 			var ds = "http://www.w3.org/2000/09/xmldsig#";
 
@@ -989,20 +990,15 @@ namespace Laclasse.Authentication
 
 			// generate the SHA1 signature
 			string localDigestValue;
-			using (var memStream = new MemoryStream())
-			{
-				var settings = new XmlWriterSettings();
-				settings.OmitXmlDeclaration = true;
-				// use UTF-8 but without the BOM (3 bytes at the beginning which give the byte order)
-				settings.Encoding = new UTF8Encoding(false);
-				using (var xmlTextWriter = XmlWriter.Create(memStream, settings))
-				{
-					refNodeDoc.Save(xmlTextWriter);
-				}
-				memStream.Seek(0, SeekOrigin.Begin);
-				var sha1 = SHA1.Create();
-				localDigestValue = Convert.ToBase64String(sha1.ComputeHash(memStream));
-			}
+
+			var xmlTransform = (Transform)CryptoConfig.CreateFromName("http://www.w3.org/2001/10/xml-exc-c14n#");
+			xmlTransform.LoadInput(refNodeDoc);
+			var memStream = (MemoryStream)xmlTransform.GetOutput();
+			memStream.Seek(0, SeekOrigin.Begin);
+
+			var sha1 = SHA1.Create();
+			localDigestValue = Convert.ToBase64String(sha1.ComputeHash(memStream));
+
 			return (localDigestValue == digestValue) ? refNodeDoc : null;
 		}
 
@@ -1012,7 +1008,7 @@ namespace Laclasse.Authentication
 		/// <returns><c>true</c>, if signature was verifyed, <c>false</c> otherwise.</returns>
 		/// <param name="doc">Document.</param>
 		/// <param name="cert">Cert.</param>
-		XmlDocument VerifySignature(XmlDocument doc, X509Certificate2 cert)
+		public static XmlDocument VerifySignature(XmlDocument doc, X509Certificate2 cert)
 		{
 			var ns = new XmlNamespaceManager(doc.NameTable);
 			ns.AddNamespace("ds", "http://www.w3.org/2000/09/xmldsig#");
@@ -1058,7 +1054,6 @@ namespace Laclasse.Authentication
 				}
 				signedDoc = memStream.ToArray();
 			}
-
 			// check the signedInfo part signature using RSA key and SHA1
 			var rsa = (RSACryptoServiceProvider)cert.PublicKey.Key;
 			if (rsa.VerifyData(signedDoc, CryptoConfig.MapNameToOID("SHA1"), signatureValue))

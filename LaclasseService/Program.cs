@@ -29,8 +29,6 @@
 using System;
 using System.IO;
 using System.Text;
-using System.Linq;
-using System.Threading.Tasks;
 using Mono.Unix;
 using Mono.Unix.Native;
 using Erasme.Http;

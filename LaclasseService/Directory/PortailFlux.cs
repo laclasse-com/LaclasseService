@@ -123,9 +123,14 @@ namespace Laclasse.Directory
 											pubDate = item.PublishDate.DateTime
 										};
 
+										var fullContent = rss.content;
 										var encodedContent = item.ElementExtensions.SingleOrDefault((arg) => arg.OuterName == "encoded" && arg.OuterNamespace == "http://purl.org/rss/1.0/modules/content/");
 										if (encodedContent != null)
-											rss.content = encodedContent.GetObject<XmlElement>().InnerText;
+										{
+											fullContent = encodedContent.GetObject<XmlElement>().InnerText;
+											if (string.IsNullOrEmpty(rss.content))
+												rss.content = fullContent;
+										}
 
 										// load the document using sgml reader
 										var document = new XmlDocument();
@@ -135,7 +140,7 @@ namespace Laclasse.Directory
 											sgmlReader.DocType = "HTML";
 											sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
 
-											using (var sr = new StringReader(rss.content))
+											using (var sr = new StringReader(fullContent))
 											{
 												sgmlReader.InputStream = sr;
 												document.Load(sgmlReader);

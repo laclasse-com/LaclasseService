@@ -579,8 +579,8 @@ namespace Laclasse.Authentication
 				c.Response.Headers["location"] = service;
 			}
 			else
-				// redirect to /sso/login
-				c.Response.Headers["location"] = "login";
+				// redirect to /
+				c.Response.Headers["location"] = "/";
 		}
 
 		public async Task<Dictionary<string, string>> GetUserSsoAttributesAsync(string uid)
@@ -812,7 +812,7 @@ namespace Laclasse.Authentication
 			response.AppendChild(status);
 
 			var statusCode = doc.CreateElement("samlp:StatusCode", samlp);
-			statusCode.SetAttribute("Value", "samlp: Success");
+			statusCode.SetAttribute("Value", "samlp:Success");
 			status.AppendChild(statusCode);
 
 			var assertion = doc.CreateElement("saml:Assertion", saml);
@@ -841,7 +841,7 @@ namespace Laclasse.Authentication
 			var subject = doc.CreateElement("Subject", saml);
 			attributeStatement.AppendChild(subject);
 			var nameIdentifierNode = doc.CreateElement("NameIdentifier", saml);
-			nameIdentifierNode.InnerText = nameIdentifier;
+			nameIdentifierNode.InnerText = attributes[nameIdentifier];
 			subject.AppendChild(nameIdentifierNode);
 			var subjectConfirmation = doc.CreateElement("SubjectConfirmation", saml);
 			subject.AppendChild(subjectConfirmation);

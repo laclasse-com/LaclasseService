@@ -94,6 +94,28 @@ namespace Laclasse.Directory
 			public string message { get { return GetField<string>(nameof(message), null); } set { SetField(nameof(message), value); } }
 		}
 
+		const string renderToPdfScript = @"
+try {
+	var fs = require('fs'),
+		args = require('system').args,
+		page = require('webpage').create();
+
+	page.content = content;
+	page.viewportSize = {width: 600, height: 600};
+	page.paperSize = {
+	    format: args[2],
+	    orientation: 'portrait',
+    	margin: '1cm',
+	};
+
+	page.render(args[1], { format: 'pdf' });
+	phantom.exit();
+}
+catch(e) {
+	console.log(e);
+	phantom.exit(1);
+}";
+
 		public Publipostages(string dbUrl, MailSetup mailSetup) : base(dbUrl)
 		{
 			this.mailSetup = mailSetup;
@@ -145,7 +167,7 @@ namespace Laclasse.Directory
 
 						c.Response.StatusCode = 200;
 						c.Response.Headers["content-type"] = "application/pdf";
-						c.Response.Content = HtmlToPdf(html.ToString(), publi.descriptif, pageSize);
+						c.Response.Content = HtmlToPdf(html.ToString(), pageSize);
 					}
 				}
 			};
@@ -198,10 +220,10 @@ namespace Laclasse.Directory
 			return res;
 		}
 
-		public static Stream HtmlToPdf(string html, string title, PageSize pageSize = PageSize.A4)
+		public static Stream HtmlToPdf(string html, PageSize pageSize = PageSize.A4)
 		{
-			var startInfo = new ProcessStartInfo("/usr/bin/wkhtmltopdf", BuildArguments(new string[] {
-				"--title", title, "--page-size", pageSize.ToString(), "-", "-" }));
+			var startInfo = new ProcessStartInfo("/usr/bin/phantomjs", BuildArguments(new string[] {
+				"/dev/stdin", "/dev/stdout", pageSize.ToString() }));
 			startInfo.RedirectStandardOutput = true;
 			startInfo.RedirectStandardError = true;
 			startInfo.RedirectStandardInput = true;
@@ -216,13 +238,23 @@ namespace Laclasse.Directory
 
 				//Console.WriteLine(html);
 
-				// write the HTML script to stdin
-				process.StandardInput.Write(html);
+				// write the JS script to stdin
+				process.StandardInput.Write("var content = ");
+				process.StandardInput.Write((new JsonPrimitive(html)).ToString());
+				process.StandardInput.WriteLine(";");
+				process.StandardInput.WriteLine(renderToPdfScript);
 				process.StandardInput.Close();
+
 				process.WaitForExit();
 				process.StandardOutput.BaseStream.CopyTo(memStream);
 				memStream.Seek(0, SeekOrigin.Begin);
 				exitCode = process.ExitCode;
+				if (exitCode != 0)
+				{
+					Console.WriteLine($"ERROR: phantomjs EXIT CODE: {exitCode}");
+					Console.WriteLine(process.StandardError.ReadToEnd());
+					throw new WebException(500, "Error while generating the PDF");
+				}
 			}
 			return memStream;
 		}

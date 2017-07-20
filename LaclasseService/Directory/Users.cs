@@ -97,7 +97,7 @@ namespace Laclasse.Directory
 				login = await Users.FindAvailableLoginAsync(db, firstname, lastname);
 
 			if (!IsSet(nameof(password)))
-				password = "clear:" + StringExt.RandomString(12, "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789");
+				password = "clear:" + StringExt.RandomString(10, "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789");
 
 			return await base.InsertAsync(db);
 		}
@@ -172,6 +172,15 @@ namespace Laclasse.Directory
 			return email;
 		}
 
+		public bool CheckPassword(string testPassword)
+		{
+			bool passwordGood = (password.IndexOf("bcrypt:", StringComparison.InvariantCulture) == 0) &&
+				BCrypt.Net.BCrypt.Verify(testPassword, password.Substring(7));
+			passwordGood |= (password.IndexOf("clear:", StringComparison.InvariantCulture) == 0) &&
+				(testPassword == password.Substring(6));
+			return passwordGood;
+		}
+
 		public override JsonObject ToJson()
 		{
 			var json = base.ToJson();
@@ -240,6 +249,9 @@ namespace Laclasse.Directory
 
 			if (!Dir.Exists(avatarDir))
 				Dir.CreateDirectory(avatarDir);
+
+			// API only available to authenticated users
+			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
 			// register a type
 			Types["uid"] = (val) => (Regex.IsMatch(val, "^[A-Z0-9]+$")) ? val : null;

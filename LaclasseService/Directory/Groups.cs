@@ -27,6 +27,7 @@
 //
 
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Laclasse.Authentication;
@@ -61,6 +62,22 @@ namespace Laclasse.Directory
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
+			var user = await context.GetAuthenticatedUserAsync();
+			if (user == null)
+				throw new WebException(401, "Authentication needed");
+			if (user.IsSuperAdmin)
+				   return;
+			if ((right == Right.Create) && (type == "GPL"))
+			{
+				// allow all profiles except ELV and TUT to group "GPL" group in their structure
+				if (structure_id != null) {
+					if (user.user.profiles.Any((arg) => arg.structure_id == structure_id && arg.type != "ELV" && arg.type != "TUT"))
+						return;
+				}
+				// allow all profiles except ELV and TUT to create group out of any structure
+				else if (user.user.profiles.Any((arg) => arg.type != "ELV" && arg.type != "TUT"))
+					return;
+			}
 			await context.EnsureHasRightsOnGroupAsync(this, true, (right == Right.Update), (right == Right.Create) || (right == Right.Delete));
 		}
 	}

@@ -54,14 +54,36 @@ namespace Laclasse.Directory
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
+			var authUser = await context.EnsureIsAuthenticatedAsync();
+
 			var group = new Group { id = group_id };
 			using (var db = await DB.CreateAsync(context.GetSetup().database.url))
 				await group.LoadAsync(db, true);
-			// every body is allowed to ask a pending validation
-			if ((right == Right.Create) && (pending_validation == true))
+
+			// ok if we have rights on the group
+			if (authUser.HasRightsOnGroup(group, true, right == Right.Update, right == Right.Create || right == Right.Delete))
 				return;
 
-			await context.EnsureHasRightsOnGroupAsync(group, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+			// load the target user
+			if (user_id != null)
+			{
+				// a user can ask to enter in a group or remove himself from the group
+				if (authUser.IsUser && authUser.user.id == user_id && ((right == Right.Delete) || ((right == Right.Create) && (pending_validation == true))))
+					return;
+
+				var user = new User { id = user_id };
+				using (var db = await DB.CreateAsync(context.GetSetup().database.url))
+				{
+					if (!await user.LoadAsync(db, true))
+						throw new WebException(403, "Can check the user");
+				}
+
+				// a user with admin rights on the group's user can ask for a pending validation
+				if ((right == Right.Create) && (pending_validation == true) && authUser.HasRightsOnUser(user, false, false, true))
+					return;
+			}
+
+			throw new WebException(403, "Insufficient authorization");
 		}
 	}
 

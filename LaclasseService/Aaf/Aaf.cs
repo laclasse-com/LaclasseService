@@ -143,7 +143,7 @@ namespace Laclasse.Aaf
 				await c.EnsureIsSuperAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				var res = await synchronizer.SynchronizeAsync(apply: true, grade: true);
-				c.Response.Content = res.subjects;
+				c.Response.Content = res.grades;
 			};
 
 			GetAsync["/{id}/teachers"] = async (p, c) =>

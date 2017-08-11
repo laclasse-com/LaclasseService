@@ -30,6 +30,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
+using System.Threading;
 using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Authentication;
@@ -41,7 +43,7 @@ namespace Laclasse.Manage
 		public ManageService()
 		{
 			// API only available to authenticated users
-			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+			BeforeAsync = async (p, c) => await c.EnsureIsSuperAdminAsync();
 
 			Get["/"] = (p, c) =>
 			{
@@ -62,7 +64,6 @@ namespace Laclasse.Manage
 				c.Response.Content = GetClients(c, c.Request.QueryString);
 			};
 			// DELETE /clients/[address or user] close a client connection
-			//else if ((context.Request.Method == "DELETE") && (parts.Length == 2) && (parts[0] == "clients"))
 			Delete["/clients/{id}"] = (p, c) =>
 			{
 				CloseClient(c, (string)p["id"]);

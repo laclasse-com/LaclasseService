@@ -897,7 +897,12 @@ namespace Laclasse
 				limit = $"LIMIT {count} OFFSET {offset}";
 
 			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `{modelTableName}` WHERE {filter} " +
-				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC") + $" {limit}";
+				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC");
+			// if the order is not the primary key add a second order criteria to ensure a predictible order
+			// else paging might be useless
+			if (orderBy != primaryKey)
+				sql += $", `{primaryKey}` ASC";
+			sql += $" {limit}";
 			//Console.WriteLine(sql);
 			result.Limit = count;
 			if (expand)

@@ -128,6 +128,7 @@ namespace Laclasse.Aaf
 
 		ModelList<Subject> entSubjects;
 		Dictionary<string, Subject> entSubjectsById;
+		Dictionary<string, Subject> entSubjectsUsedById;
 
 		ModelList<User> aafParents;
 		Dictionary<long, User> aafParentsByAafId;
@@ -329,6 +330,15 @@ namespace Laclasse.Aaf
 					stopWatch.Start();
 					diff.subjects.diff = Model.Diff(entSubjects, aafSubjects, (src, dst) => src.id == dst.id);
 					stopWatch.Stop();
+					// only remove subject not used by any body
+					var remove = new ModelList<Subject>();
+					foreach (var removeSubject in diff.subjects.diff.remove)
+					{
+						if (!entSubjectsUsedById.ContainsKey(removeSubject.id))
+							remove.Add(removeSubject);
+					}
+					diff.subjects.diff.remove = remove;
+
 					diff.subjects.stats.diff = stopWatch.Elapsed.TotalSeconds;
 					diff.subjects.stats.addCount += diff.subjects.diff.add.Count;
 					diff.subjects.stats.changeCount += diff.subjects.diff.change.Count;
@@ -1792,9 +1802,11 @@ namespace Laclasse.Aaf
 			entSubjects = await db.SelectAsync<Subject>("SELECT * FROM `subject`");
 			entSubjectsById = new Dictionary<string, Subject>();
 			foreach (var subject in entSubjects)
-			{
 				entSubjectsById[subject.id] = subject;
-			}
+
+			entSubjectsUsedById = new Dictionary<string, Subject>();
+			foreach (var subject in await db.SelectAsync<Subject>("SELECT * FROM `subject` WHERE `id` IN (SELECT DISTINCT(subject_id) FROM `group_user` WHERE subject_id IS NOT NULL)"))
+				entSubjectsUsedById[subject.id] = subject;
 		}
 
 		void LoadAafSubjects()

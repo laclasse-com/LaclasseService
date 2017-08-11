@@ -107,6 +107,7 @@
     <Compile Include="Aaf\AafGlobalZipFile.cs" />
     <Compile Include="Aaf\NotImplentedException.cs" />
     <Compile Include="Directory\Publipostages.cs" />
+    <Compile Include="WordPress\WordPress.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -121,6 +122,7 @@
     <Folder Include="Authentication\" />
     <Folder Include="Aaf\" />
     <Folder Include="Manage\" />
+    <Folder Include="WordPress\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>

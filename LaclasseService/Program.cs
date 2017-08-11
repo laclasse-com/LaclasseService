@@ -160,6 +160,8 @@ namespace Laclasse
 
 			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path, setup.aaf.zipPath));
 
+			mapper.Add("/api/worpress", new WordPress.WordPress(setup.wordPress));
+
 			mapper.Add("/api/setup", new SetupService(setup));
 			mapper.Add("/api/manage", new Manage.ManageService());
 
@@ -182,27 +184,6 @@ namespace Laclasse
 			// If not compatible with the DB Schema. STOP HERE
 			if (!DB.CheckDBModels(dbUrl))
 				return;
-
-			//			using (DB db = DB.Create(dbUrl))
-			//			{
-			//				var res = db.SelectRowAsync<Directory.Group>(14, true);
-			//				res.Wait();
-			//				Console.WriteLine(res.Result.Fields.Dump());
-			//				var res = db.SelectExpandAsync<Directory.Group>("SELECT * FROM `group` WHERE `id` IN (14,17)", new object[] { });
-			//				res.Wait();
-			//				Console.WriteLine(res.Result.Dump());
-			//			}
-
-			//var log = Model.CreateFromJson<Log>(new JsonObject { ["url"] = "test", ["timestamp"] = "2015-01-12" });
-			//Console.WriteLine(log.Fields.Dump());
-			//Console.WriteLine(log.Fields["primary"].GetType());
-			//return;
-
-			//var diff = new Aaf.Synchronizer.SyncDiff();
-			//diff.grades = new Aaf.Synchronizer.GradesDiff();
-			//diff.grades.added = new ModelList<Grade>();
-			//Console.WriteLine(diff.ToJson().ToString());
-			//return;
 
 			server.Start();
 

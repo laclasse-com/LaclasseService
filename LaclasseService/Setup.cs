@@ -111,6 +111,13 @@ namespace Laclasse
 		public SessionSetup session = new SessionSetup();
 	}
 
+	public class WordPressSetup
+	{
+		public string apiUrl = "http://localhost/wp-content/pugins/ent-wp-management/api.php";
+		public string username = "admin";
+		public string password = "defaultPassword";
+	}
+
 	public class Setup
 	{
 		public ServerSetup server = new ServerSetup();
@@ -122,5 +129,6 @@ namespace Laclasse
 		public MailSetup mail = new MailSetup();
 		public SmsSetup sms = new SmsSetup();
 		public AuthenticationSetup authentication = new AuthenticationSetup();
+		public WordPressSetup wordPress = new WordPressSetup();
 	}
 }

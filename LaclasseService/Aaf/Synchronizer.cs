@@ -1046,11 +1046,11 @@ namespace Laclasse.Aaf
 					{
 						if (entUser.aaf_jointure_id != null)
 						{
-							entUser = null;
 							errors.Add("ERROR: ELEVE FOUND BY aaf_struct_rattach_id BUT WITH ANOTHER aaf_jointure_id, "+
 							           "ELEVE MIGTH BE A DUPLICATE ACCOUNT "+
 							           $"(LASTNAME: {aafUser.lastname}, FIRSTNAME: {aafUser.firstname}, AAF_JOINTURE_ID: {aafUser.aaf_jointure_id})"+
 							           $" FOUND ENT (ID: {entUser.id}, AAF_JOINTURE_ID: {entUser.aaf_jointure_id})");
+							entUser = null;
 						}
 					}
 				}

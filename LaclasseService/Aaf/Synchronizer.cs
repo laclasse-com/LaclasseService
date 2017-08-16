@@ -276,6 +276,7 @@ namespace Laclasse.Aaf
 
 			using (DB db = await DB.CreateAsync(dbUrl, true))
 			{
+
 				if (structure || eleve || persEducNat || persRelEleve)
 				{
 					stopWatch = new Stopwatch();
@@ -308,6 +309,15 @@ namespace Laclasse.Aaf
 						interStructures[id] = true;
 				}
 
+				if (subject || persEducNat)
+				{
+					stopWatch = new Stopwatch();
+					stopWatch.Start();
+					await LoadEntSubjectsAsync(db);
+					stopWatch.Stop();
+					diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
+				}
+
 				if (subject)
 				{
 					diff.subjects = new SubjectsDiff();
@@ -318,13 +328,6 @@ namespace Laclasse.Aaf
 					stopWatch.Stop();
 					diff.subjects.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
 					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
-
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					await LoadEntSubjectsAsync(db);
-					stopWatch.Stop();
-					diff.subjects.stats.entLoad = stopWatch.Elapsed.TotalSeconds;
-					diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
 
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
@@ -353,6 +356,8 @@ namespace Laclasse.Aaf
 						stopWatch.Stop();
 						diff.subjects.stats.sync = stopWatch.Elapsed.TotalSeconds;
 						diff.stats.sync += stopWatch.Elapsed.TotalSeconds;
+
+						await LoadEntSubjectsAsync(db);
 					}
 				}
 
@@ -743,7 +748,7 @@ namespace Laclasse.Aaf
 			return (aafGradesById.ContainsKey(id)) ? aafGradesById[id] : null;
 		}
 
-		Subject GetSubjectById(string id)
+		Subject GetEntSubjectById(string id)
 		{
 			return (entSubjectsById.ContainsKey(id)) ? entSubjectsById[id] : null;
 		}
@@ -1533,7 +1538,7 @@ namespace Laclasse.Aaf
 						{
 							// ensure the subject exists. Some subject can be used by teacher
 							// but not given in the AAF
-							var subject = GetAafSubjectById(tab[2]);
+							var subject = GetEntSubjectById(tab[2]);
 							var subjectId = tab[2];
 							if (subject == null)
 							{
@@ -1573,13 +1578,19 @@ namespace Laclasse.Aaf
 						{
 							// ensure the subject exists. Some subject can be used by teacher
 							// but not given in the AAF
-							//	var sub = await GetOrCreateSubjectAsync(db, tab[2]);
+							var subject = GetEntSubjectById(tab[2]);
+							var subjectId = tab[2];
+							if (subject == null)
+							{
+								subjectId = null;
+								errors.Add($"ERROR: ADD USER {user.firstname} {user.lastname} {user.id} TO GROUP {group.id} {group.name} WITH NONE EXISTING SUBJECT ({tab[2]}) USE NULL");
+							}
 
 							user.groups.Add(new GroupUser
 							{
 								type = "ENS",
 								group_id = group.id,
-								subject_id = tab[2],
+								subject_id = subjectId,
 								pending_validation = false
 							});
 						}
@@ -1986,8 +1997,8 @@ namespace Laclasse.Aaf
 							classe.grades.Add(new GroupGrade { grade_id = grade.id });
 					}
 				}
-				else
-					errors.Add($"ERROR: GROUP NAME DUPLICATE (STRUCTURE: {classe.structure_id}, TYPE: {classe.type}, NAME: {classe.aaf_name})");
+				//else
+				//	errors.Add($"ERROR: GROUP NAME DUPLICATE (STRUCTURE: {classe.structure_id}, TYPE: {classe.type}, NAME: {classe.aaf_name})");
 			}
 
 			// handle GROUPES ELEVES
@@ -2012,8 +2023,8 @@ namespace Laclasse.Aaf
 				// multiples times
 				if (!aafStructure.groups.Any((arg) => (arg.type == groupe.type) && (arg.aaf_name == groupe.aaf_name)))
 					aafStructure.groups.Add(groupe);
-				else
-					errors.Add($"ERROR: GROUP NAME DUPLICATE (STRUCTURE: {groupe.structure_id}, TYPE: {groupe.type}, NAME: {groupe.aaf_name})");
+				//else
+				//	errors.Add($"ERROR: GROUP NAME DUPLICATE (STRUCTURE: {groupe.structure_id}, TYPE: {groupe.type}, NAME: {groupe.aaf_name})");
 			}
 			return aafStructure;
 		}

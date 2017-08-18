@@ -387,7 +387,7 @@ namespace Laclasse
 			return sb.ToString();
 		}
 
-		public static JsonObject ToJson<T>(this T obj)
+		public static JsonValue ToJson<T>(this T obj)
 		{
 			return JsonValue.ObjectToJson(obj);
 		}

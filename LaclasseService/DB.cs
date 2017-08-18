@@ -102,7 +102,8 @@ namespace Laclasse
 
 		public virtual bool IsEmpty
 		{
-			get {
+			get
+			{
 				return Fields.Count == 0;
 			}
 		}
@@ -168,7 +169,7 @@ namespace Laclasse
 					continue;
 				if (Fields[key] == null)
 				{
-						if (obj.Fields[key] != null)
+					if (obj.Fields[key] != null)
 						return false;
 				}
 				else if (!Fields[key].Equals(obj.Fields[key]))
@@ -265,9 +266,19 @@ namespace Laclasse
 
 						var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
 						if (nullableType == null)
-							Fields[property.Name] = Convert.ChangeType(val.Value, property.PropertyType);
+						{
+							if (property.PropertyType.IsEnum && val.JsonType == JsonType.String)
+								Fields[property.Name] = Enum.Parse(property.PropertyType, (string)val.Value);
+							else
+								Fields[property.Name] = Convert.ChangeType(val.Value, property.PropertyType);
+						}
 						else
-							Fields[property.Name] = Convert.ChangeType(val.Value, nullableType);
+						{
+							if (nullableType.IsEnum && val.JsonType == JsonType.String)
+								Fields[property.Name] = Enum.Parse(nullableType, (string)val.Value);
+							else
+								Fields[property.Name] = Convert.ChangeType(val.Value, nullableType);
+						}
 					}
 					else if (val == null)
 					{
@@ -339,6 +350,8 @@ namespace Laclasse
 					result[key] = (DateTime?)value;
 				else if (value is TimeSpan)
 					result[key] = ((TimeSpan)value).TotalSeconds;
+				else if (value is Enum)
+					result[key] = ((Enum)value).ToString();
 				else if (value is Model)
 					result[key] = ((Model)value).ToJson();
 				else if (value is IModelList)
@@ -616,13 +629,13 @@ namespace Laclasse
 			if (op == CompareOperator.NotEqual)
 				opStr = "!=";
 			else if (op == CompareOperator.Less)
-				opStr =  "<";
+				opStr = "<";
 			else if (op == CompareOperator.LessOrEqual)
-				opStr =  "<=";
+				opStr = "<=";
 			else if (op == CompareOperator.Greater)
-				opStr =  ">";
+				opStr = ">";
 			else if (op == CompareOperator.GreaterOrEqual)
-				opStr =  ">=";
+				opStr = ">=";
 			return opStr;
 		}
 
@@ -833,7 +846,7 @@ namespace Laclasse
 					var prop = attr.ForeignModel.GetProperty(attr.ForeignField);
 					if (prop != null)
 						properties = new PropertyInfo[] { prop };
-					else 
+					else
 						properties = new PropertyInfo[] { };
 				}
 				else
@@ -1002,7 +1015,7 @@ namespace Laclasse
 		}
 	}
 
-	public interface IModelList: IList
+	public interface IModelList : IList
 	{
 		IModelListDiff diff { get; }
 
@@ -1015,9 +1028,19 @@ namespace Laclasse
 	{
 		public ModelListDiff<T> diff;
 
+		public ModelList()
+		{
+		}
+
+		public ModelList(IEnumerable<T> values)
+		{
+			AddRange(values);
+		}
+
 		IModelListDiff IModelList.diff
 		{
-			get {
+			get
+			{
 				return diff;
 			}
 		}
@@ -1082,28 +1105,32 @@ namespace Laclasse
 
 		IModelList IModelListDiff.add
 		{
-			get {
+			get
+			{
 				return add;
 			}
 		}
 
 		IModelList IModelListDiff.change
 		{
-			get {
+			get
+			{
 				return change;
 			}
 		}
 
 		IModelList IModelListDiff.remove
 		{
-			get {
+			get
+			{
 				return remove;
 			}
 		}
 
 		public override bool IsEmpty
 		{
-			get {
+			get
+			{
 				return !add.Any() && !change.Any() && !remove.Any();
 			}
 		}
@@ -1185,7 +1212,7 @@ namespace Laclasse
 			return res.Result;
 		}
 
-		public async Task<IList<Dictionary<string,object>>> SelectAsync(string query, params object[] args)
+		public async Task<IList<Dictionary<string, object>>> SelectAsync(string query, params object[] args)
 		{
 			var result = new List<Dictionary<string, object>>();
 			var cmd = new MySqlCommand(query, connection);
@@ -1339,7 +1366,7 @@ namespace Laclasse
 			return result;
 		}
 
-		public async Task<ModelList<T>> SelectForeignRowsAsync<T>(Type sourceModel, string foreignField, object sourceId) where T : Model, new ()
+		public async Task<ModelList<T>> SelectForeignRowsAsync<T>(Type sourceModel, string foreignField, object sourceId) where T : Model, new()
 		{
 			ModelList<T> result;
 
@@ -1361,7 +1388,7 @@ namespace Laclasse
 			return result;
 		}
 
-		public async Task<Dictionary<object,ModelList<T>>> SelectForeignsRowsAsync<T>(Type sourceModel, string foreignField, List<object> sourceIds) where T : Model, new()
+		public async Task<Dictionary<object, ModelList<T>>> SelectForeignsRowsAsync<T>(Type sourceModel, string foreignField, List<object> sourceIds) where T : Model, new()
 		{
 			var result = new Dictionary<object, ModelList<T>>();
 
@@ -1377,7 +1404,8 @@ namespace Laclasse
 				var tmpIds = new List<object>();
 				var idsCount = 0;
 
-				Func<Task> loadForeign = async delegate {
+				Func<Task> loadForeign = async delegate
+				{
 					var sql = $"SELECT * FROM `{destTableName}` WHERE {InFilter(foreignFieldProperty.Name, tmpIds)} ORDER BY `{foreignFieldProperty.Name}`";
 					object currentSourceId = null;
 					ModelList<T> currentSourceItems = null;
@@ -1597,6 +1625,31 @@ namespace Laclasse
 			connection.Close();
 		}
 
+		static string[] DBGetEnumValues(string dbUrl, string table, string col)
+		{
+			string colDef;
+			using (var connection = new MySqlConnection(dbUrl))
+			{
+				using (var command = new MySqlCommand($"SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='{table}' AND COLUMN_NAME='{col}'", connection))
+				{
+					connection.Open();
+					colDef = command.ExecuteScalar() as string;
+				}
+			}
+			if (colDef == null)
+				return null;
+			if (!colDef.StartsWith("enum(", StringComparison.InvariantCultureIgnoreCase) || !colDef.EndsWith(")", StringComparison.InvariantCultureIgnoreCase))
+				return null;
+			var values = colDef.Substring(5, colDef.Length - 6).Split(',');
+			for (var i = 0; i < values.Length; i++)
+			{
+				if (values[i][0] != '\'' || values[i][values[i].Length - 1] != '\'')
+					return null;
+				values[i] = values[i].Substring(1, values[i].Length - 2);
+			}
+			return values;
+		}
+
 		public static bool CheckDBModels(string dbUrl)
 		{
 			bool valid = true;
@@ -1688,12 +1741,35 @@ namespace Laclasse
 							}
 						}
 					}
-					if ((propType != null) && !propType.IsAssignableFrom(colsTypes[key].DataType))
+					if (propType != null)
 					{
-						Console.WriteLine(
-							$"ERROR in model '{model.Name}', field '{key}' type NOT COMPATIBLE with col " +
-							$"in table '{tableName}' ({propType} != {colsTypes[key].DataType})");
-						valid = false;
+						// handle Enum
+						if (propType.IsEnum)
+						{
+							var enumValues = DBGetEnumValues(dbUrl, tableName, key);
+							if (enumValues == null)
+							{
+								Console.WriteLine(
+								$"ERROR in model '{model.Name}', field '{key}' enum NOT COMPATIBLE with col " +
+								$"in table '{tableName}' ({propType} != {colsTypes[key].DataType})");
+								valid = false;
+							}
+							else if ((enumValues.Length != Enum.GetNames(propType).Length) || (Enum.GetNames(propType).Intersect(enumValues).Count() != enumValues.Length))
+							{
+								var sep = "|";
+								Console.WriteLine(
+								$"ERROR in model '{model.Name}', field '{key}' enum VALUES NOT COMPATIBLE with col " +
+									$"in table '{tableName}' ({String.Join(sep, Enum.GetNames(propType))} != {String.Join(sep, enumValues)})");
+								valid = false;
+							}
+						}
+						else if (!propType.IsAssignableFrom(colsTypes[key].DataType))
+						{
+							Console.WriteLine(
+								$"ERROR in model '{model.Name}', field '{key}' type NOT COMPATIBLE with col " +
+								$"in table '{tableName}' ({propType} != {colsTypes[key].DataType})");
+							valid = false;
+						}
 					}
 				}
 			}

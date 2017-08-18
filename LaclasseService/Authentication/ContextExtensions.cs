@@ -124,13 +124,18 @@ namespace Laclasse.Authentication
 
 		public bool HasRightsOnStructure(Structure structure, bool read, bool write, bool admin)
 		{
+			return HasRightsOnStructure(structure.id, read, write, admin);
+		}
+
+		public bool HasRightsOnStructure(string structure_id, bool read, bool write, bool admin)
+		{
 			if (IsSuperAdmin)
 				return true;
 			if (admin || write)
-				return user.profiles.Exists((obj) => (obj.structure_id == structure.id) && (obj.type == "ADM" || obj.type == "DIR"));
+				return user.profiles.Exists((obj) => (obj.structure_id == structure_id) && (obj.type == "ADM" || obj.type == "DIR"));
 			// read right for all user with a profile in the structure or all user
 			// that are not just only ELV (student) or TUT (parent)
-			return user.profiles.Exists((obj) => obj.structure_id == structure.id || ((obj.type != "ELV") && (obj.type != "TUT")));
+			return user.profiles.Exists((obj) => obj.structure_id == structure_id || ((obj.type != "ELV") && (obj.type != "TUT")));
 		}
 	}
 

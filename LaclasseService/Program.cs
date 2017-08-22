@@ -36,6 +36,8 @@ using Erasme.Json;
 using Laclasse.Directory;
 using Laclasse.Authentication;
 
+using Laclasse.Aaf;
+
 namespace Laclasse
 {
 	class MainClass
@@ -74,11 +76,6 @@ namespace Laclasse
 		{
 			// load the default setup from an embeded resource
 			var setup = new Setup();
-			//JsonValue setup;
-			//using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Laclasse.laclasse.conf"))
-			//{
-			//	setup = ReadCommentedJson(stream);
-			//}
 
 			// get the config file from args
 			string configFile = null;
@@ -160,6 +157,8 @@ namespace Laclasse
 
 			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path, setup.aaf.zipPath));
 
+			mapper.Add("/api/aaf/synchronizations", new Aaf.AafSyncService(dbUrl, setup.aaf.logPath));
+
 			mapper.Add("/api/worpress", new WordPress.WordPress(setup.wordPress));
 
 			mapper.Add("/api/setup", new SetupService(setup));
@@ -175,15 +174,36 @@ namespace Laclasse
 			contextInjector.Inject("publicUrl", setup.server.publicUrl);
 			contextInjector.Inject("setup", setup);
 
-			//var n1 = new Grade { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };
-			//var n2 = new Grade { id = "12345", name = "quiche", rattach = "34566", stat = "112233" };
-
-			//Console.WriteLine("Test n1 et n2: " + (n1 != n2));
-
 			// quick check to validate the currents models.
 			// If not compatible with the DB Schema. STOP HERE
 			if (!DB.CheckDBModels(dbUrl))
 				return;
+
+/*			var log = new Synchronizer.AafSyncLog();
+			log.ctime = DateTime.Now;
+			log.structures = new ModelList<Synchronizer.AafSyncStructure> {
+				new Synchronizer.AafSyncStructure { structure_id = "000001A" },
+				new Synchronizer.AafSyncStructure { structure_id = "069666A" }
+			};
+			Console.WriteLine(log.ToJson().ToString());
+
+			return;*/
+
+			// start a day scheduler to run the AAF sync task
+			var dayScheduler = new Scheduler.DayScheduler(setup.log, setup.mail);
+			foreach (var dayRun in setup.aaf.runs)
+			{
+				dayScheduler.Add(new Scheduler.DaySchedule
+				{
+					Day = dayRun.day,
+					Time = dayRun.time,
+					// TODO: schedule the AAF synchronization task
+					Action = () => Console.WriteLine("SYNC AAF TASK")
+				});
+			}
+
+			// TEST ONLY
+			//Aaf.Synchronizer.DaySyncTask(setup.aaf.path, setup.aaf.zipPath, setup.aaf.logPath, dbUrl);
 
 			server.Start();
 
@@ -225,6 +245,8 @@ namespace Laclasse
 			}
 
 			server.Stop();
+
+			dayScheduler.Dispose();
 		}
 	}
 }

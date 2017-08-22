@@ -1,4 +1,5 @@
-﻿
+﻿using System;
+
 namespace Laclasse
 {
 	public class ServerSetup
@@ -34,10 +35,18 @@ namespace Laclasse
 		public string errorLogFile = "/var/log/laclasse/error.log";
 	}
 
+	public class AafRun
+	{
+		public DayOfWeek day;
+		public TimeSpan time;
+	}
+
 	public class AafSetup
 	{
 		public string path = "/var/lib/laclasse/aaf/";
 		public string zipPath = "/var/lib/laclasse/aafZip/";
+		public string logPath = "/var/lib/laclasse/aafLog/";
+		public AafRun[] runs = new AafRun[] { };
 	}
 
 	public class StunSetup

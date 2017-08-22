@@ -108,6 +108,8 @@
     <Compile Include="Aaf\NotImplentedException.cs" />
     <Compile Include="Directory\Publipostages.cs" />
     <Compile Include="WordPress\WordPress.cs" />
+    <Compile Include="Scheduler\DayScheduler.cs" />
+    <Compile Include="Aaf\AafSyncService.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -123,6 +125,7 @@
     <Folder Include="Aaf\" />
     <Folder Include="Manage\" />
     <Folder Include="WordPress\" />
+    <Folder Include="Scheduler\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>

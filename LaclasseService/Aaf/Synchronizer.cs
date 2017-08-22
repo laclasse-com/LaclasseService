@@ -48,6 +48,7 @@ namespace Laclasse.Aaf
 
 	public class Synchronizer
 	{
+		static readonly object globalLock = new object();
 		readonly string dbUrl;
 		readonly AafGlobalZipFile zipFile;
 		readonly List<string> structuresIds = null;
@@ -157,6 +158,8 @@ namespace Laclasse.Aaf
 			public DateTime? date { get { return GetField<DateTime?>(nameof(date), null); } set { SetField(nameof(date), value); } }
 			[ModelField]
 			public long size { get { return GetField<long>(nameof(size), 0); } set { SetField(nameof(size), value); } }
+			[ModelField]
+			public SyncFileFormat format { get { return GetField(nameof(format), SyncFileFormat.Full); } set { SetField(nameof(format), value); } }
 		}
 
 		public static ModelList<SyncFile> GetFiles(string syncFilesFolder, string zipFilesFolder)
@@ -165,26 +168,31 @@ namespace Laclasse.Aaf
 			var dir = new DirectoryInfo(syncFilesFolder);
 			var zipDir = new DirectoryInfo(zipFilesFolder);
 
-			// convert TGZ to ZIP if not already done
-			foreach (var file in dir.EnumerateFiles("*.tgz"))
+			lock(globalLock)
 			{
-				var zipFile = Path.Combine(zipDir.FullName, file.Name.Substring(0, file.Name.Length - 4) + ".zip");
-				Console.WriteLine(zipFile);
-				//var zipFile = file.FullName.Substring(0, file.FullName.Length - 4) + ".zip";
-				if (!File.Exists(zipFile))
-					ConvertToZip(file.FullName, zipFile);
-			}
+				// convert TGZ to ZIP if not already done
+				foreach (var file in dir.EnumerateFiles("*.tgz"))
+				{
+					var zipFile = Path.Combine(zipDir.FullName, file.Name.Substring(0, file.Name.Length - 4) + ".zip");
+					if (!File.Exists(zipFile))
+						ConvertToZip(file.FullName, zipFile);
+				}
 
-			foreach (var file in zipDir.EnumerateFiles("*.zip"))
-			{
-				var syncFile = new SyncFile { id = file.Name, size = file.Length };
-				var matches = System.Text.RegularExpressions.Regex.Match(file.Name, "ENT2D\\.(20\\d\\d)(\\d\\d)(\\d\\d).*\\.zip");
-				if (matches.Success)
-					syncFile.date = new DateTime(
-						Convert.ToInt32(matches.Groups[1].Value),
-						Convert.ToInt32(matches.Groups[2].Value),
-						Convert.ToInt32(matches.Groups[3].Value));
-				result.Add(syncFile);
+				foreach (var file in zipDir.EnumerateFiles("*.zip"))
+				{
+					var syncFile = new SyncFile { id = file.Name, size = file.Length };
+					var matches = System.Text.RegularExpressions.Regex.Match(file.Name, "ENT2D\\.(20\\d\\d)(\\d\\d)(\\d\\d).*\\.zip");
+					if (matches.Success)
+						syncFile.date = new DateTime(
+							Convert.ToInt32(matches.Groups[1].Value),
+							Convert.ToInt32(matches.Groups[2].Value),
+							Convert.ToInt32(matches.Groups[3].Value));
+					if (System.Text.RegularExpressions.Regex.IsMatch(file.Name, "Delta"))
+						syncFile.format = SyncFileFormat.Delta;
+					else 
+						syncFile.format = SyncFileFormat.Full;
+					result.Add(syncFile);
+				}
 			}
 
 			return result;
@@ -276,7 +284,6 @@ namespace Laclasse.Aaf
 
 			using (DB db = await DB.CreateAsync(dbUrl, true))
 			{
-
 				if (structure || eleve || persEducNat || persRelEleve)
 				{
 					stopWatch = new Stopwatch();
@@ -847,38 +854,22 @@ namespace Laclasse.Aaf
 					{
 						userDiff.groups = new ModelList<GroupUser>();
 						userDiff.groups.diff = groupsDiff;
+
+						foreach (var groupUser in groupsDiff.add)
+						{
+							// if the subject doesn't exists in the ENT, we need to create it (better than null subject)
+							if (apply && groupUser.subject_id != null && GetEntSubjectById(groupUser.subject_id) == null)
+							{
+								var entSubject = new Subject { id = groupUser.subject_id, name = groupUser.subject_id };
+								await entSubject.SaveAsync(db);
+								entSubjectsById[entSubject.id] = entSubject;
+							}
+						}
 					}
 					if (userDiff.Fields.Count > 1)
 						diff.diff.change.Add(userDiff);
 				}
 			}
-
-			// find all users not seen in the current synchronization with PersEducNat profiles
-			// in the structures seen in the current synchronization and remove them
-			// TODO: improve perf by grouping this garbage collect process with other users types (Eleve, Parent)
-			/*foreach (var entUser in entUsersByAafId.Values)
-			{
-				if (entUser.aaf_jointure_id == null)
-					continue;
-				if (!entSyncSeenUsers.ContainsKey(entUser.id))
-				{
-					User changeUser = null;
-
-					var removeProfiles = entUser.profiles.FindAll((obj) => IsSyncStructure(obj.structure_id) && persEducNatProfiles.Contains(obj.type));
-					if (removeProfiles.Any())
-					{
-						var userRemoveProfiles = new ModelList<UserProfile>();
-						foreach (var userProfile in removeProfiles)
-							userRemoveProfiles.Add(userProfile);
-						changeUser = new User { id = entUser.id };
-						changeUser.profiles = new ModelList<UserProfile>();
-						changeUser.profiles.diff = new ModelListDiff<UserProfile>();
-						changeUser.profiles.diff.remove = userRemoveProfiles;
-					}
-					if (changeUser != null)
-						diff.diff.change.Add(changeUser);
-				}
-			}*/
 
 			stopWatch.Stop();
 			diff.stats.diff = stopWatch.Elapsed.TotalSeconds;
@@ -967,30 +958,6 @@ namespace Laclasse.Aaf
 						diff.diff.change.Add(userDiff);
 				}
 			}
-
-			// find all users not seen in the current synchronization with PersEducNat profiles
-			// in the structures seen in the current synchronization and remove them
-			// TODO: improve perf by grouping this garbage collect process with other users types (Eleve, Parent)
-			/*foreach (var entUser in entUsersByAafId.Values)
-			{
-				if (entUser.aaf_jointure_id == null)
-					continue;
-				if (!entSyncSeenUsers.ContainsKey(entUser.id))
-				{
-					var removeProfiles = entUser.profiles.FindAll((obj) => IsSyncStructure(obj.structure_id) && (obj.type == "TUT"));
-					if (removeProfiles.Any())
-					{
-						var userRemoveProfiles = new ModelList<UserProfile>();
-						foreach (var userProfile in removeProfiles)
-							userRemoveProfiles.Add(userProfile);
-						var changeUser = new User { id = entUser.id };
-						changeUser.profiles = new ModelList<UserProfile>();
-						changeUser.profiles.diff = new ModelListDiff<UserProfile>();
-						changeUser.profiles.diff.remove = userRemoveProfiles;
-						diff.diff.change.Add(changeUser);
-					}
-				}
-			}*/
 
 			stopWatch.Stop();
 			diff.stats.diff = stopWatch.Elapsed.TotalSeconds;
@@ -1142,30 +1109,6 @@ namespace Laclasse.Aaf
 						diff.diff.change.Add(userDiff);
 				}
 			}
-
-			// find all users not seen in the current synchronization with PersEducNat profiles
-			// in the structures seen in the current synchronization and remove them
-			// TODO: improve perf by grouping this garbage collect process with other users types (Eleve, Parent)
-			/*foreach (var entUser in entUsersByAafId.Values)
-			{
-				if (entUser.aaf_jointure_id == null)
-					continue;
-				if (!entSyncSeenUsers.ContainsKey(entUser.id))
-				{
-					var removeProfiles = entUser.profiles.FindAll((obj) => IsSyncStructure(obj.structure_id) && obj.type == "ELV");
-					if (removeProfiles.Any())
-					{
-						var userRemoveProfiles = new ModelList<UserProfile>();
-						foreach (var userProfile in removeProfiles)
-							userRemoveProfiles.Add(userProfile);
-						var changeUser = new User { id = entUser.id };
-						changeUser.profiles = new ModelList<UserProfile>();
-						changeUser.profiles.diff = new ModelListDiff<UserProfile>();
-						changeUser.profiles.diff.remove = userRemoveProfiles;
-						diff.diff.change.Add(changeUser);
-					}
-				}
-			}*/
 
 			stopWatch.Stop();
 			diff.stats.diff = stopWatch.Elapsed.TotalSeconds;
@@ -1538,11 +1481,11 @@ namespace Laclasse.Aaf
 						{
 							// ensure the subject exists. Some subject can be used by teacher
 							// but not given in the AAF
-							var subject = GetEntSubjectById(tab[2]);
+							var subject = GetAafSubjectById(tab[2]);
 							var subjectId = tab[2];
 							if (subject == null)
 							{
-								subjectId = null;
+								//subjectId = null;
 								errors.Add($"ERROR: ADD USER {user.firstname} {user.lastname} {user.id} TO GROUP {group.id} {group.name} WITH NONE EXISTING SUBJECT ({tab[2]}) USE NULL");
 							}
 
@@ -1578,11 +1521,11 @@ namespace Laclasse.Aaf
 						{
 							// ensure the subject exists. Some subject can be used by teacher
 							// but not given in the AAF
-							var subject = GetEntSubjectById(tab[2]);
+							var subject = GetAafSubjectById(tab[2]);
 							var subjectId = tab[2];
 							if (subject == null)
 							{
-								subjectId = null;
+								//subjectId = null;
 								errors.Add($"ERROR: ADD USER {user.firstname} {user.lastname} {user.id} TO GROUP {group.id} {group.name} WITH NONE EXISTING SUBJECT ({tab[2]}) USE NULL");
 							}
 
@@ -2066,6 +2009,81 @@ namespace Laclasse.Aaf
 			// load students too to complete the parents profiles
 			LoadAafEleve();
 			return aafParents;
+		}
+
+		public static void DaySyncTask(string syncFilesFolder, string zipFilesFolder, string logFilesFolder, string dbUrl)
+		{
+			var task = DaySyncTaskAsync(syncFilesFolder, zipFilesFolder, logFilesFolder, dbUrl);
+			task.Wait();
+		}
+
+		public static async Task DaySyncTaskAsync(string syncFilesFolder, string zipFilesFolder, string logFilesFolder, string dbUrl)
+		{
+			var files = GetFiles(syncFilesFolder, zipFilesFolder);
+
+			var now = DateTime.Now;
+			SyncFile nearestFile = null;
+			foreach (var file in files)
+			{
+				if (file.date == null)
+					continue;
+
+				var fileDeltaNow = (DateTime)file.date - now;
+				Console.WriteLine($"File: {file.id}, Delta: {fileDeltaNow}");
+
+				// if file is too old or in the future, dont take it
+				if ((fileDeltaNow > TimeSpan.FromDays(7)) || (fileDeltaNow < TimeSpan.FromDays(-7)))
+					continue;
+				
+				if (nearestFile == null)
+					nearestFile = file;
+				else if (fileDeltaNow > (DateTime)nearestFile.date - now)
+					nearestFile = file;
+			}
+
+			if (nearestFile != null)
+			{
+				Synchronizer sync = null;
+				SyncDiff diff = null;
+				Exception exception = null;
+				try
+				{
+					sync = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, nearestFile.id));
+					diff = await sync.SynchronizeAsync(
+						subject: true, grade: true, structure: true,
+						persEducNat: true, eleve: true, persRelEleve: true, apply: false);
+				}
+				catch (Exception e)
+				{
+					exception = e;
+				}
+
+				var aafSync = new AafSync { file = nearestFile.id };
+				using (DB db = await DB.CreateAsync(dbUrl))
+				{
+					if (exception != null)
+					{
+						aafSync.exception = exception.ToString();
+						// save the structures that could have been concerned
+						var structs = new ModelList<AafSyncStructure>();
+						foreach (var struc in await db.SelectAsync<Structure>("SELECT * FROM `structure` WHERE `aaf_sync_activated`=TRUE"))
+							structs.Add(new AafSyncStructure { structure_id = struc.id });
+						aafSync.structures = structs;
+					}
+					else
+					{
+						// save the structures concerned by the sync
+						aafSync.structures = new ModelList<AafSyncStructure>(sync.interStructuresIds.Select((arg) => new AafSyncStructure { structure_id = arg }));
+					}
+
+					if (await aafSync.SaveAsync(db, true))
+					{
+						// save the diff
+						if (exception == null && diff != null)
+							File.WriteAllText(Path.Combine(logFilesFolder, aafSync.id.ToString() + ".diff"), diff.ToJson().ToString());
+					}
+				}
+			}
 		}
 	}
 }

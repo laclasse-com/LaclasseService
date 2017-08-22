@@ -808,6 +808,17 @@ namespace Laclasse.Aaf
 					aafUser.groups = AafGroupUserToEntGroupUser(aafUser.groups);
 					aafUser.profiles = aafUserProfiles;
 					diff.diff.add.Add(aafUser);
+
+					foreach (var groupUser in aafUser.groups)
+					{
+						// if the subject doesn't exists in the ENT, we need to create it (better than null subject)
+						if (apply && groupUser.subject_id != null && GetEntSubjectById(groupUser.subject_id) == null)
+						{
+							var entSubject = new Subject { id = groupUser.subject_id, name = groupUser.subject_id };
+							await entSubject.SaveAsync(db);
+							entSubjectsById[entSubject.id] = entSubject;
+						}
+					}
 				}
 				else
 				{

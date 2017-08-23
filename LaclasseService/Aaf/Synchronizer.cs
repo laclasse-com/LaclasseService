@@ -274,6 +274,22 @@ namespace Laclasse.Aaf
 			bool eleve = false, bool persRelEleve = false,
 			bool apply = false)
 		{
+			SyncDiff res;
+			using (DB db = await DB.CreateAsync(dbUrl, true))
+			{
+				res = await SynchronizeAsync(
+					db, subject, grade, structure, persEducNat, eleve, persRelEleve, apply);
+				db.Commit();
+			}
+			return res;
+		}
+
+		public async Task<SyncDiff> SynchronizeAsync(DB db,
+			bool subject = false, bool grade = false,
+			bool structure = false, bool persEducNat = false,
+			bool eleve = false, bool persRelEleve = false,
+			bool apply = false)
+		{
 			var diff = new SyncDiff();
 			diff.stats = new SyncStat();
 
@@ -282,251 +298,246 @@ namespace Laclasse.Aaf
 
 			Stopwatch stopWatch;
 
-			using (DB db = await DB.CreateAsync(dbUrl, true))
+			if (structure || eleve || persEducNat || persRelEleve)
 			{
-				if (structure || eleve || persEducNat || persRelEleve)
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				LoadAafSubjects();
+				stopWatch.Stop();
+				diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				await LoadEntStructuresAsync(db, structuresIds);
+				stopWatch.Stop();
+				diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
+
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				LoadAafStructures();
+				stopWatch.Stop();
+				diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+
+				// find the structures concerned by this synchronization
+				if (structuresIds == null)
+					interStructuresIds = entStructures.FindAll((obj) => obj.aaf_sync_activated).Select((arg) => arg.id);
+				else
+					interStructuresIds = entStructures.Select((arg) => arg.id).Intersect(structuresIds);
+				interStructuresIds = interStructuresIds.Intersect(aafStructures.Select((arg) => arg.id));
+
+				interStructures = new Dictionary<string, bool>();
+				foreach (var id in interStructuresIds)
+					interStructures[id] = true;
+			}
+
+			if (subject || persEducNat)
+			{
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				await LoadEntSubjectsAsync(db);
+				stopWatch.Stop();
+				diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
+			}
+
+			if (subject)
+			{
+				diff.subjects = new SubjectsDiff();
+				diff.subjects.stats = new SyncStat();
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				LoadAafSubjects();
+				stopWatch.Stop();
+				diff.subjects.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
+				diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				diff.subjects.diff = Model.Diff(entSubjects, aafSubjects, (src, dst) => src.id == dst.id);
+				stopWatch.Stop();
+				// only remove subject not used by any body
+				var remove = new ModelList<Subject>();
+				foreach (var removeSubject in diff.subjects.diff.remove)
 				{
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					LoadAafSubjects();
-					stopWatch.Stop();
-					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
-
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					await LoadEntStructuresAsync(db, structuresIds);
-					stopWatch.Stop();
-					diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
-
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					LoadAafStructures();
-					stopWatch.Stop();
-					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
-
-					// find the structures concerned by this synchronization
-					if (structuresIds == null)
-						interStructuresIds = entStructures.FindAll((obj) => obj.aaf_sync_activated).Select((arg) => arg.id);
-					else
-						interStructuresIds = entStructures.Select((arg) => arg.id).Intersect(structuresIds);
-					interStructuresIds = interStructuresIds.Intersect(aafStructures.Select((arg) => arg.id));
-
-					interStructures = new Dictionary<string, bool>();
-					foreach (var id in interStructuresIds)
-						interStructures[id] = true;
+					if (!entSubjectsUsedById.ContainsKey(removeSubject.id))
+						remove.Add(removeSubject);
 				}
+				diff.subjects.diff.remove = remove;
 
-				if (subject || persEducNat)
+				diff.subjects.stats.diff = stopWatch.Elapsed.TotalSeconds;
+				diff.subjects.stats.addCount += diff.subjects.diff.add.Count;
+				diff.subjects.stats.changeCount += diff.subjects.diff.change.Count;
+				diff.subjects.stats.removeCount += diff.subjects.diff.remove.Count;
+				diff.stats.diff += stopWatch.Elapsed.TotalSeconds;
+
+				if (apply)
 				{
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
+					await diff.subjects.diff.ApplyAsync(db);
+					stopWatch.Stop();
+					diff.subjects.stats.sync = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.sync += stopWatch.Elapsed.TotalSeconds;
+
 					await LoadEntSubjectsAsync(db);
-					stopWatch.Stop();
-					diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
 				}
+			}
 
-				if (subject)
+			if (grade)
+			{
+				diff.grades = new GradesDiff();
+				diff.grades.stats = new SyncStat();
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				LoadAafGrades();
+				stopWatch.Stop();
+				diff.grades.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
+				diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				var entGrades = await db.SelectAsync<Grade>("SELECT * FROM `grade`");
+				stopWatch.Stop();
+				diff.grades.stats.entLoad = stopWatch.Elapsed.TotalSeconds;
+				diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				diff.grades.diff = Model.Diff(entGrades, aafGrades, (src, dst) => src.id == dst.id);
+				stopWatch.Stop();
+				diff.grades.stats.diff = stopWatch.Elapsed.TotalSeconds;
+				diff.grades.stats.addCount += diff.grades.diff.add.Count;
+				diff.grades.stats.changeCount += diff.grades.diff.change.Count;
+				diff.grades.stats.removeCount += diff.grades.diff.remove.Count;
+				diff.stats.diff += stopWatch.Elapsed.TotalSeconds;
+				if (apply)
 				{
-					diff.subjects = new SubjectsDiff();
-					diff.subjects.stats = new SyncStat();
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
-					LoadAafSubjects();
+					await diff.grades.diff.ApplyAsync(db);
 					stopWatch.Stop();
-					diff.subjects.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
-					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
-
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					diff.subjects.diff = Model.Diff(entSubjects, aafSubjects, (src, dst) => src.id == dst.id);
-					stopWatch.Stop();
-					// only remove subject not used by any body
-					var remove = new ModelList<Subject>();
-					foreach (var removeSubject in diff.subjects.diff.remove)
-					{
-						if (!entSubjectsUsedById.ContainsKey(removeSubject.id))
-							remove.Add(removeSubject);
-					}
-					diff.subjects.diff.remove = remove;
-
-					diff.subjects.stats.diff = stopWatch.Elapsed.TotalSeconds;
-					diff.subjects.stats.addCount += diff.subjects.diff.add.Count;
-					diff.subjects.stats.changeCount += diff.subjects.diff.change.Count;
-					diff.subjects.stats.removeCount += diff.subjects.diff.remove.Count;
-					diff.stats.diff += stopWatch.Elapsed.TotalSeconds;
-
-					if (apply)
-					{
-						stopWatch = new Stopwatch();
-						stopWatch.Start();
-						await diff.subjects.diff.ApplyAsync(db);
-						stopWatch.Stop();
-						diff.subjects.stats.sync = stopWatch.Elapsed.TotalSeconds;
-						diff.stats.sync += stopWatch.Elapsed.TotalSeconds;
-
-						await LoadEntSubjectsAsync(db);
-					}
+					diff.grades.stats.sync = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.sync += stopWatch.Elapsed.TotalSeconds;
 				}
+			}
 
-				if (grade)
+			if (structure)
+			{
+				diff.structures = new StructuresDiff();
+				diff.structures.stats = new SyncStat();
+
+				var entInterStructures = entStructures.FindAll((obj) => IsSyncStructure(obj.id));
+				var aafInterStructures = aafStructures.FindAll((obj) => IsSyncStructure(obj.id));
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				diff.structures.diff = Model.Diff(
+					entInterStructures, aafInterStructures,
+					(src, dst) => src.id == dst.id,
+					(src, dst) =>
 				{
-					diff.grades = new GradesDiff();
-					diff.grades.stats = new SyncStat();
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					LoadAafGrades();
-					stopWatch.Stop();
-					diff.grades.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
-					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					var entGrades = await db.SelectAsync<Grade>("SELECT * FROM `grade`");
-					stopWatch.Stop();
-					diff.grades.stats.entLoad = stopWatch.Elapsed.TotalSeconds;
-					diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					diff.grades.diff = Model.Diff(entGrades, aafGrades, (src, dst) => src.id == dst.id);
-					stopWatch.Stop();
-					diff.grades.stats.diff = stopWatch.Elapsed.TotalSeconds;
-					diff.grades.stats.addCount += diff.grades.diff.add.Count;
-					diff.grades.stats.changeCount += diff.grades.diff.change.Count;
-					diff.grades.stats.removeCount += diff.grades.diff.remove.Count;
-					diff.stats.diff += stopWatch.Elapsed.TotalSeconds;
-					if (apply)
+					var itemDiff = src.DiffWithId(dst);
+					var groupsDiff = Model.Diff(
+						src.groups.FindAll((obj) => obj.aaf_name != null), dst.groups,
+						(s, d) => s.type == d.type && s.aaf_name == d.aaf_name,
+						(s2, d2) =>
 					{
-						stopWatch = new Stopwatch();
-						stopWatch.Start();
-						await diff.grades.diff.ApplyAsync(db);
-						stopWatch.Stop();
-						diff.grades.stats.sync = stopWatch.Elapsed.TotalSeconds;
-						diff.stats.sync += stopWatch.Elapsed.TotalSeconds;
-					}
-				}
-
-				if (structure)
-				{
-					diff.structures = new StructuresDiff();
-					diff.structures.stats = new SyncStat();
-
-					var entInterStructures = entStructures.FindAll((obj) => IsSyncStructure(obj.id));
-					var aafInterStructures = aafStructures.FindAll((obj) => IsSyncStructure(obj.id));
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					diff.structures.diff = Model.Diff(
-						entInterStructures, aafInterStructures,
-						(src, dst) => src.id == dst.id,
-						(src, dst) =>
-					{
-						var itemDiff = src.DiffWithId(dst);
-						var groupsDiff = Model.Diff(
-							src.groups.FindAll((obj) => obj.aaf_name != null), dst.groups,
-							(s, d) => s.type == d.type && s.aaf_name == d.aaf_name,
-							(s2, d2) =>
+						var groupDiff = s2.DiffWithId(d2);
+						var gradesDiff = Model.Diff(s2.grades, d2.grades, (s3, d3) => s3.grade_id == d3.grade_id);
+						if (!gradesDiff.IsEmpty)
 						{
-							var groupDiff = s2.DiffWithId(d2);
-							var gradesDiff = Model.Diff(s2.grades, d2.grades, (s3, d3) => s3.grade_id == d3.grade_id);
-							if (!gradesDiff.IsEmpty)
-							{
-								groupDiff.grades = new ModelList<GroupGrade>();
-								groupDiff.grades.diff = gradesDiff;
-							}
-							return groupDiff;
-						});
-						if (!groupsDiff.IsEmpty)
-						{
-							itemDiff.groups = new ModelList<Group>();
-							itemDiff.groups.diff = groupsDiff;
-							foreach (var addGroup in groupsDiff.add)
-							{
-								addGroup.Fields.Remove(nameof(addGroup.id));
-								addGroup.name = addGroup.aaf_name;
-								addGroup.aaf_mtime = DateTime.Now;
-							}
+							groupDiff.grades = new ModelList<GroupGrade>();
+							groupDiff.grades.diff = gradesDiff;
 						}
-						return itemDiff;
+						return groupDiff;
 					});
-					stopWatch.Stop();
-					diff.structures.stats.diff = stopWatch.Elapsed.TotalSeconds;
-					diff.structures.stats.changeCount = diff.structures.diff.change.Count;
-					diff.stats.diff += stopWatch.Elapsed.TotalSeconds;
-
-					diff.structures.diff.Fields.Remove(nameof(diff.structures.diff.remove));
-					diff.structures.diff.Fields.Remove(nameof(diff.structures.diff.add));
-					if (apply)
+					if (!groupsDiff.IsEmpty)
 					{
-						stopWatch = new Stopwatch();
-						stopWatch.Start();
-						await diff.structures.diff.ApplyAsync(db);
-						stopWatch.Stop();
-						diff.structures.stats.sync = stopWatch.Elapsed.TotalSeconds;
-						diff.stats.sync += stopWatch.Elapsed.TotalSeconds;
+						itemDiff.groups = new ModelList<Group>();
+						itemDiff.groups.diff = groupsDiff;
+						foreach (var addGroup in groupsDiff.add)
+						{
+							addGroup.Fields.Remove(nameof(addGroup.id));
+							addGroup.name = addGroup.aaf_name;
+							addGroup.aaf_mtime = DateTime.Now;
+						}
 					}
-				}
+					return itemDiff;
+				});
+				stopWatch.Stop();
+				diff.structures.stats.diff = stopWatch.Elapsed.TotalSeconds;
+				diff.structures.stats.changeCount = diff.structures.diff.change.Count;
+				diff.stats.diff += stopWatch.Elapsed.TotalSeconds;
 
-				if (persEducNat || eleve || persRelEleve)
+				diff.structures.diff.Fields.Remove(nameof(diff.structures.diff.remove));
+				diff.structures.diff.Fields.Remove(nameof(diff.structures.diff.add));
+				if (apply)
 				{
 					stopWatch = new Stopwatch();
 					stopWatch.Start();
-					await LoadEntUsersAsync(db);
+					await diff.structures.diff.ApplyAsync(db);
 					stopWatch.Stop();
-					diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
-					entSyncSeenUsers = new Dictionary<string, User>();
-					// build the group resolver service
-					if (structure && apply)
-						await LoadEntStructuresAsync(db, interStructuresIds);
-					// use the ENT known groups to resolv groups for users
-					BuildEntGroupByTypeStructureAafName();
+					diff.structures.stats.sync = stopWatch.Elapsed.TotalSeconds;
+					diff.stats.sync += stopWatch.Elapsed.TotalSeconds;
 				}
+			}
 
-				if (persEducNat)
-				{
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					var aafTeachers = GetAafTeachers();
-					stopWatch.Stop();
-					diff.persEducNat = await SyncPersEducNatAsync(db, aafTeachers, apply);
-					diff.persEducNat.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
-					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
-					diff.stats.diff += diff.persEducNat.stats.diff;
-					diff.stats.sync += diff.persEducNat.stats.sync;
-				}
+			if (persEducNat || eleve || persRelEleve)
+			{
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				await LoadEntUsersAsync(db);
+				stopWatch.Stop();
+				diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
+				entSyncSeenUsers = new Dictionary<string, User>();
+				// build the group resolver service
+				if (structure && apply)
+					await LoadEntStructuresAsync(db, interStructuresIds);
+				// use the ENT known groups to resolv groups for users
+				BuildEntGroupByTypeStructureAafName();
+			}
 
-				if (persRelEleve)
-				{
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					LoadAafPersRelEleve();
-					LoadAafEleve();
-					stopWatch.Stop();
-					diff.parents = await SyncPersRelEleveAsync(db, aafParents, apply);
-					diff.parents.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
-					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
-					diff.stats.diff += diff.parents.stats.diff;
-					diff.stats.sync += diff.parents.stats.sync;
-				}
+			if (persEducNat)
+			{
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				var aafTeachers = GetAafTeachers();
+				stopWatch.Stop();
+				diff.persEducNat = await SyncPersEducNatAsync(db, aafTeachers, apply);
+				diff.persEducNat.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
+				diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+				diff.stats.diff += diff.persEducNat.stats.diff;
+				diff.stats.sync += diff.persEducNat.stats.sync;
+			}
 
-				if (eleve)
-				{
-					stopWatch = new Stopwatch();
-					stopWatch.Start();
-					LoadAafEleve();
-					stopWatch.Stop();
-					diff.eleves = await SyncEleveAsync(db, aafStudents, apply);
-					diff.eleves.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
-					diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
-					diff.stats.diff += diff.eleves.stats.diff;
-					diff.stats.sync += diff.eleves.stats.sync;
-				}
+			if (persRelEleve)
+			{
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				LoadAafPersRelEleve();
+				LoadAafEleve();
+				stopWatch.Stop();
+				diff.parents = await SyncPersRelEleveAsync(db, aafParents, apply);
+				diff.parents.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
+				diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+				diff.stats.diff += diff.parents.stats.diff;
+				diff.stats.sync += diff.parents.stats.sync;
+			}
 
-				if (persEducNat || persRelEleve || eleve)
-				{
-					diff.global = await SyncNotSeenUsersAsync(db, persEducNat, persRelEleve, eleve, apply);
-					diff.stats.diff += diff.global.stats.diff;
-					diff.stats.sync += diff.global.stats.sync;
-				}
+			if (eleve)
+			{
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				LoadAafEleve();
+				stopWatch.Stop();
+				diff.eleves = await SyncEleveAsync(db, aafStudents, apply);
+				diff.eleves.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
+				diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
+				diff.stats.diff += diff.eleves.stats.diff;
+				diff.stats.sync += diff.eleves.stats.sync;
+			}
 
-				db.Commit();
+			if (persEducNat || persRelEleve || eleve)
+			{
+				diff.global = await SyncNotSeenUsersAsync(db, persEducNat, persRelEleve, eleve, apply);
+				diff.stats.diff += diff.global.stats.diff;
+				diff.stats.sync += diff.global.stats.sync;
 			}
 
 			diff.errors = new ModelList<Error>();
@@ -2038,56 +2049,76 @@ namespace Laclasse.Aaf
 			return aafParents;
 		}
 
-		public static void DaySyncTask(string syncFilesFolder, string zipFilesFolder, string logFilesFolder, string dbUrl)
+		public static void DaySyncTask(Logger logger, string syncFilesFolder, string zipFilesFolder, string logFilesFolder, string dbUrl)
 		{
-			var task = DaySyncTaskAsync(syncFilesFolder, zipFilesFolder, logFilesFolder, dbUrl);
+			var task = DaySyncTaskAsync(logger, syncFilesFolder, zipFilesFolder, logFilesFolder, dbUrl);
 			task.Wait();
 		}
 
-		public static async Task DaySyncTaskAsync(string syncFilesFolder, string zipFilesFolder, string logFilesFolder, string dbUrl)
+		public static async Task DaySyncTaskAsync(Logger logger, string syncFilesFolder, string zipFilesFolder, string logFilesFolder, string dbUrl)
 		{
 			var files = GetFiles(syncFilesFolder, zipFilesFolder);
+			await Task.FromResult(true);
 
-			var now = DateTime.Now;
-			SyncFile nearestFile = null;
-			foreach (var file in files)
+			DateTime latestFileDateSync = DateTime.MinValue;
+
+			using (DB db = await DB.CreateAsync(dbUrl, true))
 			{
-				if (file.date == null)
-					continue;
+				var res = await db.SelectAsync<AafSync>("SELECT * FROM `aaf_sync` ORDER BY `file_date` DESC LIMIT 1");
+				if (res.Count > 0)
+					latestFileDateSync = res[0].file_date;
 
-				var fileDeltaNow = (DateTime)file.date - now;
-				Console.WriteLine($"File: {file.id}, Delta: {fileDeltaNow}");
-
-				// if file is too old or in the future, dont take it
-				if ((fileDeltaNow > TimeSpan.FromDays(7)) || (fileDeltaNow < TimeSpan.FromDays(-7)))
-					continue;
-				
-				if (nearestFile == null)
-					nearestFile = file;
-				else if (fileDeltaNow > (DateTime)nearestFile.date - now)
-					nearestFile = file;
-			}
-
-			if (nearestFile != null)
-			{
-				Synchronizer sync = null;
-				SyncDiff diff = null;
-				Exception exception = null;
-				try
+				var now = DateTime.Now;
+				SyncFile nearestFile = null;
+				foreach (var file in files)
 				{
-					sync = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, nearestFile.id));
-					diff = await sync.SynchronizeAsync(
-						subject: true, grade: true, structure: true,
-						persEducNat: true, eleve: true, persRelEleve: true, apply: false);
+					// WE DONT SUPPORT DELTA, REMOVE THIS LATER
+					if (file.format != SyncFileFormat.Full)
+						continue;
+
+					// if the file date is unknown, dont take
+					if (file.date == null)
+						continue;
+
+					// if the file date is older than the latest sync already run
+					// dont take it, we want to ensure that a sync will not go back in the past
+					if (file.date <= latestFileDateSync)
+						continue;
+
+					var fileDeltaNow = (DateTime)file.date - now;
+					Console.WriteLine($"File: {file.id}, Delta: {fileDeltaNow}");
+
+					// if file is too old or in the future, dont take it
+					if ((fileDeltaNow > TimeSpan.FromDays(7)) || (fileDeltaNow < TimeSpan.FromDays(-7)))
+						continue;
+
+					if (nearestFile == null)
+						nearestFile = file;
+					else if (fileDeltaNow > (DateTime)nearestFile.date - now)
+						nearestFile = file;
 				}
-				catch (Exception e)
-				{
-					exception = e;
-				}
 
-				var aafSync = new AafSync { file = nearestFile.id };
-				using (DB db = await DB.CreateAsync(dbUrl))
+				if (nearestFile != null)
 				{
+					Console.WriteLine($"NearestFile {nearestFile.id}");
+
+					Synchronizer sync = null;
+					SyncDiff diff = null;
+					Exception exception = null;
+					try
+					{
+						sync = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, nearestFile.id));
+						diff = await sync.SynchronizeAsync(db,
+							subject: true, grade: true, structure: true,
+							persEducNat: true, eleve: true, persRelEleve: true, apply: false);
+					}
+					catch (Exception e)
+					{
+						exception = e;
+					}
+
+					var aafSync = new AafSync { file = nearestFile.id, file_date = (DateTime)nearestFile.date };
+
 					if (exception != null)
 					{
 						aafSync.exception = exception.ToString();
@@ -2105,11 +2136,15 @@ namespace Laclasse.Aaf
 
 					if (await aafSync.SaveAsync(db, true))
 					{
+						if (exception != null)
+							logger.Log(LogLevel.Alert, $"Exception while running AAF sync (id: {aafSync.id}) with file '{nearestFile.id}':\n" + exception);
+
 						// save the diff
 						if (exception == null && diff != null)
 							File.WriteAllText(Path.Combine(logFilesFolder, aafSync.id.ToString() + ".diff"), diff.ToJson().ToString());
 					}
 				}
+				db.Commit();
 			}
 		}
 	}

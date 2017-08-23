@@ -27,6 +27,8 @@ namespace Laclasse.Aaf
 		[ModelField(Required = true)]
 		public string file { get { return GetField<string>(nameof(file), null); } set { SetField(nameof(file), value); } }
 		[ModelField]
+		public DateTime file_date { get { return GetField(nameof(file_date), DateTime.MinValue); } set { SetField(nameof(file_date), value); } }
+		[ModelField]
 		public DateTime ctime { get { return GetField(nameof(ctime), DateTime.Now); } set { SetField(nameof(ctime), value); } }
 		[ModelField]
 		public SyncFileFormat format { get { return GetField(nameof(format), SyncFileFormat.Full); } set { SetField(nameof(format), value); } }

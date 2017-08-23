@@ -31,18 +31,47 @@ using System;
 using System.Text;
 using System.Globalization;
 using System.Threading.Tasks;
-using System.Net.Mail;
 using Erasme.Http;
 using Erasme.Json;
-using Laclasse.Directory;
 
 namespace Laclasse
 {
 	public class Server: HttpServer
 	{
-		public Server(int port) : base(port)
+		Logger logger;
+
+		public Server(int port, Logger logger) : base(port)
 		{
+			this.logger = logger;
 		}
+
+		string LogRemoteAndUser(HttpContext context)
+		{
+			var log = new StringBuilder();
+
+			// remote address
+			log.Append(context.Request.RemoteEndPoint.ToString());
+			log.Append(" ");
+
+			// x-forwarded-for
+			if (context.Request.Headers.ContainsKey("x-forwarded-for"))
+			{
+				log.Append("[");
+				log.Append(context.Request.Headers["x-forwarded-for"]);
+				log.Append("] ");
+			}
+
+			// user
+			if (context.User != null)
+			{
+				log.Append(context.User);
+				log.Append(" ");
+			}
+			else
+				log.Append("- ");
+			return log.ToString();
+		}
+
 
 		protected override async Task ProcessRequestAsync(HttpContext context)
 		{
@@ -55,14 +84,9 @@ namespace Laclasse
 			// log the request
 
 			// remote address
-			string log = context.Request.RemoteEndPoint + " ";
-			// user
-			if (context.User != null)
-				log += context.User + " ";
-			else
-				log += "- ";
+			var log = LogRemoteAndUser(context);
 			// request 
-			log += "\"" + context.Request.Method + " " + context.Request.FullPath + "\" ";
+			log += $"\"{context.Request.Method} {context.Request.FullPath}\" ";
 			// response
 			if (context.WebSocket != null)
 				log += "WS ";
@@ -74,7 +98,7 @@ namespace Laclasse
 			log += Math.Round((DateTime.Now - context.Request.StartTime).TotalMilliseconds).ToString(CultureInfo.InvariantCulture) + "ms";
 
 			// write the log
-			await Console.Out.WriteLineAsync(log);
+			logger.LogRequest(log);
 		}
 
 		protected override void OnWebSocketHandlerMessage(WebSocketHandler handler, string message)
@@ -82,17 +106,11 @@ namespace Laclasse
 			// log the message
 
 			// remote address
-			string log = handler.Context.Request.RemoteEndPoint + " ";
-			// user
-			if (handler.Context.User != null)
-				log += handler.Context.User + " ";
-			else
-				log += "- ";
+			var log = LogRemoteAndUser(handler.Context);
 			// request 
 			log += "\"WSMI " + handler.Context.Request.FullPath + "\" \"" + message + "\"";
 
-			// write the log
-			Console.WriteLine(log);
+			logger.LogRequest(log);
 
 			// handle the message
 			base.OnWebSocketHandlerMessage(handler, message);
@@ -102,20 +120,14 @@ namespace Laclasse
 		{
 			base.WebSocketHandlerSend(handler, message);
 
-			// log the message
-
 			// remote address
-			string log = handler.Context.Request.RemoteEndPoint + " ";
-			// user
-			if (handler.Context.User != null)
-				log += handler.Context.User + " ";
-			else
-				log += "- ";
+			var log = LogRemoteAndUser(handler.Context);
+
 			// request 
-			log += "\"WSMO " + handler.Context.Request.FullPath + "\" \"" + message + "\"";
+			log += $"\"WSMO {handler.Context.Request.FullPath}\" \"{message}\"";
 
 			// write the log
-			Console.WriteLine(log);
+			logger.LogRequest(log);
 		}
 
 		protected override void OnProcessRequestError(HttpContext context, Exception exception)
@@ -141,27 +153,7 @@ namespace Laclasse
 				return;
 
 			var log = new StringBuilder();
-
-			// remote address
-			log.Append(context.Request.RemoteEndPoint.ToString());
-			log.Append(" ");
-
-			// x-forwarded-for
-			if (context.Request.Headers.ContainsKey("x-forwarded-for"))
-			{
-				log.Append("[");
-				log.Append(context.Request.Headers["x-forwarded-for"]);
-				log.Append("] ");
-			}
-
-			// user
-			if (context.User != null)
-			{
-				log.Append(context.User);
-				log.Append(" ");
-			}
-			else
-				log.Append("- ");
+			log.Append(LogRemoteAndUser(context));
 
 			// request 
 			log.Append("\"");
@@ -194,7 +186,7 @@ namespace Laclasse
 			log.Append(exception.ToString());
 
 			// write the log
-			Console.WriteLine(log);
+			logger.LogRequest(log.ToString());
 		}
 	}
 }

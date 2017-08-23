@@ -102,7 +102,9 @@ namespace Laclasse
 
 			string dbUrl = setup.database.url;
 
-			var server = new Server(setup.server.port);
+			var logger = new Logger(setup.log, setup.mail);
+
+			var server = new Server(setup.server.port, logger);
 			server.StopOnException = setup.server.stopOnException;
 			server.AllowGZip = setup.http.allowGZip;
 			server.KeepAliveMax = setup.http.keepAliveMax;
@@ -190,20 +192,18 @@ namespace Laclasse
 			return;*/
 
 			// start a day scheduler to run the AAF sync task
-			var dayScheduler = new Scheduler.DayScheduler(setup.log, setup.mail);
+			var dayScheduler = new Scheduler.DayScheduler(logger);
 			foreach (var dayRun in setup.aaf.runs)
 			{
 				dayScheduler.Add(new Scheduler.DaySchedule
 				{
 					Day = dayRun.day,
 					Time = dayRun.time,
-					// TODO: schedule the AAF synchronization task
-					Action = () => Console.WriteLine("SYNC AAF TASK")
+					// schedule the AAF synchronization task
+					Action = () => Synchronizer.DaySyncTask(
+						logger, setup.aaf.path, setup.aaf.zipPath, setup.aaf.logPath, dbUrl)
 				});
 			}
-
-			// TEST ONLY
-			//Aaf.Synchronizer.DaySyncTask(setup.aaf.path, setup.aaf.zipPath, setup.aaf.logPath, dbUrl);
 
 			server.Start();
 

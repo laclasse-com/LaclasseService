@@ -44,17 +44,15 @@ namespace Laclasse.Scheduler
 
 	public class DayScheduler : IDisposable
 	{
-		LogSetup logSetup;
-		MailSetup mailSetup;
+		Logger logger;
 		readonly object instanceLock = new object();
 		bool stop;
 		LinkedList<DaySchedule> tasks = new LinkedList<DaySchedule>();
 		LinkedList<DaySchedule> runningTasks = new LinkedList<DaySchedule>();
 
-		public DayScheduler(LogSetup logSetup, MailSetup mailSetup)
+		public DayScheduler(Logger logger)
 		{
-			this.logSetup = logSetup;
-			this.mailSetup = mailSetup;
+			this.logger = logger;
 			var thread = new Thread(ThreadStart);
 			thread.Name = "DayScheduler Thread";
 			thread.Priority = ThreadPriority.Normal;
@@ -121,16 +119,7 @@ namespace Laclasse.Scheduler
 					}
 					catch (Exception e)
 					{
-						Console.WriteLine($"ERROR WHILE RUNNING DayTask({task.Value.Day} {task.Value.Time}): {e}");
-						// send email alert
-						if (logSetup.alertEmail != null)
-						{
-							using (var smtpClient = new SmtpClient(mailSetup.server.host, mailSetup.server.port))
-							{
-								var mailMessage = new MailMessage(mailSetup.from, logSetup.alertEmail, $"[Laclasse-alert] Exception while running DayTask({task.Value.Day} {task.Value.Time})", e.ToString());
-								smtpClient.Send(mailMessage);
-							}
-						}
+						logger.Log(LogLevel.Alert, $"ERROR WHILE RUNNING DayTask({task.Value.Day} {task.Value.Time}): {e}");
 					}
 				}
 			}

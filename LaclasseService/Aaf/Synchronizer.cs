@@ -1436,12 +1436,16 @@ namespace Laclasse.Aaf
 
 						if (group != null)
 						{
-							user.groups.Add(new GroupUser
+							// protect against duplicate
+							if (!user.groups.Any((arg) => arg.type == "ELV" && arg.group_id == group.id))
 							{
-								type = "ELV",
-								group_id = group.id,
-								pending_validation = false
-							});
+								user.groups.Add(new GroupUser
+								{
+									type = "ELV",
+									group_id = group.id,
+									pending_validation = false
+								});
+							}
 						}
 					}
 				}
@@ -1462,12 +1466,16 @@ namespace Laclasse.Aaf
 
 						if (group != null)
 						{
-							user.groups.Add(new GroupUser
+							// protect against duplicate
+							if (!user.groups.Any((arg) => arg.type == "ELV" && arg.group_id == group.id))
 							{
-								type = "ELV",
-								group_id = group.id,
-								pending_validation = false
-							});
+								user.groups.Add(new GroupUser
+								{
+									type = "ELV",
+									group_id = group.id,
+									pending_validation = false
+								});
+							}
 						}
 					}
 				}
@@ -1500,13 +1508,17 @@ namespace Laclasse.Aaf
 								errors.Add($"ERROR: ADD USER {user.firstname} {user.lastname} {user.id} TO GROUP {group.id} {group.name} WITH NONE EXISTING SUBJECT ({tab[2]}) USE NULL");
 							}
 
-							user.groups.Add(new GroupUser
+							// protect against duplicate
+							if (!user.groups.Any((arg) => arg.type == "ENS" && arg.group_id == group.id && arg.subject_id == subjectId))
 							{
-								type = "ENS",
-								group_id = group.id,
-								subject_id = subjectId,
-								pending_validation = false
-							});
+								user.groups.Add(new GroupUser
+								{
+									type = "ENS",
+									group_id = group.id,
+									subject_id = subjectId,
+									pending_validation = false
+								});
+							}
 						}
 					}
 				}
@@ -1540,13 +1552,17 @@ namespace Laclasse.Aaf
 								errors.Add($"ERROR: ADD USER {user.firstname} {user.lastname} {user.id} TO GROUP {group.id} {group.name} WITH NONE EXISTING SUBJECT ({tab[2]}) USE NULL");
 							}
 
-							user.groups.Add(new GroupUser
+							// protect against duplicate
+							if (!user.groups.Any((arg) => arg.type == "ENS" && arg.group_id == group.id && arg.subject_id == subjectId))
 							{
-								type = "ENS",
-								group_id = group.id,
-								subject_id = subjectId,
-								pending_validation = false
-							});
+								user.groups.Add(new GroupUser
+								{
+									type = "ENS",
+									group_id = group.id,
+									subject_id = subjectId,
+									pending_validation = false
+								});
+							}
 						}
 					}
 				}

@@ -1532,7 +1532,11 @@ namespace Laclasse
 				{
 					if ((filterFields != null) && !filterFields.Contains(strKey))
 						continue;
-					cmd.Parameters.Add(new MySqlParameter(strKey, values[strKey]));
+					
+					if (values[strKey] != null && values[strKey].GetType().IsEnum)
+						cmd.Parameters.Add(new MySqlParameter(strKey, Enum.GetName(values[strKey].GetType(), values[strKey])));
+					else
+						cmd.Parameters.Add(new MySqlParameter(strKey, values[strKey]));
 				}
 			}
 			return await cmd.ExecuteNonQueryAsync();
@@ -1569,7 +1573,10 @@ namespace Laclasse
 						continue;
 					if (strKey == idKey)
 						continue;
-					cmd.Parameters.Add(new MySqlParameter(strKey, values[strKey]));
+					if (values[strKey] != null && values[strKey].GetType().IsEnum)
+						cmd.Parameters.Add(new MySqlParameter(strKey, Enum.GetName(values[strKey].GetType(), values[strKey])));
+					else
+						cmd.Parameters.Add(new MySqlParameter(strKey, values[strKey]));
 				}
 			}
 			cmd.Parameters.Add(new MySqlParameter(idKey, idValue));

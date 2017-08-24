@@ -52,11 +52,22 @@ namespace Laclasse.Aaf
 				// exception detail only available to super admin
 				if (!authUser.IsSuperAdmin && exception != null)
 					exception = "INTERNAL ERROR";
-				foreach (var struc in structures)
+
+				// TODO: change this by the next version
+				if (authUser.user.profiles != null)
 				{
-					if (authUser.HasRightsOnStructure(struc.structure_id, false, false, true))
-						return;
+					foreach (var profile in authUser.user.profiles)
+					{
+						if (authUser.HasRightsOnStructure(profile.structure_id, false, false, true))
+							return;
+					}
 				}
+
+				//foreach (var struc in structures)
+				//{
+				//	if (authUser.HasRightsOnStructure(struc.structure_id, false, false, true))
+				//		return;
+				//}
 				await context.EnsureIsSuperAdminAsync();
 			}
 		}
@@ -73,10 +84,17 @@ namespace Laclasse.Aaf
 		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
 	}
 
-	public class AafSyncService : ModelService<AafSync>
+	public class AafSyncService: ModelService<AafSync>
 	{
 		public AafSyncService(string dbUrl, string logPath, Logger logger, string syncFilesFolder, string zipFilesFolder, string logFilesFolder): base(dbUrl)
 		{
+/*			GetAsync["/"] = async (p, c) =>
+			{
+				await Task.FromResult(false);
+				c.Response.StatusCode = 200;
+				c.Response.Content = "HELLO";
+			};*/
+
 			GetAsync["/{id:int}/diff"] = async (p, c) =>
 			{
 				await c.EnsureIsSuperAdminAsync();

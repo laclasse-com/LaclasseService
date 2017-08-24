@@ -159,6 +159,23 @@ namespace Laclasse.Authentication
 			return user;
 		}
 
+		// Ensure we have at least admin right on a structure
+		public async static Task<AuthenticatedUser> EnsureIsStructureAdminAsync(this HttpContext context)
+		{
+			var user = await EnsureIsAuthenticatedAsync(context);
+			if (user.IsSuperAdmin)
+				return user;
+			if (user.IsUser && user.user.profiles != null)
+			{
+				foreach (var profile in user.user.profiles)
+				{
+					if (user.HasRightsOnStructure(profile.structure_id, false, false, true))
+						return user;
+				}
+			}
+			throw new WebException(403, "Insufficient authorization");
+		}
+
 		public async static Task<AuthenticatedUser> EnsureHasRightsOnUserAsync(this HttpContext context, User user, bool read, bool write, bool admin)
 		{
 			var authUser = await EnsureIsAuthenticatedAsync(context);

@@ -157,10 +157,10 @@ namespace Laclasse
 				setup.authentication.cas.ticketTimeout,
 				setup.authentication.aafSso, setup.mail, setup.sms));
 
-			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path, setup.aaf.zipPath));
-
 			mapper.Add("/api/aaf/synchronizations", new AafSyncService(
 				dbUrl, setup.aaf.logPath, logger, setup.aaf.path, setup.aaf.zipPath, setup.aaf.logPath));
+
+			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path, setup.aaf.zipPath));
 
 			mapper.Add("/api/worpress", new WordPress.WordPress(setup.wordPress));
 

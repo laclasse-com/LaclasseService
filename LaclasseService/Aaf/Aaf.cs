@@ -41,23 +41,23 @@ namespace Laclasse.Aaf
 		{
 			this.zipFilesFolder = zipFilesFolder;
 
-			// API only available to super admin
-			BeforeAsync = async (p, c) => await c.EnsureIsSuperAdminAsync();
-
-			Get["/"] = (p, c) =>
+			GetAsync["/"] = async (p, c) =>
 			{
+				await c.EnsureIsStructureAdminAsync();
 				c.Response.StatusCode = 200;
-				c.Response.Content = Synchronizer.GetFiles(syncFilesFolder, zipFilesFolder);
+				c.Response.Content = Synchronizer.GetFiles(syncFilesFolder, zipFilesFolder).Filter(c);
 			};
 
-			Get["/{id}/structures"] = (p, c) =>
+			GetAsync["/{id}/structures"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				c.Response.Content = synchronizer.GetAafStructures().Filter(c);
 			};
 
 			GetAsync["/{id}/structures/diff"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				List<string> ids = null;
 				if (c.Request.QueryStringArray.ContainsKey("id"))
 					ids = c.Request.QueryStringArray["id"];
@@ -71,6 +71,7 @@ namespace Laclasse.Aaf
 
 			GetAsync["/{id}/structures/sync"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				List<string> ids = null;
 				if (c.Request.QueryStringArray.ContainsKey("id"))
 					ids = c.Request.QueryStringArray["id"];
@@ -81,14 +82,16 @@ namespace Laclasse.Aaf
 				c.Response.Content = res.structures;
 			};
 
-			Get["/{id}/subjects"] = (p, c) =>
+			GetAsync["/{id}/subjects"] = async (p, c) =>
 			{
+				await c.EnsureIsStructureAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				c.Response.Content = synchronizer.GetAafSubjects().Filter(c);
 			};
 
 			GetAsync["/{id}/subjects/diff"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				var res = await synchronizer.SynchronizeAsync(subject: true);
 				c.Response.Content = res.subjects;
@@ -96,19 +99,22 @@ namespace Laclasse.Aaf
 
 			GetAsync["/{id}/subjects/sync"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				var res = await synchronizer.SynchronizeAsync(apply: true, subject: true);
 				c.Response.Content = res.subjects;
 			};
 
-			Get["/{id}/grades"] = (p, c) =>
+			GetAsync["/{id}/grades"] =  async (p, c) =>
 			{
+				await c.EnsureIsStructureAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				c.Response.Content = synchronizer.GetAafGrades().Filter(c);
 			};
 
 			GetAsync["/{id}/grades/diff"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				var res = await synchronizer.SynchronizeAsync(grade: true);
 				c.Response.Content = res.grades;
@@ -116,38 +122,44 @@ namespace Laclasse.Aaf
 
 			GetAsync["/{id}/grades/sync"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				var res = await synchronizer.SynchronizeAsync(apply: true, grade: true);
 				c.Response.Content = res.grades;
 			};
 
-			Get["/{id}/teachers"] = (p, c) =>
+			GetAsync["/{id}/teachers"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				c.Response.Content = synchronizer.GetAafTeachers().Filter(c);
 			};
 
 			GetAsync["/{id}/teachers/diff"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				var res = await synchronizer.SynchronizeAsync(persEducNat: true);
 				c.Response.Content = res.persEducNat;
 			};
 
-			Get["/{id}/students"] = (p, c) =>
+			GetAsync["/{id}/students"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				c.Response.Content = synchronizer.GetAafStudents().Filter(c);
 			};
 
-			Get["/{id}/parents"] = (p, c) =>
+			GetAsync["/{id}/parents"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
 				c.Response.Content = synchronizer.GetAafParents().Filter(c);
 			};
 
 			GetAsync["/{id}"] = async (p, c) =>
 			{
+				await c.EnsureIsSuperAdminAsync();
 				var aafFile = GetFile((string)p["id"]);
 				if (aafFile != null)
 				{

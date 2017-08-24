@@ -3,6 +3,7 @@ using System.Linq;
 using System.Collections.Generic;
 using SharpCompress.Common;
 using SharpCompress.Readers;
+using System;
 
 namespace Laclasse.Aaf
 {
@@ -32,12 +33,11 @@ namespace Laclasse.Aaf
 						var reader = XmlReader.Create(entryStream, settings);
 						var doc = new XmlDocument();
 
-						reader.ReadToDescendant("addRequest");
-						do
+						while (reader.Read())
 						{
-							yield return doc.ReadNode(reader);
+							if (reader.NodeType == XmlNodeType.Element && (reader.Name == "addRequest" || reader.Name == "modifyRequest"))
+								yield return doc.ReadNode(reader);
 						}
-						while (reader.ReadToNextSibling("addRequest"));
 					}
 				}
 			}

@@ -159,7 +159,8 @@ namespace Laclasse
 
 			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path, setup.aaf.zipPath));
 
-			mapper.Add("/api/aaf/synchronizations", new Aaf.AafSyncService(dbUrl, setup.aaf.logPath));
+			mapper.Add("/api/aaf/synchronizations", new AafSyncService(
+				dbUrl, setup.aaf.logPath, logger, setup.aaf.path, setup.aaf.zipPath, setup.aaf.logPath));
 
 			mapper.Add("/api/worpress", new WordPress.WordPress(setup.wordPress));
 
@@ -180,16 +181,6 @@ namespace Laclasse
 			// If not compatible with the DB Schema. STOP HERE
 			if (!DB.CheckDBModels(dbUrl))
 				return;
-
-/*			var log = new Synchronizer.AafSyncLog();
-			log.ctime = DateTime.Now;
-			log.structures = new ModelList<Synchronizer.AafSyncStructure> {
-				new Synchronizer.AafSyncStructure { structure_id = "000001A" },
-				new Synchronizer.AafSyncStructure { structure_id = "069666A" }
-			};
-			Console.WriteLine(log.ToJson().ToString());
-
-			return;*/
 
 			// start a day scheduler to run the AAF sync task
 			var dayScheduler = new Scheduler.DayScheduler(logger);

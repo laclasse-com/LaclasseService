@@ -159,6 +159,10 @@ namespace Laclasse.Aaf
 					if (c.Request.QueryString.ContainsKey("apply"))
 						apply = Convert.ToBoolean(c.Request.QueryString["apply"]);
 
+					var format = SyncFileFormat.Full;
+					if (c.Request.QueryString.ContainsKey("format"))
+						format = (SyncFileFormat)Enum.Parse(typeof(SyncFileFormat), c.Request.QueryString["format"]);
+
 					bool subject = false;
 					if (c.Request.QueryString.ContainsKey("subject"))
 						subject = Convert.ToBoolean(c.Request.QueryString["subject"]);
@@ -182,7 +186,8 @@ namespace Laclasse.Aaf
 
 					var diff = await sync.SynchronizeAsync(
 						subject: subject, grade: grade, structure: structure,
-						persEducNat: persEducNat, eleve: eleve, persRelEleve: persRelEleve, apply: apply);
+						persEducNat: persEducNat, eleve: eleve, persRelEleve: persRelEleve,
+						apply: apply, format: format);
 
 					c.Response.StatusCode = 200;
 					c.Response.Content = diff;

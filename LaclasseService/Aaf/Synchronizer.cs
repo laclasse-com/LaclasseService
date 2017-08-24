@@ -272,13 +272,13 @@ namespace Laclasse.Aaf
 			bool subject = false, bool grade = false,
 			bool structure = false, bool persEducNat = false,
 			bool eleve = false, bool persRelEleve = false,
-			bool apply = false)
+			bool apply = false, SyncFileFormat format = SyncFileFormat.Full)
 		{
 			SyncDiff res;
 			using (DB db = await DB.CreateAsync(dbUrl, true))
 			{
 				res = await SynchronizeAsync(
-					db, subject, grade, structure, persEducNat, eleve, persRelEleve, apply);
+					db, subject, grade, structure, persEducNat, eleve, persRelEleve, apply, format);
 				db.Commit();
 			}
 			return res;
@@ -288,7 +288,7 @@ namespace Laclasse.Aaf
 			bool subject = false, bool grade = false,
 			bool structure = false, bool persEducNat = false,
 			bool eleve = false, bool persRelEleve = false,
-			bool apply = false)
+			bool apply = false, SyncFileFormat format = SyncFileFormat.Full)
 		{
 			var diff = new SyncDiff();
 			diff.stats = new SyncStat();
@@ -533,7 +533,7 @@ namespace Laclasse.Aaf
 				diff.stats.sync += diff.eleves.stats.sync;
 			}
 
-			if (persEducNat || persRelEleve || eleve)
+			if (format == SyncFileFormat.Full && (persEducNat || persRelEleve || eleve))
 			{
 				diff.global = await SyncNotSeenUsersAsync(db, persEducNat, persRelEleve, eleve, apply);
 				diff.stats.diff += diff.global.stats.diff;
@@ -930,9 +930,12 @@ namespace Laclasse.Aaf
 			foreach (var aafUser in aafParents)
 			{
 				var aafUserProfiles = new ModelList<UserProfile>();
-				foreach (var profile in aafUser.profiles)
-					if (IsSyncStructure(profile.structure_id))
-						aafUserProfiles.Add(profile);
+				if (aafUser.profiles != null)
+				{
+					foreach (var profile in aafUser.profiles)
+						if (IsSyncStructure(profile.structure_id))
+							aafUserProfiles.Add(profile);
+				}
 				if (aafUserProfiles.Count == 0)
 					continue;
 
@@ -1296,7 +1299,7 @@ namespace Laclasse.Aaf
 					categoriePersonne = attr["value"].InnerText;
 			}
 
-			foreach (XmlNode attr in node["attributes"])
+			foreach (XmlNode attr in node["attributes"] ?? node["modifications"])
 			{
 				if (attr.NodeType != XmlNodeType.Element)
 					continue;
@@ -2058,7 +2061,6 @@ namespace Laclasse.Aaf
 		public static async Task DaySyncTaskAsync(Logger logger, string syncFilesFolder, string zipFilesFolder, string logFilesFolder, string dbUrl)
 		{
 			var files = GetFiles(syncFilesFolder, zipFilesFolder);
-			await Task.FromResult(true);
 
 			DateTime latestFileDateSync = DateTime.MinValue;
 
@@ -2072,10 +2074,6 @@ namespace Laclasse.Aaf
 				SyncFile nearestFile = null;
 				foreach (var file in files)
 				{
-					// WE DONT SUPPORT DELTA, REMOVE THIS LATER
-					if (file.format != SyncFileFormat.Full)
-						continue;
-
 					// if the file date is unknown, dont take
 					if (file.date == null)
 						continue;
@@ -2086,7 +2084,6 @@ namespace Laclasse.Aaf
 						continue;
 
 					var fileDeltaNow = (DateTime)file.date - now;
-					Console.WriteLine($"File: {file.id}, Delta: {fileDeltaNow}");
 
 					// if file is too old or in the future, dont take it
 					if ((fileDeltaNow > TimeSpan.FromDays(7)) || (fileDeltaNow < TimeSpan.FromDays(-7)))
@@ -2100,52 +2097,87 @@ namespace Laclasse.Aaf
 
 				if (nearestFile != null)
 				{
-					Console.WriteLine($"NearestFile {nearestFile.id}");
-
-					Synchronizer sync = null;
-					SyncDiff diff = null;
-					Exception exception = null;
-					try
-					{
-						sync = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, nearestFile.id));
-						diff = await sync.SynchronizeAsync(db,
-							subject: true, grade: true, structure: true,
-							persEducNat: true, eleve: true, persRelEleve: true, apply: false);
-					}
-					catch (Exception e)
-					{
-						exception = e;
-					}
-
-					var aafSync = new AafSync { file = nearestFile.id, file_date = (DateTime)nearestFile.date };
-
-					if (exception != null)
-					{
-						aafSync.exception = exception.ToString();
-						// save the structures that could have been concerned
-						var structs = new ModelList<AafSyncStructure>();
-						foreach (var struc in await db.SelectAsync<Structure>("SELECT * FROM `structure` WHERE `aaf_sync_activated`=TRUE"))
-							structs.Add(new AafSyncStructure { structure_id = struc.id });
-						aafSync.structures = structs;
-					}
-					else
-					{
-						// save the structures concerned by the sync
-						aafSync.structures = new ModelList<AafSyncStructure>(sync.interStructuresIds.Select((arg) => new AafSyncStructure { structure_id = arg }));
-					}
-
-					if (await aafSync.SaveAsync(db, true))
-					{
-						if (exception != null)
-							logger.Log(LogLevel.Alert, $"Exception while running AAF sync (id: {aafSync.id}) with file '{nearestFile.id}':\n" + exception);
-
-						// save the diff
-						if (exception == null && diff != null)
-							File.WriteAllText(Path.Combine(logFilesFolder, aafSync.id.ToString() + ".diff"), diff.ToJson().ToString());
-					}
+					await SynchronizeFileAsync(logger, nearestFile, zipFilesFolder, logFilesFolder,
+					                           db, dbUrl, SyncFileMode.Automatic);
 				}
 				db.Commit();
 			}
+		}
+
+		public static async Task<AafSync> SynchronizeFileAsync(
+			Logger logger, string syncFilesFolder, string zipFilesFolder, string logFilesFolder,
+			string fileName, string dbUrl)
+		{
+			var files = GetFiles(syncFilesFolder, zipFilesFolder);
+			var file = files.Find((obj) => obj.id == fileName);
+			AafSync aafSync = null;
+			if (file != null)
+			{
+				using (DB db = await DB.CreateAsync(dbUrl, true))
+				{
+					aafSync = await SynchronizeFileAsync(
+						logger, file, zipFilesFolder, logFilesFolder, db, dbUrl, SyncFileMode.Manual);
+					db.Commit();
+				}
+			}
+			return aafSync;
+		}
+
+		public static async Task<AafSync> SynchronizeFileAsync(
+			Logger logger, SyncFile file, string zipFilesFolder, string logFilesFolder,
+			DB db, string dbUrl, SyncFileMode mode)
+		{
+			AafSync aafSync = null;
+
+			Synchronizer sync = null;
+			SyncDiff diff = null;
+			Exception exception = null;
+			try
+			{
+				sync = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, file.id));
+				diff = await sync.SynchronizeAsync(
+					db, subject: true, grade: true, structure: true,
+					persEducNat: true, eleve: true, persRelEleve: true, apply: true, format: file.format
+				);
+			}
+			catch (Exception e)
+			{
+				exception = e;
+			}
+
+			aafSync = new AafSync
+			{
+				file = file.id,
+				file_date = (DateTime)file.date,
+				format = file.format,
+				mode = mode
+			};
+
+			if (exception != null)
+			{
+				aafSync.exception = exception.ToString();
+				// save the structures that could have been concerned
+				var structs = new ModelList<AafSyncStructure>();
+				foreach (var struc in await db.SelectAsync<Structure>("SELECT * FROM `structure` WHERE `aaf_sync_activated`=TRUE"))
+					structs.Add(new AafSyncStructure { structure_id = struc.id });
+				aafSync.structures = structs;
+			}
+			else
+			{
+				// save the structures concerned by the sync
+				aafSync.structures = new ModelList<AafSyncStructure>(sync.interStructuresIds.Select((arg) => new AafSyncStructure { structure_id = arg }));
+			}
+
+			if (await aafSync.SaveAsync(db, true))
+			{
+				if (exception != null)
+					logger.Log(LogLevel.Alert, $"Exception while running AAF sync (id: {aafSync.id}) with file '{file.id}':\n" + exception);
+
+				// save the diff
+				if (exception == null && diff != null)
+					File.WriteAllText(Path.Combine(logFilesFolder, aafSync.id.ToString() + ".diff"), diff.ToJson().ToString());
+			}
+			return aafSync;
 		}
 	}
 }

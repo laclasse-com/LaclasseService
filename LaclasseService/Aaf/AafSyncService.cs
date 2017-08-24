@@ -2,6 +2,7 @@
 using System.IO;
 using System.Threading.Tasks;
 using Erasme.Http;
+using Erasme.Json;
 using Laclasse.Directory;
 using Laclasse.Authentication;
 
@@ -74,7 +75,7 @@ namespace Laclasse.Aaf
 
 	public class AafSyncService : ModelService<AafSync>
 	{
-		public AafSyncService(string dbUrl, string logPath): base(dbUrl)
+		public AafSyncService(string dbUrl, string logPath, Logger logger, string syncFilesFolder, string zipFilesFolder, string logFilesFolder): base(dbUrl)
 		{
 			GetAsync["/{id:int}/diff"] = async (p, c) =>
 			{
@@ -85,6 +86,28 @@ namespace Laclasse.Aaf
 					c.Response.StatusCode = 200;
 					c.Response.Headers["content-type"] = "application/json; charset=utf-8";
 					c.Response.Content = File.OpenRead(filePath);
+				}
+			};
+
+			PostAsync["/"] = async (p, c) =>
+			{
+				await c.EnsureIsSuperAdminAsync();
+
+				var json = await c.Request.ReadAsJsonAsync();
+
+				if (json.ContainsKey("file") && json["file"].JsonType == JsonType.String)
+				{
+					var aafSync = await Synchronizer.SynchronizeFileAsync(
+						logger, syncFilesFolder, zipFilesFolder, logFilesFolder,
+						json["file"], dbUrl);
+
+					if (aafSync != null)
+					{
+						c.Response.StatusCode = 200;
+						c.Response.Content = aafSync;
+					}
+					else
+						c.Response.StatusCode = 404;
 				}
 			};
 		}

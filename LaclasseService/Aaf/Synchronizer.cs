@@ -50,6 +50,7 @@ namespace Laclasse.Aaf
 	{
 		static readonly object globalLock = new object();
 		readonly string dbUrl;
+		readonly SyncFile syncFile;
 		readonly AafGlobalZipFile zipFile;
 		readonly List<string> structuresIds = null;
 		int tutUserIdGenerator = 0;
@@ -143,15 +144,31 @@ namespace Laclasse.Aaf
 		Dictionary<string, User> entUsersByNameBirthdate = null;
 		Dictionary<int, User> entUsersByStructRattachId = null;
 
-		public Synchronizer(string dbUrl, string file, List<string> structuresIds = null)
+		public Synchronizer(string dbUrl, SyncFile file, List<string> structuresIds = null)
 		{
 			this.dbUrl = dbUrl;
-			zipFile = new AafGlobalZipFile(file);
+			syncFile = file;
+			zipFile = new AafGlobalZipFile(file.FullPath);
 			this.structuresIds = structuresIds;
 		}
 
 		public class SyncFile : Model
 		{
+			string zipFolder;
+
+			public SyncFile(string zipFolder)
+			{
+				this.zipFolder = zipFolder;
+			}
+
+			public string FullPath
+			{
+				get
+				{
+					return Path.Combine(this.zipFolder, id);
+				}
+			}
+
 			[ModelField]
 			public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
 			[ModelField]
@@ -160,6 +177,12 @@ namespace Laclasse.Aaf
 			public long size { get { return GetField<long>(nameof(size), 0); } set { SetField(nameof(size), value); } }
 			[ModelField]
 			public SyncFileFormat format { get { return GetField(nameof(format), SyncFileFormat.Full); } set { SetField(nameof(format), value); } }
+		}
+
+		public static SyncFile GetFile(string syncFilesFolder, string zipFilesFolder, string fileName)
+		{
+			var files = GetFiles(syncFilesFolder, zipFilesFolder);
+			return files.Find((obj) => obj.id == fileName);
 		}
 
 		public static ModelList<SyncFile> GetFiles(string syncFilesFolder, string zipFilesFolder)
@@ -180,7 +203,7 @@ namespace Laclasse.Aaf
 
 				foreach (var file in zipDir.EnumerateFiles("*.zip"))
 				{
-					var syncFile = new SyncFile { id = file.Name, size = file.Length };
+					var syncFile = new SyncFile (zipFilesFolder) { id = file.Name, size = file.Length };
 					var matches = System.Text.RegularExpressions.Regex.Match(file.Name, "ENT2D\\.(20\\d\\d)(\\d\\d)(\\d\\d).*\\.zip");
 					if (matches.Success)
 						syncFile.date = new DateTime(
@@ -272,13 +295,13 @@ namespace Laclasse.Aaf
 			bool subject = false, bool grade = false,
 			bool structure = false, bool persEducNat = false,
 			bool eleve = false, bool persRelEleve = false,
-			bool apply = false, SyncFileFormat format = SyncFileFormat.Full)
+			bool apply = false)
 		{
 			SyncDiff res;
 			using (DB db = await DB.CreateAsync(dbUrl, true))
 			{
 				res = await SynchronizeAsync(
-					db, subject, grade, structure, persEducNat, eleve, persRelEleve, apply, format);
+					db, subject, grade, structure, persEducNat, eleve, persRelEleve, apply);
 				db.Commit();
 			}
 			return res;
@@ -288,7 +311,7 @@ namespace Laclasse.Aaf
 			bool subject = false, bool grade = false,
 			bool structure = false, bool persEducNat = false,
 			bool eleve = false, bool persRelEleve = false,
-			bool apply = false, SyncFileFormat format = SyncFileFormat.Full)
+			bool apply = false)
 		{
 			var diff = new SyncDiff();
 			diff.stats = new SyncStat();
@@ -510,8 +533,8 @@ namespace Laclasse.Aaf
 			{
 				stopWatch = new Stopwatch();
 				stopWatch.Start();
-				LoadAafPersRelEleve();
-				LoadAafEleve();
+				await LoadAafPersRelEleveAsync(db);
+				await LoadAafEleveAsync(db);
 				stopWatch.Stop();
 				diff.parents = await SyncPersRelEleveAsync(db, aafParents, apply);
 				diff.parents.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
@@ -524,7 +547,7 @@ namespace Laclasse.Aaf
 			{
 				stopWatch = new Stopwatch();
 				stopWatch.Start();
-				LoadAafEleve();
+				await LoadAafEleveAsync(db);
 				stopWatch.Stop();
 				diff.eleves = await SyncEleveAsync(db, aafStudents, apply);
 				diff.eleves.stats.aafLoad = stopWatch.Elapsed.TotalSeconds;
@@ -533,7 +556,7 @@ namespace Laclasse.Aaf
 				diff.stats.sync += diff.eleves.stats.sync;
 			}
 
-			if (format == SyncFileFormat.Full && (persEducNat || persRelEleve || eleve))
+			if (syncFile.format == SyncFileFormat.Full && (persEducNat || persRelEleve || eleve))
 			{
 				diff.global = await SyncNotSeenUsersAsync(db, persEducNat, persRelEleve, eleve, apply);
 				diff.stats.diff += diff.global.stats.diff;
@@ -629,6 +652,8 @@ namespace Laclasse.Aaf
 
 		public async Task LoadEntUsersAsync(DB db)
 		{
+			if (entUsersByAafId != null)
+				return;
 			entUsersByAafId = new Dictionary<int, User>();
 			entUsersByAcademicEmail = new Dictionary<string, User>();
 			entUsersByNameBirthdate = new Dictionary<string, User>();
@@ -651,10 +676,12 @@ namespace Laclasse.Aaf
 			}
 		}
 
-		void LoadAafPersRelEleve()
+		async Task LoadAafPersRelEleveAsync(DB db)
 		{
 			if (aafParentsByAafId != null)
 				return;
+
+			await LoadEntUsersAsync(db);
 
 			aafParentsById = new Dictionary<string, User>();
 			aafParentsByAafId = new Dictionary<long, User>();
@@ -667,9 +694,11 @@ namespace Laclasse.Aaf
 			}
 		}
 
-		void LoadAafEleve()
+		async Task LoadAafEleveAsync(DB db)
 		{
-			LoadAafPersRelEleve();
+			if (syncFile.format == SyncFileFormat.Delta)
+				await LoadEntUsersAsync(db);
+			await LoadAafPersRelEleveAsync(db);
 			if (aafStudents != null)
 				return;
 
@@ -974,6 +1003,10 @@ namespace Laclasse.Aaf
 					}
 					// handle profiles
 					var profilesDiff = Model.Diff(entUser.profiles.FindAll((obj) => obj.type != "ADM" && IsSyncStructure(obj.structure_id)), aafUserProfiles);
+					// in Delta mode, only add/change
+					if (!profilesDiff.IsEmpty && syncFile.format == SyncFileFormat.Delta && profilesDiff.remove != null)
+						profilesDiff.remove.Clear();
+
 					if (!profilesDiff.IsEmpty)
 					{
 						userDiff.profiles = new ModelList<UserProfile>();
@@ -1123,7 +1156,24 @@ namespace Laclasse.Aaf
 
 					// handle parents relations
 					var aafUserParents = AafParentsToEntParents(aafUser.parents);
-					var parentsDiff = Model.Diff(entUser.parents, aafUserParents);
+					var parentsDiff = Model.Diff(entUser.parents, aafUserParents,(src, dst) => src.parent_id == dst.parent_id && src.type == dst.type);
+
+					if (aafUser.firstname == "Willyam")
+					{
+						Console.WriteLine("USER Willyam");
+						Console.WriteLine("entUser.parents");
+						Console.WriteLine(entUser.parents.Dump());
+						Console.WriteLine("aafUser.parents");
+						Console.WriteLine(aafUser.parents.Dump());
+						Console.WriteLine("aafUserParents");
+						Console.WriteLine(aafUserParents.Dump());
+						Console.WriteLine("DIFF");
+						Console.WriteLine(parentsDiff.Dump());
+					}
+
+					// in Delta mode, only add/change
+					if (!parentsDiff.IsEmpty && syncFile.format == SyncFileFormat.Delta)
+						parentsDiff.remove.Clear();
 					if (!parentsDiff.IsEmpty)
 					{
 						userDiff.parents = new ModelList<UserChild>();
@@ -1672,8 +1722,21 @@ namespace Laclasse.Aaf
 					if (tab.Length == 6)
 					{
 						var parent_aaf_jointure_id = long.Parse(tab[0]);
-						// ERROR: parent not found in the AAF...
-						if (!aafParentsByAafId.ContainsKey(parent_aaf_jointure_id))
+
+						User parent = null;
+						// check if the parent is provided in the AAF file
+						if (aafParentsByAafId.ContainsKey(parent_aaf_jointure_id))
+							parent = aafParentsByAafId[parent_aaf_jointure_id];
+						// if the parent is not find in this AAF file and if we are
+						// in a Delta file, take the parent from the current ENT known parent
+						else if (syncFile.format == SyncFileFormat.Delta && entUsersByAafId.ContainsKey((int)parent_aaf_jointure_id))
+						{
+							parent = entUsersByAafId[(int)parent_aaf_jointure_id];
+							aafParentsByAafId[parent_aaf_jointure_id] = parent;
+						}
+
+						// ERROR: parent not found...
+						if (parent == null)
 						{
 							Console.WriteLine($"WARNING: INVALID ENTElevePersRelEleve PARENT WITH aaf_jointure_id {parent_aaf_jointure_id} NOT FOUND");
 							continue;
@@ -1683,7 +1746,7 @@ namespace Laclasse.Aaf
 							user.parents.Add(new UserChild
 							{
 								type = aafRelationType[int.Parse(tab[1])],
-								parent_id = aafParentsByAafId[parent_aaf_jointure_id].id,
+								parent_id = parent.id,
 								child_id = user.id,
 								financial = tab[2] == "1",
 								legal = tab[3] == "1",
@@ -1691,7 +1754,6 @@ namespace Laclasse.Aaf
 							});
 
 							// copy the child relation to the parent
-							var parent = aafParentsByAafId[parent_aaf_jointure_id];
 							if (parent.children == null)
 								parent.children = new ModelList<UserChild>();
 							if (!parent.children.Any((arg) => arg.child_id == user.id))
@@ -2038,17 +2100,17 @@ namespace Laclasse.Aaf
 			return GetAafUsers(zipFile.LoadNodes(@"_PersEducNat_\d+.xml$"));
 		}
 
-		public ModelList<User> GetAafStudents()
+		public async Task<ModelList<User>> GetAafStudentsAsync(DB db)
 		{
-			LoadAafEleve();
+			await LoadAafEleveAsync(db);
 			return aafStudents;
 		}
 
-		public ModelList<User> GetAafParents()
+		public async Task<ModelList<User>> GetAafParentsAsync(DB db)
 		{
-			LoadAafPersRelEleve();
+			await LoadAafPersRelEleveAsync(db);
 			// load students too to complete the parents profiles
-			LoadAafEleve();
+			await LoadAafEleveAsync(db);
 			return aafParents;
 		}
 
@@ -2134,10 +2196,10 @@ namespace Laclasse.Aaf
 			Exception exception = null;
 			try
 			{
-				sync = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, file.id));
+				sync = new Synchronizer(dbUrl, file);
 				diff = await sync.SynchronizeAsync(
 					db, subject: true, grade: true, structure: true,
-					persEducNat: true, eleve: true, persRelEleve: true, apply: true, format: file.format
+					persEducNat: true, eleve: true, persRelEleve: true, apply: true
 				);
 			}
 			catch (Exception e)

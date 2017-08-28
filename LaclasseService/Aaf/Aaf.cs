@@ -50,9 +50,12 @@ namespace Laclasse.Aaf
 
 			GetAsync["/{id}/structures"] = async (p, c) =>
 			{
-				await c.EnsureIsSuperAdminAsync();
+				await c.EnsureIsAuthenticatedAsync();
 				var synchronizer = new Synchronizer(dbUrl, Path.Combine(zipFilesFolder, (string)p["id"]));
-				c.Response.Content = synchronizer.GetAafStructures().Filter(c);
+				var structures = synchronizer.GetAafStructures().Filter(c);
+				foreach (var structure in structures)
+					await c.EnsureHasRightsOnStructureAsync(structure, false, false, true);
+				c.Response.Content = structures;
 			};
 
 			GetAsync["/{id}/structures/diff"] = async (p, c) =>

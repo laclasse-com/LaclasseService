@@ -325,6 +325,7 @@ namespace Laclasse.Authentication
 			PostAsync["/agentPortalIdp"] = async (p, c) =>
 			{
 				var formUrl = await c.Request.ReadAsStringAsync();
+				Console.WriteLine($"formUrl: '{formUrl}'");
 				Dictionary<string, string> formFields;
 				Dictionary<string, List<string>> formArrayFields;
 				HttpUtility.ParseFormUrlEncoded(formUrl, out formFields, out formArrayFields);

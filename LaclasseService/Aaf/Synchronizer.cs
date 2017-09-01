@@ -125,6 +125,10 @@ namespace Laclasse.Aaf
 		ModelList<Grade> aafGrades;
 		Dictionary<string, Grade> aafGradesById;
 
+		ModelList<Grade> entGrades;
+		Dictionary<string, Grade> entGradesById;
+		Dictionary<string, Grade> entGradesUsedById;
+
 		ModelList<Subject> aafSubjects;
 		Dictionary<string, Subject> aafSubjectsById;
 
@@ -362,6 +366,15 @@ namespace Laclasse.Aaf
 				diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
 			}
 
+			if (grade || eleve)
+			{
+				stopWatch = new Stopwatch();
+				stopWatch.Start();
+				await LoadEntGradesAsync(db);
+				stopWatch.Stop();
+				diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
+			}
+
 			if (subject)
 			{
 				diff.subjects = new SubjectsDiff();
@@ -377,7 +390,7 @@ namespace Laclasse.Aaf
 				stopWatch.Start();
 				diff.subjects.diff = Model.Diff(entSubjects, aafSubjects, (src, dst) => src.id == dst.id);
 				stopWatch.Stop();
-				// only remove subject not used by any body
+				// only remove subject not used by anybody
 				var remove = new ModelList<Subject>();
 				foreach (var removeSubject in diff.subjects.diff.remove)
 				{
@@ -417,14 +430,17 @@ namespace Laclasse.Aaf
 				diff.stats.aafLoad += stopWatch.Elapsed.TotalSeconds;
 				stopWatch = new Stopwatch();
 				stopWatch.Start();
-				var entGrades = await db.SelectAsync<Grade>("SELECT * FROM `grade`");
-				stopWatch.Stop();
-				diff.grades.stats.entLoad = stopWatch.Elapsed.TotalSeconds;
-				diff.stats.entLoad += stopWatch.Elapsed.TotalSeconds;
-				stopWatch = new Stopwatch();
-				stopWatch.Start();
 				diff.grades.diff = Model.Diff(entGrades, aafGrades, (src, dst) => src.id == dst.id);
 				stopWatch.Stop();
+				// only remove grade not used by anybody
+				var remove = new ModelList<Grade>();
+				foreach (var removeGrade in diff.grades.diff.remove)
+				{
+					if (!entGradesUsedById.ContainsKey(removeGrade.id))
+						remove.Add(removeGrade);
+				}
+				diff.grades.diff.remove = remove;
+
 				diff.grades.stats.diff = stopWatch.Elapsed.TotalSeconds;
 				diff.grades.stats.addCount += diff.grades.diff.add.Count;
 				diff.grades.stats.changeCount += diff.grades.diff.change.Count;
@@ -1767,6 +1783,18 @@ namespace Laclasse.Aaf
 			}
 
 			return user;
+		}
+
+		async Task LoadEntGradesAsync(DB db)
+		{
+			entGrades = await db.SelectAsync<Grade>("SELECT * FROM `grade`");
+			entGradesById = new Dictionary<string, Grade>();
+			foreach (var grade in entGrades)
+				entGradesById[grade.id] = grade;
+
+			entGradesUsedById = new Dictionary<string, Grade>();
+			foreach (var grade in await db.SelectAsync<Grade>("SELECT * FROM `grade` WHERE `id` IN (SELECT DISTINCT(student_grade_id) FROM `user` WHERE student_grade_id IS NOT NULL)"))
+				entGradesUsedById[grade.id] = grade;
 		}
 
 		public ModelList<Grade> GetAafGrades()

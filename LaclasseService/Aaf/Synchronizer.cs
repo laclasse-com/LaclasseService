@@ -1158,19 +1158,6 @@ namespace Laclasse.Aaf
 					var aafUserParents = AafParentsToEntParents(aafUser.parents);
 					var parentsDiff = Model.Diff(entUser.parents, aafUserParents,(src, dst) => src.parent_id == dst.parent_id && src.type == dst.type);
 
-					if (aafUser.firstname == "Willyam")
-					{
-						Console.WriteLine("USER Willyam");
-						Console.WriteLine("entUser.parents");
-						Console.WriteLine(entUser.parents.Dump());
-						Console.WriteLine("aafUser.parents");
-						Console.WriteLine(aafUser.parents.Dump());
-						Console.WriteLine("aafUserParents");
-						Console.WriteLine(aafUserParents.Dump());
-						Console.WriteLine("DIFF");
-						Console.WriteLine(parentsDiff.Dump());
-					}
-
 					// in Delta mode, only add/change
 					if (!parentsDiff.IsEmpty && syncFile.format == SyncFileFormat.Delta)
 						parentsDiff.remove.Clear();

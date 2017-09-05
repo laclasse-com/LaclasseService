@@ -497,7 +497,7 @@ namespace Laclasse.Authentication
 
 		async Task<Dictionary<string, string>> UserToSsoAttributesAsync(DB db, User user)
 		{
-			// TODO: add ENTEleveClasses and ENTEleveNivFormation
+			// TODO: add ENTEleveClasses
 
 			EmailBackend emailBackend = null;
 			if (user.email_backend_id != null)
@@ -508,6 +508,7 @@ namespace Laclasse.Authentication
 			foreach (var profileType in await db.SelectAsync<ProfileType>("SELECT * FROM `profile_type`"))
 				profilesTypes[profileType.id] = profileType;
 
+			string ENTEleveClasses = null;
 			string ENTPersonStructRattachRNE = null;
 			string ENTPersonProfils = null;
 			string ENTEleveNivFormation = null;
@@ -520,18 +521,64 @@ namespace Laclasse.Authentication
 					if (ProfilIdToSdet3.ContainsKey(p.type))
 						categories = ProfilIdToSdet3[p.type];
 					ENTPersonProfils = profilesTypes[p.type].code_national;
-					if (p.type == "ELV")
-					{
-					}
 				}
 				if (ENTPersonProfils == null)
 					ENTPersonProfils = profilesTypes[p.type].code_national;
 			}
+			if (ENTPersonStructRattachRNE == null && user.profiles.Count > 0)
+				ENTPersonStructRattachRNE = user.profiles[0].structure_id;
+
+			if (ENTPersonStructRattachRNE != null && categories == null)
+			{
+				foreach (var p in user.profiles)
+				{
+					if (p.structure_id == ENTPersonStructRattachRNE)
+					{
+						if (ProfilIdToSdet3.ContainsKey(p.type))
+						{
+							categories = ProfilIdToSdet3[p.type];
+							break;
+						}
+					}
+				}
+			}
+			if (ENTPersonStructRattachRNE != null && ENTPersonProfils == null)
+			{
+				foreach (var p in user.profiles)
+				{
+					if (p.structure_id == ENTPersonStructRattachRNE)
+					{
+						if (profilesTypes[p.type].code_national != null)
+						{
+							ENTPersonProfils = profilesTypes[p.type].code_national;
+							break;
+						}
+					}
+				}
+			}
+
 			if (user.student_grade_id != null)
 			{
 				var grade = new Grade { id = user.student_grade_id };
 				await grade.LoadAsync(db);
 				ENTEleveNivFormation = grade.name;
+			}
+			foreach (var user_group in user.groups)
+			{
+				if (user_group.type == "ELV")
+				{
+					var group = new Directory.Group { id = user_group.group_id };
+					if (await group.LoadAsync(db))
+					{
+						if (group.type == "CLS")
+						{
+							if (ENTEleveClasses == null)
+								ENTEleveClasses = group.name;
+							else if (group.structure_id == ENTPersonStructRattachRNE)
+								ENTEleveClasses = group.name;
+						}
+					}
+				}
 			}
 
 			var result = new Dictionary<string, string>
@@ -555,6 +602,8 @@ namespace Laclasse.Authentication
 
 			if (ENTEleveNivFormation != null)
 				result["ENTEleveNivFormation"] = ENTEleveNivFormation;
+			if (ENTEleveClasses != null)
+				result["ENTEleveClasses"] = ENTEleveClasses;
 			return result;
 		}
 

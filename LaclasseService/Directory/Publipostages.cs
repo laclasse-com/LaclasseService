@@ -236,17 +236,15 @@ catch(e) {
 				process.StartInfo = startInfo;
 				process.Start();
 
-				//Console.WriteLine(html);
-
 				// write the JS script to stdin
 				process.StandardInput.Write("var content = ");
 				process.StandardInput.Write((new JsonPrimitive(html)).ToString());
 				process.StandardInput.WriteLine(";");
 				process.StandardInput.WriteLine(renderToPdfScript);
+				process.StandardInput.Flush();
 				process.StandardInput.Close();
-
-				process.WaitForExit();
 				process.StandardOutput.BaseStream.CopyTo(memStream);
+				process.WaitForExit();
 				memStream.Seek(0, SeekOrigin.Begin);
 				exitCode = process.ExitCode;
 				if (exitCode != 0)

@@ -1684,7 +1684,7 @@ namespace Laclasse.Aaf
 
 						if (structures.ContainsKey(aaf_jointure_id))
 						{
-							if (!user.profiles.Any((arg) => arg.type == profileId))
+							if (!user.profiles.Any((arg) => arg.type == profileId && arg.structure_id == structures[aaf_jointure_id].id))
 							{
 								user.profiles.Add(new UserProfile
 								{

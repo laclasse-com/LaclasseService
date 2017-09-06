@@ -604,6 +604,8 @@ namespace Laclasse.Authentication
 				result["ENTEleveNivFormation"] = ENTEleveNivFormation;
 			if (ENTEleveClasses != null)
 				result["ENTEleveClasses"] = ENTEleveClasses;
+			if (user.aaf_jointure_id != null)
+				result["ENTPersonJointure"] = ((long)user.aaf_jointure_id).ToString();
 			return result;
 		}
 

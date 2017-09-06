@@ -2183,7 +2183,7 @@ namespace Laclasse.Aaf
 
 		public static async Task<AafSync> SynchronizeFileAsync(
 			Logger logger, string syncFilesFolder, string zipFilesFolder, string logFilesFolder,
-			string fileName, string dbUrl)
+			string fileName, string dbUrl, List<string> structuresIds = null)
 		{
 			var files = GetFiles(syncFilesFolder, zipFilesFolder);
 			var file = files.Find((obj) => obj.id == fileName);
@@ -2193,7 +2193,8 @@ namespace Laclasse.Aaf
 				using (DB db = await DB.CreateAsync(dbUrl, true))
 				{
 					aafSync = await SynchronizeFileAsync(
-						logger, file, zipFilesFolder, logFilesFolder, db, dbUrl, SyncFileMode.Manual);
+						logger, file, zipFilesFolder, logFilesFolder, db, dbUrl,
+						SyncFileMode.Manual, structuresIds);
 					db.Commit();
 				}
 			}
@@ -2202,7 +2203,7 @@ namespace Laclasse.Aaf
 
 		public static async Task<AafSync> SynchronizeFileAsync(
 			Logger logger, SyncFile file, string zipFilesFolder, string logFilesFolder,
-			DB db, string dbUrl, SyncFileMode mode)
+			DB db, string dbUrl, SyncFileMode mode, List<string> structuresIds = null)
 		{
 			AafSync aafSync = null;
 
@@ -2211,7 +2212,7 @@ namespace Laclasse.Aaf
 			Exception exception = null;
 			try
 			{
-				sync = new Synchronizer(dbUrl, file);
+				sync = new Synchronizer(dbUrl, file, structuresIds);
 				diff = await sync.SynchronizeAsync(
 					db, subject: true, grade: true, structure: true,
 					persEducNat: true, eleve: true, persRelEleve: true, apply: true

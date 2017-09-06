@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Directory;
@@ -115,9 +116,24 @@ namespace Laclasse.Aaf
 
 				if (json.ContainsKey("file") && json["file"].JsonType == JsonType.String)
 				{
+					List<string> structuresIds = null;
+
+					if (json.ContainsKey("structures") && json["structures"].JsonType == JsonType.Array)
+					{
+						structuresIds = new List<string>();
+						foreach (var alimStructure in (JsonArray)json["structures"])
+						{
+							if (alimStructure.JsonType == JsonType.Object && alimStructure.ContainsKey("structure_id"))
+							{
+								string structure_id = alimStructure["structure_id"];
+								structuresIds.Add(structure_id);
+							}
+						}
+					}
+
 					var aafSync = await Synchronizer.SynchronizeFileAsync(
 						logger, syncFilesFolder, zipFilesFolder, logFilesFolder,
-						json["file"], dbUrl);
+						json["file"], dbUrl, structuresIds);
 
 					if (aafSync != null)
 					{

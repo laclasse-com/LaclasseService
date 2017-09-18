@@ -180,6 +180,10 @@ namespace Laclasse.Authentication
 			{
 				string destination = c.Request.QueryString.ContainsKey("destination") ?
 									  c.Request.QueryString["destination"] : "login";
+
+				if (c.Request.QueryString.ContainsKey("service"))
+					destination += "?service=" + HttpUtility.UrlEncode(c.Request.QueryString["service"]);
+
 				// delete the session
 				if (c.Request.Cookies.ContainsKey(cookieName))
 					await sessions.DeleteSessionAsync(c.Request.Cookies[cookieName]);

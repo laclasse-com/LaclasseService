@@ -929,7 +929,7 @@ namespace Laclasse.Authentication
 			subject = doc.CreateElement("Subject", saml);
 			authenticationStatement.AppendChild(subject);
 			nameIdentifierNode = doc.CreateElement("NameIdentifier", saml);
-			nameIdentifierNode.InnerText = nameIdentifier;
+			nameIdentifierNode.InnerText = attributes[nameIdentifier];
 			subject.AppendChild(nameIdentifierNode);
 			subjectConfirmation = doc.CreateElement("SubjectConfirmation", saml);
 			subject.AppendChild(subjectConfirmation);

@@ -862,6 +862,7 @@ namespace Laclasse.Aaf
 				{
 					aafUser.Fields.Remove(nameof(aafUser.id));
 					aafUser.groups = AafGroupUserToEntGroupUser(aafUser.groups);
+					aafUser.groups.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
 					aafUser.profiles = aafUserProfiles;
 					diff.diff.add.Add(aafUser);
 
@@ -932,6 +933,10 @@ namespace Laclasse.Aaf
 								entSubjectsById[entSubject.id] = entSubject;
 							}
 						}
+						if (groupsDiff.add != null)
+							groupsDiff.add.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+						if (groupsDiff.change != null)
+							groupsDiff.change.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
 					}
 					if (userDiff.Fields.Count > 1)
 						diff.diff.change.Add(userDiff);
@@ -1119,6 +1124,8 @@ namespace Laclasse.Aaf
 					aafUser.Fields.Remove(nameof(aafUser.id));
 					aafUser.profiles = aafUserProfiles;
 					aafUser.groups = AafGroupUserToEntGroupUser(aafUser.groups);
+					// set the AAF mtime of this relations
+					aafUser.groups.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
 					aafUser.parents = AafParentsToEntParents(aafUser.parents);
 					diff.diff.add.Add(aafUser);
 				}
@@ -1168,6 +1175,11 @@ namespace Laclasse.Aaf
 					{
 						userDiff.groups = new ModelList<GroupUser>();
 						userDiff.groups.diff = groupsDiff;
+						// set the AAF mtime of this relations
+						if (groupsDiff.add != null)
+							groupsDiff.add.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+						if (groupsDiff.change != null)
+							groupsDiff.change.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
 					}
 
 					// handle parents relations

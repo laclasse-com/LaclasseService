@@ -1305,27 +1305,6 @@ namespace Laclasse.Aaf
 			return diff;
 		}
 
-
-		/// <summary>
-		/// Syncs the structure parents profiles async.
-		/// Use the relation between child and parent to find which profiles
-		/// parents shoud have
-		/// </summary>
-		/// <param name="uai">The structure UAI code</param>
-		async Task SyncStructureParentsProfilesAsync(DB db, string uai, bool apply)
-		{
-			var expectParents = new ModelList<UserProfile>();
-			foreach (var item in await db.SelectAsync(
-				"SELECT DISTINCT(`parent_id`) FROM `user_child` WHERE `child_id` IN " +
-				"(SELECT `user_id` FROM `user_profile` WHERE `type`= 'ELV' AND `structure_id`= ?)", uai))
-				expectParents.Add(new UserProfile { user_id = (string)item["parent_id"], structure_id = uai, type = "TUT" });
-
-			var entParents = await db.SelectAsync<UserProfile>("SELECT * FROM `user_profile` WHERE `type`='TUT' AND `structure_id`=?", uai);
-
-			if (apply)
-				await Model.SyncAsync(db, entParents, expectParents);
-		}
-
 		public User NodeToUser(XmlNode node, Dictionary<int, Structure> structures)
 		{
 			long id;

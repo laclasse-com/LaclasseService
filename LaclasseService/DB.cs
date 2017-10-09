@@ -240,6 +240,11 @@ namespace Laclasse
 			Fields[name] = value;
 		}
 
+		public void UnSetField(string name)
+		{
+			Fields.Remove(name);
+		}
+
 		public T GetField<T>(string name, T defaultValue)
 		{
 			return Fields.ContainsKey(name) ? (T)Fields[name] : defaultValue;

@@ -916,7 +916,20 @@ namespace Laclasse.Aaf
 						return (group != null) && IsSyncStructure(group.structure_id);
 					});
 					var aafInterGroups = AafGroupUserToEntGroupUser(aafUser.groups);
-					var groupsDiff = Model.Diff(entInterGroups, aafInterGroups, (src, dst) => src.group_id == dst.group_id && src.type == dst.type && src.subject_id == dst.subject_id);
+					var groupsDiff = Model.Diff(
+						entInterGroups, aafInterGroups,
+						(src, dst) => src.group_id == dst.group_id && src.type == dst.type && src.subject_id == dst.subject_id,
+						(src, dst) =>
+						{
+							var itemDiff = src.DiffWithId(dst);
+							// aaf_mtime is special. If the src has no aaf_mtime, we need to set one
+							// else dont update it. The aaf_mtime is set at the last change time
+							if (!itemDiff.IsEmpty && src.aaf_mtime == null)
+								itemDiff.aaf_mtime = DateTime.Now;
+							return itemDiff;
+						}
+					);
+
 
 					if (!groupsDiff.IsEmpty)
 					{
@@ -937,6 +950,20 @@ namespace Laclasse.Aaf
 							groupsDiff.add.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
 						if (groupsDiff.change != null)
 							groupsDiff.change.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+
+						// only remove AAF created user from the group
+						if (groupsDiff.remove != null)
+						{
+							var removeGroupUsers = new ModelList<GroupUser>();
+							foreach (var groupUser in groupsDiff.remove)
+							{
+								if (groupUser.aaf_mtime != null)
+									removeGroupUsers.Add(groupUser);
+							}
+							groupsDiff.remove = removeGroupUsers;
+						}
+						if (groupsDiff.IsEmpty)
+							userDiff.UnSetField(nameof(User.groups));
 					}
 					if (userDiff.Fields.Count > 1)
 						diff.diff.change.Add(userDiff);
@@ -1170,7 +1197,19 @@ namespace Laclasse.Aaf
 						return (group != null) && IsSyncStructure(group.structure_id);
 					});
 					var aafInterGroups = AafGroupUserToEntGroupUser(aafUser.groups);
-					var groupsDiff = Model.Diff(entInterGroups, aafInterGroups, (src, dst) => src.group_id == dst.group_id && src.type == dst.type && src.subject_id == dst.subject_id);
+					var groupsDiff = Model.Diff(
+						entInterGroups, aafInterGroups,
+						(src, dst) => src.group_id == dst.group_id && src.type == dst.type && src.subject_id == dst.subject_id,
+						(src, dst) =>
+						{
+							var itemDiff = src.DiffWithId(dst);
+							// aaf_mtime is special. If the src has no aaf_mtime, we need to set one
+							// else dont update it. The aaf_mtime is set at the last change time
+							if (!itemDiff.IsEmpty && src.aaf_mtime == null)
+								itemDiff.aaf_mtime = DateTime.Now;
+							return itemDiff;
+						}
+					);
 					if (!groupsDiff.IsEmpty)
 					{
 						userDiff.groups = new ModelList<GroupUser>();
@@ -1180,6 +1219,19 @@ namespace Laclasse.Aaf
 							groupsDiff.add.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
 						if (groupsDiff.change != null)
 							groupsDiff.change.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+						// only remove AAF created user from the group
+						if (groupsDiff.remove != null)
+						{
+							var removeGroupUsers = new ModelList<GroupUser>();
+							foreach (var groupUser in groupsDiff.remove)
+							{
+								if (groupUser.aaf_mtime != null)
+									removeGroupUsers.Add(groupUser);
+							}
+							groupsDiff.remove = removeGroupUsers;
+						}
+						if (groupsDiff.IsEmpty)
+							userDiff.UnSetField(nameof(User.groups));
 					}
 
 					// handle parents relations

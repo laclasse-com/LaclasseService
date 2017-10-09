@@ -864,6 +864,7 @@ namespace Laclasse.Aaf
 					aafUser.groups = AafGroupUserToEntGroupUser(aafUser.groups);
 					aafUser.groups.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
 					aafUser.profiles = aafUserProfiles;
+					aafUser.profiles.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
 					diff.diff.add.Add(aafUser);
 
 					foreach (var groupUser in aafUser.groups)
@@ -903,11 +904,40 @@ namespace Laclasse.Aaf
 						}
 					}
 					// handle profiles
-					var profilesDiff = Model.Diff(entUser.profiles.FindAll((obj) => obj.type != "ADM" && IsSyncStructure(obj.structure_id)), aafUserProfiles);
+					var profilesDiff = Model.Diff(
+						entUser.profiles.FindAll((obj) => obj.type != "ADM" && IsSyncStructure(obj.structure_id)),
+						aafUserProfiles, null,
+						(src, dst) =>
+						{
+							var itemDiff = src.DiffWithId(dst);
+							// aaf_mtime is special. If the src has no aaf_mtime, we need to set one
+							// else dont update it. The aaf_mtime is set at the last change time
+							if (!itemDiff.IsEmpty && src.aaf_mtime == null)
+								itemDiff.aaf_mtime = DateTime.Now;
+							return itemDiff;
+						}
+					);
 					if (!profilesDiff.IsEmpty)
 					{
 						userDiff.profiles = new ModelList<UserProfile>();
 						userDiff.profiles.diff = profilesDiff;
+						if (profilesDiff.add != null)
+							profilesDiff.add.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+						if (profilesDiff.change != null)
+							profilesDiff.change.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+						// only remove AAF created user_profile
+						if (profilesDiff.remove != null)
+						{
+							var removeProfiles = new ModelList<UserProfile>();
+							foreach (var userProfile in profilesDiff.remove)
+							{
+								if (userProfile.aaf_mtime != null)
+									removeProfiles.Add(userProfile);
+							}
+							profilesDiff.remove = removeProfiles;
+						}
+						if (profilesDiff.IsEmpty)
+							userDiff.UnSetField(nameof(User.profiles));
 					}
 					// handle groups
 					var entInterGroups = entUser.groups.FindAll((obj) =>
@@ -1150,6 +1180,7 @@ namespace Laclasse.Aaf
 				{
 					aafUser.Fields.Remove(nameof(aafUser.id));
 					aafUser.profiles = aafUserProfiles;
+					aafUser.profiles.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
 					aafUser.groups = AafGroupUserToEntGroupUser(aafUser.groups);
 					// set the AAF mtime of this relations
 					aafUser.groups.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
@@ -1182,13 +1213,40 @@ namespace Laclasse.Aaf
 						}
 					}
 					// handle profiles
-					var profilesDiff = Model.Diff(entUser.profiles.FindAll((obj) => obj.type != "ADM" && IsSyncStructure(obj.structure_id)), aafUser.profiles);
+					var profilesDiff = Model.Diff(
+						entUser.profiles.FindAll((obj) => obj.type != "ADM" && IsSyncStructure(obj.structure_id)),
+						aafUserProfiles, null,
+						(src, dst) => {
+							var itemDiff = src.DiffWithId(dst);
+							// aaf_mtime is special. If the src has no aaf_mtime, we need to set one
+							// else dont update it. The aaf_mtime is set at the last change time
+							if (!itemDiff.IsEmpty && src.aaf_mtime == null)
+								itemDiff.aaf_mtime = DateTime.Now;
+							return itemDiff;
+						}
+					);
 					if (!profilesDiff.IsEmpty)
 					{
 						userDiff.profiles = new ModelList<UserProfile>();
 						userDiff.profiles.diff = profilesDiff;
+						if (profilesDiff.add != null)
+							profilesDiff.add.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+						if (profilesDiff.change != null)
+							profilesDiff.change.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+						// only remove AAF created user_profile
+						if (profilesDiff.remove != null)
+						{
+							var removeProfiles = new ModelList<UserProfile>();
+							foreach (var userProfile in profilesDiff.remove)
+							{
+								if (userProfile.aaf_mtime != null)
+									removeProfiles.Add(userProfile);
+							}
+							profilesDiff.remove = removeProfiles;
+						}
+						if (profilesDiff.IsEmpty)
+							userDiff.UnSetField(nameof(User.profiles));
 					}
-
 
 					// handle groups
 					var entInterGroups = entUser.groups.FindAll((obj) =>
@@ -1304,7 +1362,8 @@ namespace Laclasse.Aaf
 					User changeUser = null;
 					var userProfiles = entUser.profiles;
 
-					var removeProfiles = entUser.profiles.FindAll((obj) => IsSyncStructure(obj.structure_id) && syncProfilesTypes.Contains(obj.type));
+					var removeProfiles = entUser.profiles.FindAll(
+						(obj) => IsSyncStructure(obj.structure_id) && (obj.aaf_mtime != null) && syncProfilesTypes.Contains(obj.type));
 					if (removeProfiles.Any())
 					{
 						var userRemoveProfiles = new ModelList<UserProfile>();
@@ -1318,7 +1377,6 @@ namespace Laclasse.Aaf
 						changeUser.profiles.diff = new ModelListDiff<UserProfile>();
 						changeUser.profiles.diff.remove = userRemoveProfiles;
 					}
-					// TODO: FINISH THIS
 
 					// garbage collect user in structure's group where the user has no profile
 					if (entUser.groups != null)

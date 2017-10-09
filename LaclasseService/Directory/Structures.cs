@@ -72,8 +72,6 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string educnat_marking_id { get { return GetField<string>(nameof(educnat_marking_id), null); } set { SetField(nameof(educnat_marking_id), value); } }
 		[ModelField]
-		public string url_blog { get { return GetField<string>(nameof(url_blog), null); } set { SetField(nameof(url_blog), value); } }
-		[ModelField]
 		public int? aaf_jointure_id { get { return GetField<int?>(nameof(aaf_jointure_id), null); } set { SetField(nameof(aaf_jointure_id), value); } }
 
 		[ModelExpandField(Name = nameof(groups), ForeignModel = typeof(Group))]

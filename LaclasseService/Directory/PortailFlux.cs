@@ -27,9 +27,9 @@
 
 using System;
 using System.Xml;
+using System.Xml.Linq;
 using System.IO;
 using System.Linq;
-using System.ServiceModel.Syndication;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Laclasse.Authentication;
@@ -74,6 +74,7 @@ namespace Laclasse.Directory
 		public string image { get { return GetField<string>(nameof(image), null); } set { SetField(nameof(image), value); } }
 	}
 
+
 	public class StructureRss : HttpRouting
 	{ 
 		public StructureRss(string dbUrl)
@@ -111,60 +112,114 @@ namespace Laclasse.Directory
 
 									var response = client.GetResponse();
 
-									var reader = XmlReader.Create(response.InputStream, settings);
-									var feed = SyndicationFeed.Load(reader);
-									reader.Close();
-									foreach (SyndicationItem item in feed.Items)
+									var doc = XDocument.Load(response.InputStream);
+									XElement root = doc.Root;
+									XNamespace ns = doc.Root.Name.Namespace;
+									var contentns = "http://purl.org/rss/1.0/modules/content/";
+
+									// RSS 2.0
+									if (root.Name.LocalName == "rss")
 									{
-										var rss = new Rss
+										foreach (XElement item in root.Element("channel").Elements("item"))
 										{
-											title = item.Title.Text,
-											content = item.Summary.Text,
-											pubDate = item.PublishDate.DateTime
-										};
-
-										var fullContent = rss.content;
-										var encodedContent = item.ElementExtensions.SingleOrDefault((arg) => arg.OuterName == "encoded" && arg.OuterNamespace == "http://purl.org/rss/1.0/modules/content/");
-										if (encodedContent != null)
-										{
-											fullContent = encodedContent.GetObject<XmlElement>().InnerText;
-											if (string.IsNullOrEmpty(rss.content))
-												rss.content = fullContent;
-										}
-
-										// load the document using sgml reader
-										var document = new XmlDocument();
-										using (var sgmlReader = new Sgml.SgmlReader())
-										{
-											sgmlReader.CaseFolding = Sgml.CaseFolding.ToLower;
-											sgmlReader.DocType = "HTML";
-											sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
-
-											using (var sr = new StringReader(fullContent))
+											var rss = new Rss();
+											var title = item.Element("title");
+											if (title != null)
+												rss.title = title.Value;
+											var content = item.Element("description");
+											if (content != null)
+												rss.content = content.Value;
+											var link = item.Element("link");
+											if (link != null)
+												rss.link = link.Value;
+											var date = item.Element("pubDate");
+											if (date != null)
+												rss.pubDate = DateTime.Parse(date.Value);
+											var encoded = item.Element(XName.Get("encoded", contentns));
+											if (encoded != null)
 											{
-												sgmlReader.InputStream = sr;
-												document.Load(sgmlReader);
+												var imageUrl = GetImageFromHtml(encoded.Value);
+												if (imageUrl != null)
+													rss.image = imageUrl;
 											}
-										}
 
-										string imageUrl = null;
-										var images = document.GetElementsByTagName("img");
-										foreach (XmlNode image in images)
+											lock (infos)
+												infos.Add(rss);
+										}
+									}
+									// ATOM
+									else if (root.Name.LocalName == "feed")
+									{
+										Console.WriteLine("ATOM FORMAT");
+										var atomns = "http://www.w3.org/2005/Atom";
+										foreach (XElement item in root.Elements(XName.Get("entry", atomns)))
 										{
-											if (image.Attributes["src"] != null)
+											var rss = new Rss();
+											var title = item.Element(XName.Get("title", atomns));
+											if (title != null)
+												rss.title = title.Value;
+											var summary = item.Element(XName.Get("summary", atomns));
+											if (summary != null)
+												rss.content = summary.Value;
+											var content = item.Element(XName.Get("content", atomns));
+											if (content != null)
 											{
-												imageUrl = image.Attributes["src"].Value;
-												break;
+												var type = "text";
+												if (content.Attribute("type") != null)
+													type = content.Attribute("type").Value;
+												var textContent = content.Value;
+												if (type == "html")
+												{
+													textContent = GetTextFromHtml(content.Value);
+													var imageUrl = GetImageFromHtml(content.Value);
+													if (imageUrl != null)
+														rss.image = imageUrl;
+												}
+												if (rss.content == null)
+													rss.content = textContent;
 											}
+											var link = item.Element(XName.Get("link", atomns));
+											if (link != null)
+												rss.link = link.Attribute("href").Value;
+											var updated = item.Element(XName.Get("updated", atomns));
+											if (updated != null)
+												rss.pubDate = DateTime.Parse(updated.Value);
+
+											lock (infos)
+												infos.Add(rss);
 										}
-										if (imageUrl != null)
-											rss.image = imageUrl;
+									}
+									// RSS 1.0
+									else if (root.Name.LocalName == "RDF")
+									{
+										var rss10ns = "http://purl.org/rss/1.0/";
+										var dcns = "http://purl.org/dc/elements/1.1/";
 
-										if (item.Links.Count > 0)
-											rss.link = item.Links[0].Uri.AbsoluteUri;
-
-										lock (infos)
-											infos.Add(rss);
+										foreach (XElement item in root.Elements(XName.Get("item", rss10ns)))
+										{
+											var rss = new Rss();
+											var title = item.Element(XName.Get("title", rss10ns));
+											if (title != null)
+												rss.title = title.Value;
+											var content = item.Element(XName.Get("description", rss10ns));
+											if (content != null)
+												rss.content = content.Value;
+											var link = item.Element(XName.Get("link", rss10ns));
+											if (link != null)
+												rss.link = link.Value;
+											var date = item.Element(XName.Get("date", dcns));
+											if (date != null)
+												rss.pubDate = DateTime.Parse(date.Value);
+											var encoded = item.Element(XName.Get("encoded", contentns));
+											if (encoded != null)
+											{
+												var imageUrl = GetImageFromHtml(encoded.Value);
+												if (imageUrl != null)
+													rss.image = imageUrl;
+											}
+											lock (infos)
+												infos.Add(rss);
+										}
 									}
 								}
 							}
@@ -178,6 +233,55 @@ namespace Laclasse.Directory
 					}
 				}
 			};
+		}
+
+		static string GetTextFromHtml(string html)
+		{
+			// load the document using sgml reader
+			var document = new XmlDocument();
+			using (var sgmlReader = new Sgml.SgmlReader())
+			{
+				sgmlReader.CaseFolding = Sgml.CaseFolding.ToLower;
+				sgmlReader.DocType = "HTML";
+				sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
+
+				using (var sr = new StringReader(html))
+				{
+					sgmlReader.InputStream = sr;
+					document.Load(sgmlReader);
+				}
+			}
+			return document.InnerText;
+		}
+
+		static string GetImageFromHtml(string html)
+		{
+			// load the document using sgml reader
+			var document = new XmlDocument();
+			using (var sgmlReader = new Sgml.SgmlReader())
+			{
+				sgmlReader.CaseFolding = Sgml.CaseFolding.ToLower;
+				sgmlReader.DocType = "HTML";
+				sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
+
+				using (var sr = new StringReader(html))
+				{
+					sgmlReader.InputStream = sr;
+					document.Load(sgmlReader);
+				}
+			}
+
+			string imageUrl = null;
+			var images = document.GetElementsByTagName("img");
+			foreach (XmlNode image in images)
+			{
+				if (image.Attributes["src"] != null)
+				{
+					imageUrl = image.Attributes["src"].Value;
+					break;
+				}
+			}
+			return imageUrl;
 		}
 	}
 }

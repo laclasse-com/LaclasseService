@@ -50,12 +50,12 @@
     <Reference Include="SharpCompress">
       <HintPath>..\packages\SharpCompress.0.17.1\lib\net45\SharpCompress.dll</HintPath>
     </Reference>
-    <Reference Include="System.ServiceModel" />
     <Reference Include="SgmlReaderDll">
       <HintPath>..\packages\Microsoft.Xml.SgmlReader.1.8.14\lib\net45\SgmlReaderDll.dll</HintPath>
     </Reference>
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />

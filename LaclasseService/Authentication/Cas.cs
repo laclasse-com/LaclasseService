@@ -1343,14 +1343,16 @@ namespace Laclasse.Authentication
 				else
 				{
 					var uri = new Uri(smsSetup.url);
-					using (var client = HttpClient.Create(uri.Host, uri.Port))
+					using (var client = HttpClient.Create(uri))
 					{
 						var clientRequest = new HttpClientRequest();
 						clientRequest.Method = "POST";
 						clientRequest.Path = uri.PathAndQuery;
-						clientRequest.Headers["content-type"] = "application/x-www-form-urlencoded";
-						var jsonData = new JsonObject { ["message"] = $"Laclasse code: {ticket.code}", ["numeros"] = new JsonArray { rescue } };
-						clientRequest.Content = "data=" + HttpUtility.UrlEncode(jsonData.ToString());
+						clientRequest.Headers["authorization"] = "Bearer " + smsSetup.token;
+						clientRequest.Headers["content-type"] = "application/json";
+						var jsonData = new JsonObject {
+							["content"] = $"Laclasse code: {ticket.code}", ["receiver"] = new JsonArray { rescue } };
+						clientRequest.Content = jsonData.ToString();
 						client.SendRequest(clientRequest);
 						var response = client.GetResponse();
 						Console.WriteLine($"Send SMS rescue code to {rescue} got HTTP status {response.Status}");

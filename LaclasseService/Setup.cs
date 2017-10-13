@@ -75,6 +75,7 @@ namespace Laclasse
 	public class SmsSetup
 	{
 		public string url = "http://sen.laclasse.local/sms/";
+		public string token = "the token here";
 	}
 
 	public class AafSsoEndPointSetup

@@ -1052,6 +1052,8 @@ namespace Laclasse.Aaf
 					aafUser.Fields.Remove(nameof(aafUser.id));
 					aafUser.Fields.Remove(nameof(aafUser.children));
 					aafUser.profiles = aafUserProfiles;
+					// set the AAF mtime for thoses profiles
+					aafUser.profiles.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
 					diff.diff.add.Add(aafUser);
 				}
 				else
@@ -1080,7 +1082,20 @@ namespace Laclasse.Aaf
 						}
 					}
 					// handle profiles
-					var profilesDiff = Model.Diff(entUser.profiles.FindAll((obj) => obj.type != "ADM" && IsSyncStructure(obj.structure_id)), aafUserProfiles);
+					var profilesDiff = Model.Diff(
+						entUser.profiles.FindAll((obj) => obj.type != "ADM" && IsSyncStructure(obj.structure_id)),
+						aafUserProfiles, null,
+						(src, dst) =>
+						{
+							var itemDiff = src.DiffWithId(dst);
+							// aaf_mtime is special. If the src has no aaf_mtime, we need to set one
+							// else dont update it. The aaf_mtime is set at the last change time
+							if (!itemDiff.IsEmpty && src.aaf_mtime == null)
+								itemDiff.aaf_mtime = DateTime.Now;
+							return itemDiff;
+						}
+					);
+
 					// in Delta mode, only add/change
 					if (!profilesDiff.IsEmpty && syncFile.format == SyncFileFormat.Delta && profilesDiff.remove != null)
 						profilesDiff.remove.Clear();
@@ -1089,6 +1104,23 @@ namespace Laclasse.Aaf
 					{
 						userDiff.profiles = new ModelList<UserProfile>();
 						userDiff.profiles.diff = profilesDiff;
+						if (profilesDiff.add != null)
+							profilesDiff.add.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+						if (profilesDiff.change != null)
+							profilesDiff.change.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+						// only remove AAF created user_profile
+						if (profilesDiff.remove != null)
+						{
+							var removeProfiles = new ModelList<UserProfile>();
+							foreach (var userProfile in profilesDiff.remove)
+							{
+								if (userProfile.aaf_mtime != null)
+									removeProfiles.Add(userProfile);
+							}
+							profilesDiff.remove = removeProfiles;
+						}
+						if (profilesDiff.IsEmpty)
+							userDiff.UnSetField(nameof(User.profiles));
 					}
 					if (userDiff.Fields.Count > 1)
 						diff.diff.change.Add(userDiff);

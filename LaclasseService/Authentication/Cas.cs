@@ -108,9 +108,9 @@ namespace Laclasse.Authentication
 
 						var ticket = await tickets.CreateAsync(c.Request.Cookies[cookieName]);
 						if (service.IndexOf('?') >= 0)
-							service += "&ticket=" + ticket;
+							service += "&ticket=" + ticket.id;
 						else
-							service += "?ticket=" + ticket;
+							service += "?ticket=" + ticket.id;
 						c.Response.Headers["location"] = service;
 					}
 					else
@@ -630,9 +630,9 @@ namespace Laclasse.Authentication
 				{
 					var ticket = await tickets.CreateAsync(sessionId);
 					if (service.IndexOf('?') >= 0)
-						service += "&ticket=" + ticket;
+						service += "&ticket=" + ticket.id;
 					else
-						service += "?ticket=" + ticket;
+						service += "?ticket=" + ticket.id;
 				}
 				Console.WriteLine($"Location: '{service}'");
 				c.Response.Headers["location"] = service;

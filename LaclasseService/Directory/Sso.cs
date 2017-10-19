@@ -136,6 +136,10 @@ namespace Laclasse.Directory
 					{
 						var user = await users.GetUserAsync(userId);
 
+						// update the user atime field
+						var userDiff = new User { id = userId, atime = DateTime.Now };
+						await userDiff.UpdateAsync(db);
+
 						var emailBackend = (await db.SelectAsync("SELECT * FROM email_backend WHERE id=?", user.email_backend_id)).SingleOrDefault();
 						if (emailBackend == null)
 							throw new WebException(500, "email_backend not found");

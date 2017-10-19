@@ -393,7 +393,36 @@ namespace Laclasse
 				if (await reader.ReadAsync())
 				{
 					for (int i = 0; i < reader.FieldCount; i++)
-						Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+					{
+						var name = reader.GetName(i);
+						var property = GetType().GetProperty(name);
+						if (property == null)
+							continue;
+						var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
+						if (fieldAttribute == null)
+							continue;
+						object value = reader.IsDBNull(i) ? null : reader.GetValue(i);
+						if (value == null)
+							Fields[name] = null;
+						else
+						{
+							var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
+							if (nullableType == null)
+							{
+								if (property.PropertyType.IsEnum)
+									Fields[name] = Enum.Parse(property.PropertyType, (string)value);
+								else
+									Fields[name] = Convert.ChangeType(value, property.PropertyType);
+							}
+							else
+							{
+								if (property.PropertyType.IsEnum)
+									Fields[name] = Enum.Parse(nullableType, (string)value);
+								else
+									Fields[name] = Convert.ChangeType(value, nullableType);
+							}
+						}
+					}
 					done = true;
 				}
 			}

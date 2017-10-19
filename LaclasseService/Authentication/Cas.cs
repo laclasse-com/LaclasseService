@@ -71,6 +71,7 @@ namespace Laclasse.Authentication
 	{
 		readonly string dbUrl;
 		readonly Tickets tickets;
+		readonly RescueTickets rescueTickets;
 		readonly Sessions sessions;
 		readonly Users users;
 		readonly string cookieName;
@@ -78,7 +79,8 @@ namespace Laclasse.Authentication
 		readonly SmsSetup smsSetup;
 
 		public Cas(string dbUrl, Sessions sessions, Users users,
-		           string cookieName, double ticketTimeout, AafSsoSetup aafSsoSetup, MailSetup mailSetup, SmsSetup smsSetup)
+		           string cookieName, double ticketTimeout, AafSsoSetup aafSsoSetup, MailSetup mailSetup,
+		           SmsSetup smsSetup, int rescueTicketTimeout)
 		{
 			this.dbUrl = dbUrl;
 			this.sessions = sessions;
@@ -87,6 +89,7 @@ namespace Laclasse.Authentication
 			this.mailSetup = mailSetup;
 			this.smsSetup = smsSetup;
 			tickets = new Tickets(dbUrl, ticketTimeout);
+			rescueTickets = new RescueTickets(dbUrl, rescueTicketTimeout);
 
 			var agentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.agents.cert));
 			var parentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.parents.cert));
@@ -172,7 +175,7 @@ namespace Laclasse.Authentication
 					}
 					else
 						// init the session and redirect to service
-						await CasLoginAsync(c, uid, formFields.ContainsKey("service") ? formFields["service"] : null, wantTicket);
+						await CasLoginAsync(c, uid, formFields.ContainsKey("service") ? formFields["service"] : null, Idp.ENT, wantTicket);
 				}
 			};
 
@@ -404,7 +407,7 @@ namespace Laclasse.Authentication
 				}
 
 				// init the session and redirect to service
-				await CasLoginAsync(c, userResult.id, service);
+				await CasLoginAsync(c, userResult.id, service, Idp.AAF);
 			};
 
 			PostAsync["/parentPortalIdp"] = async (p, c) =>
@@ -480,7 +483,7 @@ namespace Laclasse.Authentication
 				}
 
 				// init the session and redirect to service
-				await CasLoginAsync(c, userResult["id"], service);
+				await CasLoginAsync(c, userResult["id"], service, Idp.AAF);
 			};
 		}
 
@@ -613,9 +616,9 @@ namespace Laclasse.Authentication
 			return result;
 		}
 
-		async Task CasLoginAsync(HttpContext c, string uid, string service, bool wantTicket = true)
+		async Task CasLoginAsync(HttpContext c, string uid, string service, Idp idp, bool wantTicket = true)
 		{
-			var sessionId = await sessions.CreateSessionAsync(uid);
+			var sessionId = await sessions.CreateSessionAsync(uid, idp);
 
 			c.Response.StatusCode = 302;
 			c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
@@ -1254,12 +1257,14 @@ namespace Laclasse.Authentication
 			List<User> rescueUsers = null;
 			var userIds = new List<string>();
 			var rescue = formFields["rescue"];
+			var rescueMode = RescueMode.EMAIL;
 
 			using (DB db = await DB.CreateAsync(dbUrl, true))
 			{
 				// search for un email
 				if (rescue.Contains("@"))
 				{
+					rescueMode = RescueMode.EMAIL;
 					var emails = await db.SelectAsync<Email>("SELECT * FROM `email` WHERE `type` != 'Ent' AND address = ?", rescue);
 					foreach (var email in emails)
 						if (!userIds.Contains(email.user_id))
@@ -1268,6 +1273,7 @@ namespace Laclasse.Authentication
 				// search for mobile phone
 				else
 				{
+					rescueMode = RescueMode.SMS;
 					bool frenchTel = false;
 
 					var tel = Regex.Replace(rescue, @"\s+", "");
@@ -1325,8 +1331,7 @@ namespace Laclasse.Authentication
 			else if (rescueUsers.Count == 1)
 			{
 				var rescueUser = rescueUsers[0];
-				var sessionId = await sessions.CreateSessionAsync(rescueUser.id);
-				var ticket = await tickets.CreateRescueAsync(sessionId);
+				var ticket = await rescueTickets.CreateRescueAsync(rescueUser.id, rescueMode);
 
 				if (rescue.Contains("@"))
 				{
@@ -1383,8 +1388,8 @@ namespace Laclasse.Authentication
 		{
 			formFields.RequireFields("rescueId", "rescueCode");
 
-			var ticket = await tickets.GetRescueAsync(formFields["rescueId"]);
-			await tickets.DeleteAsync(formFields["rescueId"]);
+			var ticket = await rescueTickets.GetRescueAsync(formFields["rescueId"]);
+			await rescueTickets.DeleteAsync(formFields["rescueId"]);
 
 			if (ticket == null)
 			{
@@ -1408,20 +1413,14 @@ namespace Laclasse.Authentication
 			}
 			else
 			{
-				var session = await sessions.GetSessionAsync(ticket.session);
-				if (session == null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
-					c.Response.Content = (new CasView
-					{
-						service = formFields.ContainsKey("service") ? formFields["service"] : "/",
-						error = "La session a expiré"
-					}).TransformText();
-				}
-				else
-					// init the session and redirect to service
-					await CasLoginAsync(c, session.user, formFields.ContainsKey("service") ? formFields["service"] : null);
+				Idp idp = Idp.EMAIL;
+				if (ticket.mode == RescueMode.EMAIL)
+					idp = Idp.EMAIL;
+				else if (ticket.mode == RescueMode.SMS)
+					idp = Idp.SMS;
+
+				// init the session and redirect to service
+				await CasLoginAsync(c, ticket.user_id, formFields.ContainsKey("service") ? formFields["service"] : null, idp);
 			}
 		}
 

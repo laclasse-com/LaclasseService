@@ -104,6 +104,7 @@ namespace Laclasse
 	public class CasSetup
 	{
 		public int ticketTimeout = 60;
+		public int rescueTicketTimeout = 600;
 	}
 
 	public class SessionSetup

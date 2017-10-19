@@ -154,8 +154,8 @@ namespace Laclasse
 
 			mapper.Add("/sso", new Cas(
 				dbUrl, sessions, users, setup.authentication.session.cookie,
-				setup.authentication.cas.ticketTimeout,
-				setup.authentication.aafSso, setup.mail, setup.sms));
+				setup.authentication.cas.ticketTimeout, setup.authentication.aafSso,
+				setup.mail, setup.sms, setup.authentication.cas.rescueTicketTimeout));
 
 			mapper.Add("/api/aaf/synchronizations", new AafSyncService(
 				dbUrl, setup.aaf.logPath, logger, setup.aaf.path, setup.aaf.zipPath, setup.aaf.logPath));
@@ -181,7 +181,7 @@ namespace Laclasse
 			// If not compatible with the DB Schema. STOP HERE
 			if (!DB.CheckDBModels(dbUrl))
 				return;
-
+			
 			// start a day scheduler to run the AAF sync task
 			var dayScheduler = new Scheduler.DayScheduler(logger);
 			foreach (var dayRun in setup.aaf.runs)

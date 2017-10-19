@@ -33,9 +33,18 @@ using System.Threading.Tasks;
 using System.Runtime.Remoting.Messaging;
 using Erasme.Http;
 using Erasme.Json;
+using Laclasse.Directory;
 
 namespace Laclasse.Authentication
 {
+	public enum Idp
+	{
+		ENT,
+		AAF,
+		EMAIL,
+		SMS
+	}
+
 	[Model(Table = "session", PrimaryKey = nameof(id))]
 	public class Session : Model
 	{
@@ -45,7 +54,19 @@ namespace Laclasse.Authentication
 		public string user { get { return GetField<string>(nameof(user), null); } set { SetField(nameof(user), value); } }
 		[ModelField]
 		public DateTime start { get { return GetField(nameof(start), DateTime.Now); } set { SetField(nameof(start), value); } }
+		[ModelField]
+		public Idp idp { get { return GetField(nameof(idp), Idp.ENT); } set { SetField(nameof(idp), value); } }
+
 		public TimeSpan duration;
+
+		public async override Task<bool> InsertAsync(DB db)
+		{
+			// update the user atime field
+			var userDiff = new User { id = user, atime = DateTime.Now };
+			await userDiff.UpdateAsync(db);
+
+			return await base.InsertAsync(db);
+		}
 	}
 
 	public class Sessions : HttpRouting
@@ -97,7 +118,7 @@ namespace Laclasse.Authentication
 			};
 		}
 
-		public async Task<string> CreateSessionAsync(string user)
+		public async Task<string> CreateSessionAsync(string user, Idp idp)
 		{
 			string sessionId;
 			using (DB db = await DB.CreateAsync(dbUrl))
@@ -117,7 +138,8 @@ namespace Laclasse.Authentication
 						var session = new Session
 						{
 							id = sessionId,
-							user = user
+							user = user,
+							idp = idp
 						};
 						if (!await session.InsertAsync(db))
 							sessionId = null;

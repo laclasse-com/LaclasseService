@@ -480,8 +480,6 @@ namespace Laclasse.Directory
 					if (passwordGood)
 					{
 						user = (string)item["id"];
-						// update date_derniere_connexion
-						await db.UpdateAsync("UPDATE `user` SET `atime` = NOW() WHERE `id`=?", user);
 					}
 				}
 			}

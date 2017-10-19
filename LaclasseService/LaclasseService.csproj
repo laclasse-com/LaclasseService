@@ -56,6 +56,15 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq" />
+    <Reference Include="BouncyCastle.Crypto">
+      <HintPath>..\packages\BouncyCastle.1.8.1\lib\BouncyCastle.Crypto.dll</HintPath>
+    </Reference>
+    <Reference Include="MimeKit">
+      <HintPath>..\packages\MimeKit.1.18.1\lib\net45\MimeKit.dll</HintPath>
+    </Reference>
+    <Reference Include="MailKit">
+      <HintPath>..\packages\MailKit.1.18.1.1\lib\net45\MailKit.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
@@ -111,6 +120,7 @@
     <Compile Include="Scheduler\DayScheduler.cs" />
     <Compile Include="Aaf\AafSyncService.cs" />
     <Compile Include="Logger.cs" />
+    <Compile Include="Mail\ImapCheck.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -127,6 +137,7 @@
     <Folder Include="Manage\" />
     <Folder Include="WordPress\" />
     <Folder Include="Scheduler\" />
+    <Folder Include="Mail\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>

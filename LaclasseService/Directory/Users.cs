@@ -97,7 +97,7 @@ namespace Laclasse.Directory
 				login = await Users.FindAvailableLoginAsync(db, firstname, lastname);
 
 			if (!IsSet(nameof(password)))
-				password = "clear:" + StringExt.RandomString(10, "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789");
+				password = "clear:" + StringExt.RandomString(4, "ABCDEFGHIJKLMNPQRSTUVWXYZ") + StringExt.RandomString(4, "23456789");
 
 			return await base.InsertAsync(db);
 		}

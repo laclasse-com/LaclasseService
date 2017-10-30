@@ -78,6 +78,8 @@ namespace Laclasse.Directory
 		[ModelField]
 		public DateTime? atime { get { return GetField<DateTime?>(nameof(atime), null); } set { SetField(nameof(atime), value); } }
 		[ModelField]
+		public Idp? last_idp { get { return GetField<Idp?>(nameof(last_idp), null); } set { SetField(nameof(last_idp), value); } }
+		[ModelField]
 		public string avatar { get { return GetField<string>(nameof(avatar), null); } set { SetField(nameof(avatar), value); } }
 		[ModelField(ForeignModel = typeof(EmailBackend))]
 		public int? email_backend_id { get { return GetField<int?>(nameof(email_backend_id), null); } set { SetField(nameof(email_backend_id), value); } }

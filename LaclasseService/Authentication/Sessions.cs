@@ -62,7 +62,7 @@ namespace Laclasse.Authentication
 		public async override Task<bool> InsertAsync(DB db)
 		{
 			// update the user atime field
-			var userDiff = new User { id = user, atime = DateTime.Now };
+			var userDiff = new User { id = user, atime = DateTime.Now, last_idp = idp };
 			await userDiff.UpdateAsync(db);
 
 			return await base.InsertAsync(db);

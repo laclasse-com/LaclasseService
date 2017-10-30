@@ -416,7 +416,7 @@ namespace Laclasse
 							}
 							else
 							{
-								if (property.PropertyType.IsEnum)
+								if (nullableType.IsEnum)
 									Fields[name] = Enum.Parse(nullableType, (string)value);
 								else
 									Fields[name] = Convert.ChangeType(value, nullableType);

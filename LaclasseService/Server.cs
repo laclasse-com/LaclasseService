@@ -38,7 +38,7 @@ namespace Laclasse
 {
 	public class Server: HttpServer
 	{
-		Logger logger;
+		readonly Logger logger;
 
 		public Server(int port, Logger logger) : base(port)
 		{

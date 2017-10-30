@@ -620,6 +620,39 @@ namespace Laclasse.Authentication
 		{
 			var sessionId = await sessions.CreateSessionAsync(uid, idp);
 
+			var client = await GetClientFromServiceAsync(service);
+
+			using (var db = await DB.CreateAsync(dbUrl))
+			{
+				var user = new User { id = uid };
+				if (await user.LoadAsync(db, true))
+				{
+					var active_profile = user.profiles.SingleOrDefault((arg) => arg.active);
+
+					if (active_profile != null)
+					{
+						var parameters = new Dictionary<string, string> { ["idp"] = idp.ToString() };
+						if (client != null)
+						{
+							parameters["sso_client.id"] = client.id.ToString();
+							parameters["sso_client.name"] = client.name;
+						}
+
+						// write a log
+						await (new Log
+						{
+							application_id = "SSO",
+							user_id = uid,
+							structure_id = active_profile.structure_id,
+							profil_id = active_profile.type,
+							ip = c.RemoteIP(),
+							url = service,
+							parameters = HttpUtility.QueryStringToString(parameters)
+						}).SaveAsync(db);
+					}
+				}
+			}
+
 			c.Response.StatusCode = 302;
 			c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
 			c.Response.Headers["set-cookie"] = cookieName + "=" + sessionId + "; Path=/";

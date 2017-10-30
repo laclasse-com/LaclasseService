@@ -193,7 +193,7 @@ namespace Laclasse.Authentication
 		public async Task DeleteSessionAsync(string sessionId)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-				await db.DeleteAsync("DELETE FROM `session` WHERE `id`=?", sessionId);
+				await (new Session { id = sessionId }).DeleteAsync(db);
 		}
 
 		public async Task<Session> GetCurrentSessionAsync(HttpContext context)

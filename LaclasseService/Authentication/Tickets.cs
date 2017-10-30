@@ -144,7 +144,7 @@ namespace Laclasse.Authentication
 		public async Task DeleteAsync(string ticketId)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-				await db.DeleteAsync("DELETE FROM `ticket` WHERE `id`=?", ticketId);
+				await (new Ticket { id = ticketId }).DeleteAsync(db);
 		}
 	}
 
@@ -235,10 +235,7 @@ namespace Laclasse.Authentication
 		public async Task DeleteAsync(string ticketId)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
-			{
-				var rescueTicket = new RescueTicket { id = ticketId };
-				await rescueTicket.DeleteAsync(db);
-			}
+				await (new RescueTicket { id = ticketId }).DeleteAsync(db);
 		}
 	}
 }

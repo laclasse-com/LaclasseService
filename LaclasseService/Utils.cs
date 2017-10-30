@@ -222,6 +222,15 @@ namespace Laclasse
 			return (Setup)context.Data["setup"];
 		}
 
+		public static string RemoteIP(this HttpContext context)
+		{
+			var remoteIp = context.Request.RemoteEndPoint.ToString();
+			// x-forwarded-for
+			if (context.Request.Headers.ContainsKey("x-forwarded-for"))
+				remoteIp = context.Request.Headers["x-forwarded-for"];
+			return remoteIp;
+		}
+
 		public static string SelfURL(this HttpContext context)
 		{
 			var publicUrl = (string)context.Data["publicUrl"];

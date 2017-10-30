@@ -167,7 +167,7 @@ namespace Laclasse
 			mapper.Add("/api/setup", new SetupService(setup));
 			mapper.Add("/api/manage", new Manage.ManageService());
 
-			mapper.Add("/api/imapcheck", new Mail.ImapCheck(dbUrl));
+			mapper.Add("/api/users", new Mail.ImapCheck(dbUrl));
 
 			// if the request is not already handled, try static files
 			server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));

@@ -627,7 +627,7 @@ namespace Laclasse.Authentication
 				var user = new User { id = uid };
 				if (await user.LoadAsync(db, true))
 				{
-					var active_profile = user.profiles.SingleOrDefault((arg) => arg.active);
+					var active_profile = user.profiles.FirstOrDefault((arg) => arg.active);
 
 					if (active_profile != null)
 					{

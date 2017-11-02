@@ -509,7 +509,7 @@ namespace Laclasse.Authentication
 			EmailBackend emailBackend = null;
 			if (user.email_backend_id != null)
 				emailBackend = await db.SelectRowAsync<EmailBackend>((int)user.email_backend_id);
-			var primaryEmail = (await db.SelectAsync<Email>("SELECT * FROM `email` WHERE `user_id`=? AND `primary`=TRUE", user.id)).SingleOrDefault();
+			var primaryEmail = (await db.SelectAsync<Email>("SELECT * FROM `email` WHERE `user_id`=? AND `primary`=TRUE", user.id)).FirstOrDefault();
 
 			var profilesTypes = new Dictionary<string, ProfileType>();
 			foreach (var profileType in await db.SelectAsync<ProfileType>("SELECT * FROM `profile_type`"))

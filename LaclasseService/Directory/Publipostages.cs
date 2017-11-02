@@ -344,7 +344,7 @@ catch(e) {
 			{
 				if ((item.diffusion_type == "email") && (recipient.user.emails != null) && (recipient.user.emails.Count > 0))
 				{
-					var toEmail = recipient.user.emails.SingleOrDefault((arg) => arg.primary);
+					var toEmail = recipient.user.emails.FirstOrDefault((arg) => arg.primary);
 					if (toEmail == null)
 						toEmail = recipient.user.emails[0];
 					Console.WriteLine($"Send FROM: {mailSetup.from}, TO: {toEmail.address}");

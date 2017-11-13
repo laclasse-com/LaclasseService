@@ -107,6 +107,16 @@ namespace Laclasse
 		public int rescueTicketTimeout = 600;
 	}
 
+	public class OIDCSSOSetup
+	{
+		public string name;
+		public string authorizeUrl;
+		public string userInfoUrl;
+		public string tokenUrl;
+		public string clientId;
+		public string password;
+	}
+
 	public class SessionSetup
 	{
 		public int timeout = 43200;
@@ -120,13 +130,7 @@ namespace Laclasse
 		public AafSsoSetup aafSso = new AafSsoSetup();
 		public CasSetup cas = new CasSetup();
 		public SessionSetup session = new SessionSetup();
-	}
-
-	public class WordPressSetup
-	{
-		public string apiUrl = "http://localhost/wp-content/pugins/ent-wp-management/api.php";
-		public string username = "admin";
-		public string password = "defaultPassword";
+		public OIDCSSOSetup[] oidcSso = new OIDCSSOSetup[0];
 	}
 
 	public class Setup
@@ -140,6 +144,5 @@ namespace Laclasse
 		public MailSetup mail = new MailSetup();
 		public SmsSetup sms = new SmsSetup();
 		public AuthenticationSetup authentication = new AuthenticationSetup();
-		public WordPressSetup wordPress = new WordPressSetup();
 	}
 }

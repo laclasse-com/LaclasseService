@@ -89,6 +89,10 @@ namespace Laclasse.Directory
 		public int? aaf_struct_rattach_id { get { return GetField<int?>(nameof(aaf_struct_rattach_id), null); } set { SetField(nameof(aaf_struct_rattach_id), value); } }
 		[ModelField(ForeignModel = typeof(Grade))]
 		public string student_grade_id { get { return GetField<string>(nameof(student_grade_id), null); } set { SetField(nameof(student_grade_id), value); } }
+		[ModelField]
+		public string oidc_sso_id { get { return GetField<string>(nameof(oidc_sso_id), null); } set { SetField(nameof(oidc_sso_id), value); } }
+		[ModelField(DB = false)]
+		public bool create_ent_email { get { return GetField<bool>(nameof(create_ent_email), false); } set { SetField(nameof(create_ent_email), value); } }
 
 		public async override Task<bool> InsertAsync(DB db)
 		{
@@ -101,7 +105,13 @@ namespace Laclasse.Directory
 			if (!IsSet(nameof(password)))
 				password = "clear:" + StringExt.RandomString(4, "ABCDEFGHIJKLMNPQRSTUVWXYZ") + StringExt.RandomString(4, "23456789");
 
-			return await base.InsertAsync(db);
+			bool res = await base.InsertAsync(db);
+
+			// if asked, create a default ENT email for the user
+			if (res && create_ent_email)
+				await CreateDefaultEntEmailAsync(db);
+
+			return res;
 		}
 
 		[ModelExpandField(Name = nameof(profiles), ForeignModel = typeof(UserProfile))]
@@ -379,6 +389,12 @@ namespace Laclasse.Directory
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 				return (await db.SelectExpandAsync<User>("SELECT * FROM `user` WHERE `login`=?", new object[] { login })).SingleOrDefault();
+		}
+
+		public async Task<User> GetUserByOidcIdAsync(string oidc_id)
+		{
+			using (DB db = await DB.CreateAsync(dbUrl))
+				return (await db.SelectExpandAsync<User>("SELECT * FROM `user` WHERE `oidc_sso_id`=?", new object[] { oidc_id })).SingleOrDefault();
 		}
 
 		/// <summary>

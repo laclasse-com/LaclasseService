@@ -616,7 +616,7 @@ namespace Laclasse.Authentication
 			return result;
 		}
 
-		async Task CasLoginAsync(HttpContext c, string uid, string service, Idp idp, bool wantTicket = true)
+		public async Task CasLoginAsync(HttpContext c, string uid, string service, Idp idp, bool wantTicket = true)
 		{
 			var sessionId = await sessions.CreateSessionAsync(uid, idp);
 

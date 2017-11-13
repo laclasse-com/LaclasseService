@@ -152,17 +152,18 @@ namespace Laclasse
 				Path.Combine(setup.server.storage, "avatar"),
 				setup.http.defaultCacheDuration));
 
-			mapper.Add("/sso", new Cas(
+			var cas = new Cas(
 				dbUrl, sessions, users, setup.authentication.session.cookie,
 				setup.authentication.cas.ticketTimeout, setup.authentication.aafSso,
-				setup.mail, setup.sms, setup.authentication.cas.rescueTicketTimeout));
+				setup.mail, setup.sms, setup.authentication.cas.rescueTicketTimeout);
+			mapper.Add("/sso", cas);
+
+			mapper.Add("/sso/oidc", new OidcSso(setup.authentication.oidcSso, users, cas));
 
 			mapper.Add("/api/aaf/synchronizations", new AafSyncService(
 				dbUrl, setup.aaf.logPath, logger, setup.aaf.path, setup.aaf.zipPath, setup.aaf.logPath));
 
 			mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path, setup.aaf.zipPath));
-
-			mapper.Add("/api/worpress", new WordPress.WordPress(setup.wordPress));
 
 			mapper.Add("/api/setup", new SetupService(setup));
 			mapper.Add("/api/manage", new Manage.ManageService());

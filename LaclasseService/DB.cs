@@ -78,6 +78,7 @@ namespace Laclasse
 	{
 		public bool Required;
 		public bool Search = true;
+		public bool DB = true;
 		public Type ForeignModel;
 		public string RegexMatch;
 	}
@@ -561,7 +562,7 @@ namespace Laclasse
 			foreach (var property in GetType().GetProperties())
 			{
 				var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
-				if (fieldAttribute != null)
+				if (fieldAttribute != null && fieldAttribute.DB)
 				{
 					if ((fieldAttribute.Required) && !Fields.ContainsKey(property.Name))
 						throw new WebException(400, $"Missing required field {property.Name}");
@@ -578,7 +579,7 @@ namespace Laclasse
 			foreach (var property in GetType().GetProperties())
 			{
 				var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
-				if (fieldAttribute != null)
+				if (fieldAttribute != null && fieldAttribute.DB)
 					filterFields.Add(property.Name);
 			}
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
@@ -1722,7 +1723,7 @@ namespace Laclasse
 			{
 				var fieldAttr = property.GetCustomAttributes(typeof(ModelFieldAttribute), false);
 
-				if (fieldAttr.Length > 0)
+				if (fieldAttr.Length > 0 && ((ModelFieldAttribute)fieldAttr[0]).DB)
 					fieldsProperties[property.Name] = property;
 			}
 

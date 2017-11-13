@@ -116,11 +116,11 @@
     <Compile Include="Aaf\AafGlobalZipFile.cs" />
     <Compile Include="Aaf\NotImplentedException.cs" />
     <Compile Include="Directory\Publipostages.cs" />
-    <Compile Include="WordPress\WordPress.cs" />
     <Compile Include="Scheduler\DayScheduler.cs" />
     <Compile Include="Aaf\AafSyncService.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="Mail\ImapCheck.cs" />
+    <Compile Include="Authentication\OidcSso.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -135,7 +135,6 @@
     <Folder Include="Authentication\" />
     <Folder Include="Aaf\" />
     <Folder Include="Manage\" />
-    <Folder Include="WordPress\" />
     <Folder Include="Scheduler\" />
     <Folder Include="Mail\" />
   </ItemGroup>

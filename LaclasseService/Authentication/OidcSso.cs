@@ -1,4 +1,4 @@
-﻿using System;
+﻿/*using System;
 using System.Text;
 using System.Linq;
 using System.Collections.Generic;
@@ -20,6 +20,7 @@ namespace Laclasse.Authentication
 					var sso = setup.FirstOrDefault((arg) => arg.name == name);
 					if (sso != null)
 					{
+						var redirect_uri = new Uri(new Uri(c.SelfURL()), new Uri("./", UriKind.Relative));
 						c.Response.Headers["location"] = sso.authorizeUrl + "?" +
 							HttpUtility.QueryStringToString(new Dictionary<string, string>
 							{
@@ -27,7 +28,7 @@ namespace Laclasse.Authentication
 								["scope"] = "openid email profile crown",
 								["client_id"] = sso.clientId,
 								["state"] = "12345",
-								["redirect_uri"] = c.SelfURL().Substring(0, c.SelfURL().LastIndexOf('/')) + "?sso=" + HttpUtility.UrlEncode(sso.name)
+								["redirect_uri"] = redirect_uri + "?sso=" + HttpUtility.UrlEncode(sso.name)
 							});
 
 						c.Response.StatusCode = 302;
@@ -95,3 +96,4 @@ namespace Laclasse.Authentication
 		}
 	}
 }
+*/

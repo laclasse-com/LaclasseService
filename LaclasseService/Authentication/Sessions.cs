@@ -42,7 +42,8 @@ namespace Laclasse.Authentication
 		ENT,
 		AAF,
 		EMAIL,
-		SMS
+		SMS,
+		CUT
 	}
 
 	[Model(Table = "session", PrimaryKey = nameof(id))]

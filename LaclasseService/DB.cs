@@ -743,7 +743,7 @@ namespace Laclasse
 					var fieldAttr = (ModelFieldAttribute)keyProperty.GetCustomAttribute(typeof(ModelFieldAttribute));
 					if (expandFieldAttr == null && fieldAttr == null)
 						continue;
-					if (fieldAttr != null && !fieldAttr.Search)
+					if (fieldAttr != null && (!fieldAttr.DB || !fieldAttr.Search))
 						continue;
 					if (expandFieldAttr != null && !expandFieldAttr.Search)
 						continue;
@@ -833,7 +833,7 @@ namespace Laclasse
 				foreach (var prop in properties)
 				{
 					var attr = (ModelFieldAttribute)prop.GetCustomAttribute(typeof(ModelFieldAttribute));
-					if ((attr != null) && attr.Search)
+					if ((attr != null) && attr.Search && attr.DB)
 						searchFields.Add(prop.Name);
 				}
 
@@ -953,6 +953,7 @@ namespace Laclasse
 			sql += $" {limit}";
 			//Console.WriteLine(sql);
 			result.Limit = count;
+			result.Offset = offset;
 			if (expand)
 			{
 				// get the found rows just after the main query because the value is changed

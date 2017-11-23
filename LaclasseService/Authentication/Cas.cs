@@ -49,6 +49,7 @@ namespace Laclasse.Authentication
 	{
 		public string service = "";
 		public bool ticket = true;
+		public string state = "";
 		public string error;
 		public string title;
 		public string message;
@@ -72,6 +73,7 @@ namespace Laclasse.Authentication
 		readonly string dbUrl;
 		readonly Tickets tickets;
 		readonly RescueTickets rescueTickets;
+		readonly PreTickets preTickets;
 		readonly Sessions sessions;
 		readonly Users users;
 		readonly string cookieName;
@@ -79,8 +81,8 @@ namespace Laclasse.Authentication
 		readonly SmsSetup smsSetup;
 
 		public Cas(string dbUrl, Sessions sessions, Users users,
-		           string cookieName, double ticketTimeout, AafSsoSetup aafSsoSetup, MailSetup mailSetup,
-		           SmsSetup smsSetup, int rescueTicketTimeout)
+				   string cookieName, double ticketTimeout, AafSsoSetup aafSsoSetup, CUTSsoSetup cutSsoSetup,
+				   MailSetup mailSetup, SmsSetup smsSetup, int rescueTicketTimeout)
 		{
 			this.dbUrl = dbUrl;
 			this.sessions = sessions;
@@ -90,21 +92,37 @@ namespace Laclasse.Authentication
 			this.smsSetup = smsSetup;
 			tickets = new Tickets(dbUrl, ticketTimeout);
 			rescueTickets = new RescueTickets(dbUrl, rescueTicketTimeout);
+			preTickets = new PreTickets(ticketTimeout);
 
 			var agentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.agents.cert));
 			var parentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.parents.cert));
 
 			GetAsync["/login"] = async (p, c) =>
 			{
+				PreTicket preTicket = null;
+				if (c.Request.QueryString.ContainsKey("state"))
+					preTicket = preTickets[c.Request.QueryString["state"]];
+
 				var user = await sessions.GetAuthenticatedUserAsync(c);
 				if (user != null)
 				{
 					c.Response.StatusCode = 302;
 					c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
 
+					string service = null;
+					if (preTicket != null)
+						service = preTicket.service;
 					if (c.Request.QueryString.ContainsKey("service"))
+						service = c.Request.QueryString["service"];
+					bool wantTicket = false;
+					if (preTicket != null)
+						wantTicket = preTicket.wantTicket;
+					if (c.Request.QueryString.ContainsKey("ticket"))
+						wantTicket = Convert.ToBoolean(c.Request.QueryString["ticket"]);
+
+					if (!string.IsNullOrEmpty(service))
 					{
-						string service = c.Request.QueryString["service"];
+						//string service = c.Request.QueryString["service"];
 
 						var ticket = await tickets.CreateAsync(c.Request.Cookies[cookieName]);
 						if (service.IndexOf('?') >= 0)
@@ -129,16 +147,24 @@ namespace Laclasse.Authentication
 				}
 				else
 				{
-					string service = "";
-					var wantTicket = true;
-					if (c.Request.QueryString.ContainsKey("service"))
-						service = c.Request.QueryString["service"];
+					//string service = "";
+					//var wantTicket = true;
+					//if (c.Request.QueryString.ContainsKey("service"))
+					//	service = c.Request.QueryString["service"];
+
+					if (preTicket == null)
+					{
+						preTicket = new PreTicket();
+						preTickets.Add(preTicket);
+					}
 					if (c.Request.QueryString.ContainsKey("ticket"))
-						wantTicket = Convert.ToBoolean(c.Request.QueryString["ticket"]);
+						preTicket.wantTicket = Convert.ToBoolean(c.Request.QueryString["ticket"]);
+					if (c.Request.QueryString.ContainsKey("service"))
+						preTicket.service = c.Request.QueryString["service"];
 
 					c.Response.StatusCode = 200;
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
-					c.Response.Content = (new CasView { service = service, ticket = wantTicket }).TransformText();
+					c.Response.Content = (new CasView { state = preTicket.id /*service = service, ticket = wantTicket*/ }).TransformText();
 				}
 			};
 
@@ -149,18 +175,27 @@ namespace Laclasse.Authentication
 				Dictionary<string, List<string>> formArrayFields;
 				HttpUtility.ParseFormUrlEncoded(formUrl, out formFields, out formArrayFields);
 
+				PreTicket preTicket = null;
+				if (formFields.ContainsKey("state"))
+					preTicket = preTickets[formFields["state"]];
+				if (preTicket == null)
+				{
+					preTicket = new PreTicket();
+					preTickets.Add(preTicket);
+				}
+
 				// handle rescue login
 				if (formFields.ContainsKey("rescue"))
 				{
-					await HandleRescueLogin(c, formFields);
+					await HandleRescueLogin(c, formFields, preTicket);
 				}
 				// handle login/password login
 				else
 				{
 					formFields.RequireFields("username", "password");
-					bool wantTicket = true;
-					if (formFields.ContainsKey("ticket"))
-						wantTicket = Convert.ToBoolean(formFields["ticket"]);
+					//bool wantTicket = true;
+					//if (formFields.ContainsKey("ticket"))
+					//	wantTicket = Convert.ToBoolean(formFields["ticket"]);
 
 					var uid = await users.CheckPasswordAsync(formFields["username"], formFields["password"]);
 					if (uid == null)
@@ -169,13 +204,18 @@ namespace Laclasse.Authentication
 						c.Response.Headers["content-type"] = "text/html; charset=utf-8";
 						c.Response.Content = (new CasView
 						{
+							state = preTicket.id,
 							service = formFields.ContainsKey("service") ? formFields["service"] : "/",
 							error = "Les informations transmises n'ont pas permis de vous authentifier."
 						}).TransformText();
 					}
 					else
+					{
+						preTicket.uid = uid;
 						// init the session and redirect to service
-						await CasLoginAsync(c, uid, formFields.ContainsKey("service") ? formFields["service"] : null, Idp.ENT, wantTicket);
+						//await CasLoginAsync(c, uid, formFields.ContainsKey("service") ? formFields["service"] : null, Idp.ENT, wantTicket, state);
+						await CasLoginAsync(c, preTicket);
+					}
 				}
 			};
 
@@ -284,11 +324,22 @@ namespace Laclasse.Authentication
 			Get["/parentPortalIdp"] = (p, c) =>
 			{
 				var url = aafSsoSetup.parents.url;
-				var uri = new Uri(new Uri(c.SelfURL()), new Uri("login", UriKind.Relative));
-				var service = uri.AbsoluteUri;
+
+				PreTicket preTicket = null;
+				if (c.Request.QueryString.ContainsKey("state"))
+					preTicket = preTickets[c.Request.QueryString["state"]];
+				if (preTicket == null)
+				{
+					preTicket = new PreTicket();
+					preTickets.Add(preTicket);
+				}
+
+				//var uri = new Uri(new Uri(c.SelfURL()), new Uri("login", UriKind.Relative));
+				//var service = uri.AbsoluteUri;
 				if (c.Request.QueryString.ContainsKey("service"))
-					service = c.Request.QueryString["service"];
-				var xml = SamlAuthnRequest(aafSsoSetup.parents, service, c.SelfURL());
+					preTicket.service = c.Request.QueryString["service"];
+					//service = c.Request.QueryString["service"];
+				var xml = SamlAuthnRequest(aafSsoSetup.parents, preTicket, c.SelfURL());
 
 				string SAMLRequest;
 				using (var memStream = new MemoryStream())
@@ -308,11 +359,22 @@ namespace Laclasse.Authentication
 			Get["/agentPortalIdp"] = (p, c) =>
 			{
 				var url = aafSsoSetup.agents.url;
-				var uri = new Uri(new Uri(c.SelfURL()), new Uri("login", UriKind.Relative));
-				var service = uri.AbsoluteUri;
+
+				PreTicket preTicket = null;
+				if (c.Request.QueryString.ContainsKey("state"))
+					preTicket = preTickets[c.Request.QueryString["state"]];
+				if (preTicket == null)
+				{
+					preTicket = new PreTicket();
+					preTickets.Add(preTicket);
+				}
+
+				//var uri = new Uri(new Uri(c.SelfURL()), new Uri("login", UriKind.Relative));
+				//var service = uri.AbsoluteUri;
 				if (c.Request.QueryString.ContainsKey("service"))
-					service = c.Request.QueryString["service"];
-				var xml = SamlAuthnRequest(aafSsoSetup.agents, service, c.SelfURL());
+					preTicket.service = c.Request.QueryString["service"];
+				//	service = c.Request.QueryString["service"];
+				var xml = SamlAuthnRequest(aafSsoSetup.agents, preTicket, c.SelfURL());
 
 				string SAMLRequest;
 				using (var memStream = new MemoryStream())
@@ -345,9 +407,16 @@ namespace Laclasse.Authentication
 				dom.LoadXml(SAMLResponse);
 
 				var id = dom.DocumentElement.GetAttribute("InResponseTo");
-				var decoded = Hex2String(id.Substring(1));
-				var pos = decoded.IndexOf(':');
-				var service = (pos > 0) ? decoded.Substring(pos + 1) : null;
+				//var decoded = Hex2String(id.Substring(1));
+				//var pos = decoded.IndexOf(':');
+				//var service = (pos > 0) ? decoded.Substring(pos + 1) : null;
+
+				var preTicket = preTickets[id];
+				if (preTicket == null)
+				{
+					preTicket = new PreTicket();
+					preTickets.Add(preTicket);
+				}
 
 				// verify the Digital Signature
 				var refDom = VerifySignedXml(dom, agentCert);
@@ -357,6 +426,7 @@ namespace Laclasse.Authentication
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
 					c.Response.Content = (new CasView
 					{
+						state = preTicket.id,
 						error = @"
 							Les données d'authentification de l'Académie ne sont pas valides et ne nous permettent pas
 							de vous identifier. Rééssayez plus tard ou contacter votre administrateur."
@@ -374,6 +444,7 @@ namespace Laclasse.Authentication
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
 					c.Response.Content = (new CasView
 					{
+						state = preTicket.id,
 						error = @"
 							Les données d'authentification de l'Académie ne nous permettent pas de vous identifier. 
 							Rééssayez plus tard ou contacter votre administrateur."
@@ -399,15 +470,19 @@ namespace Laclasse.Authentication
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
 					c.Response.Content = (new CasView
 					{
+						state = preTicket.id,
 						error = @"
 							Compte utilisateur non trouvé dans laclasse.com. Votre compte doit être provisionné
 							dans laclasse.com avant de pouvoir vous connecter en utilisant votre compte Académique."
 					}).TransformText();
 					return;
 				}
+				preTicket.uid = userResult.id;
+				preTicket.idp = Idp.AAF;
 
 				// init the session and redirect to service
-				await CasLoginAsync(c, userResult.id, service, Idp.AAF);
+				//await CasLoginAsync(c, userResult.id, service, Idp.AAF);
+				await CasLoginAsync(c, preTicket);
 			};
 
 			PostAsync["/parentPortalIdp"] = async (p, c) =>
@@ -425,9 +500,16 @@ namespace Laclasse.Authentication
 				dom.LoadXml(SAMLResponse);
 
 				var id = dom.DocumentElement.GetAttribute("InResponseTo");
-				var decoded = Hex2String(id.Substring(1));
-				var pos = decoded.IndexOf(':');
-				var service = (pos > 0) ? decoded.Substring(pos + 1) : null;
+				//var decoded = Hex2String(id.Substring(1));
+				//var pos = decoded.IndexOf(':');
+				//var service = (pos > 0) ? decoded.Substring(pos + 1) : null;
+
+				var preTicket = preTickets[id];
+				if (preTicket == null)
+				{
+					preTicket = new PreTicket();
+					preTickets.Add(preTicket);
+				}
 
 				// verify the Digital Signature
 				var refDom = VerifySignedXml(dom, parentCert);
@@ -437,6 +519,7 @@ namespace Laclasse.Authentication
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
 					c.Response.Content = (new CasView
 					{
+						state = preTicket.id,
 						error = @"
 							Les données d'authentification de l'Académie ne sont pas valides et ne nous permettent pas
 							de vous identifier. Rééssayez plus tard ou contacter votre administrateur."
@@ -454,6 +537,7 @@ namespace Laclasse.Authentication
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
 					c.Response.Content = (new CasView
 					{
+						state = preTicket.id,
 						error = @"
 							Les données d'authentification de l'Académie ne nous permettent pas de vous identifier. 
 							Rééssayez plus tard ou contacter votre administrateur."
@@ -475,15 +559,128 @@ namespace Laclasse.Authentication
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
 					c.Response.Content = (new CasView
 					{
+						state = preTicket.id,
 						error = @"
 							Compte utilisateur non trouvé dans laclasse.com. Votre compte doit être provisionné
 							dans laclasse.com avant de pouvoir vous connecter en utilisant votre compte Académique."
 					}).TransformText();
 					return;
 				}
+				preTicket.uid = userResult["id"];
+				preTicket.idp = Idp.AAF;
 
 				// init the session and redirect to service
-				await CasLoginAsync(c, userResult["id"], service, Idp.AAF);
+				//await CasLoginAsync(c, userResult["id"], service, Idp.AAF);
+				await CasLoginAsync(c, preTicket);
+			};
+
+			GetAsync["/cutIdp"] = async (p, c) =>
+			{
+				PreTicket preTicket = null;
+				if (c.Request.QueryString.ContainsKey("state"))
+					preTicket = preTickets[c.Request.QueryString["state"]];
+				if (preTicket == null)
+				{
+					preTicket = new PreTicket();
+					preTickets.Add(preTicket);
+				}
+				if (c.Request.QueryString.ContainsKey("service"))
+					preTicket.service = c.Request.QueryString["service"];
+
+				// OIDC response
+				if (c.Request.QueryString.ContainsKey("code"))
+				{
+					var code = c.Request.QueryString["code"];
+					var sso = cutSsoSetup;
+					JsonValue token;
+					var tokenUri = new Uri(sso.tokenUrl);
+					using (var client = await HttpClient.CreateAsync(tokenUri))
+					{
+						var request = new HttpClientRequest();
+						request.Method = "POST";
+						request.Path = tokenUri.PathAndQuery;
+						request.Headers["content-type"] = "application/x-www-form-urlencoded";
+						request.Headers["authorization"] = "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes(sso.clientId + ":" + sso.password));
+
+						request.Content = HttpUtility.QueryStringToString(new Dictionary<string, string>
+						{
+							["grant_type"] = "authorization_code",
+							["code"] = code,
+							["redirect_uri"] = c.SelfURL()
+						});
+
+						await client.SendRequestAsync(request);
+						var response = await client.GetResponseAsync();
+
+						token = response.ReadAsJson();
+						// { "access_token": "...", "token_type": "Bearer", "expires_in": 28800, "id_token": "..."}
+					}
+					// id_token is [base64 Meta].[base64 Token].[base64 Signature]
+					var tab = ((string)token["id_token"]).Split('.');
+					var userInfoBase64 = tab[1];
+					// base64 need to be 4 char padded
+					if (userInfoBase64.Length % 4 != 0)
+					{
+						var add = 4 - (userInfoBase64.Length % 4);
+						for (int i = 0; i < add; i++)
+							userInfoBase64 += "=";
+					}
+
+					var userInfo = JsonValue.Parse(Encoding.ASCII.GetString(Convert.FromBase64String(userInfoBase64)));
+
+					// sub field is the user unique id
+					Console.WriteLine("User SUB: " + userInfo["sub"]);
+
+					var user = await users.GetUserByOidcIdAsync(userInfo["sub"]);
+					if (user == null)
+					{
+						preTicket.cutId = userInfo["sub"];
+
+						c.Response.StatusCode = 200;
+						c.Response.Headers["content-type"] = "text/html; charset=utf-8";
+						c.Response.Content = (new CasView
+						{
+							state = preTicket.id,
+							error = @"
+								Il n'y a pas de compte utilisateur dans laclasse.com associé à votre
+								compte Grand Lyon CUT.<br>
+								Si vous avez en votre possession un compte laclasse.com ou Académique
+								connectez vous avec se compte et il sera associé avec votre compte
+								Grand Lyon CUT."
+						}).TransformText();
+						return;
+					}
+
+					preTicket.uid = user.id;
+					preTicket.idp = Idp.CUT;
+					// init the session
+					await CasLoginAsync(c, preTicket);
+				}
+				// ask for CUT OIDC authentication
+				else
+				{
+					//var uri = new Uri(new Uri(c.SelfURL()), new Uri("login", UriKind.Relative));
+					//var service = uri.AbsoluteUri;
+					//if (c.Request.QueryString.ContainsKey("service"))
+					//	service = c.Request.QueryString["service"];
+
+					var sso = cutSsoSetup;
+					if (sso != null)
+					{
+						c.Response.Headers["location"] = sso.authorizeUrl + "?" +
+							HttpUtility.QueryStringToString(new Dictionary<string, string>
+							{
+								["response_type"] = "code",
+								["scope"] = "openid email profile crown",
+								["client_id"] = sso.clientId,
+								["state"] = preTicket.id,
+								["redirect_uri"] = c.SelfURL()
+							});
+
+						c.Response.StatusCode = 302;
+						c.Response.Content = "";
+					}
+				}
 			};
 		}
 
@@ -616,22 +813,35 @@ namespace Laclasse.Authentication
 			return result;
 		}
 
-		public async Task CasLoginAsync(HttpContext c, string uid, string service, Idp idp, bool wantTicket = true)
+		//async Task CasLoginAsync(HttpContext c, string uid, string service, Idp idp, bool wantTicket = true, string state = null)
+		async Task CasLoginAsync(HttpContext c, PreTicket preTicket)
 		{
-			var sessionId = await sessions.CreateSessionAsync(uid, idp);
+			Console.WriteLine("CasLogin " + preTicket.Dump());
+			var sessionId = await sessions.CreateSessionAsync(preTicket.uid, preTicket.idp);
+			string cutId = preTicket.cutId;
 
-			var client = await GetClientFromServiceAsync(service);
+			if (string.IsNullOrEmpty(preTicket.service))
+			{
+				var uri = new Uri(new Uri(c.SelfURL()), new Uri("/", UriKind.Relative));
+				preTicket.service = uri.AbsoluteUri;
+			}
+
+			var client = await GetClientFromServiceAsync(preTicket.service);
 
 			using (var db = await DB.CreateAsync(dbUrl))
 			{
-				var user = new User { id = uid };
+				var user = new User { id = preTicket.uid };
 				if (await user.LoadAsync(db, true))
 				{
+					// if needed, link the CUT id with the user
+					if (cutId != null)
+						await (new User { id = preTicket.uid, oidc_sso_id = cutId }).UpdateAsync(db);
+
 					var active_profile = user.profiles.FirstOrDefault((arg) => arg.active);
 
 					if (active_profile != null)
 					{
-						var parameters = new Dictionary<string, string> { ["idp"] = idp.ToString() };
+						var parameters = new Dictionary<string, string> { ["idp"] = preTicket.idp.ToString() };
 						if (client != null)
 						{
 							parameters["sso_client.id"] = client.id.ToString();
@@ -642,11 +852,11 @@ namespace Laclasse.Authentication
 						await (new Log
 						{
 							application_id = "SSO",
-							user_id = uid,
+							user_id = preTicket.uid,
 							structure_id = active_profile.structure_id,
 							profil_id = active_profile.type,
 							ip = c.RemoteIP(),
-							url = service,
+							url = preTicket.service,
 							parameters = HttpUtility.QueryStringToString(parameters)
 						}).SaveAsync(db);
 					}
@@ -657,9 +867,10 @@ namespace Laclasse.Authentication
 			c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
 			c.Response.Headers["set-cookie"] = cookieName + "=" + sessionId + "; Path=/";
 
-			if (!string.IsNullOrEmpty(service))
-			{
-				if (wantTicket)
+//			if (!string.IsNullOrEmpty(preTicket.service))
+//			{
+				string service = preTicket.service;
+				if (preTicket.wantTicket)
 				{
 					var ticket = await tickets.CreateAsync(sessionId);
 					if (service.IndexOf('?') >= 0)
@@ -669,10 +880,11 @@ namespace Laclasse.Authentication
 				}
 				Console.WriteLine($"Location: '{service}'");
 				c.Response.Headers["location"] = service;
-			}
-			else
-				// redirect to /
-				c.Response.Headers["location"] = "/";
+			//			}
+			//			else
+			//				// redirect to /
+			//				c.Response.Headers["location"] = "/";
+			preTickets.Remove(preTicket.id);
 		}
 
 		public async Task<Dictionary<string, string>> GetUserSsoAttributesAsync(string uid)
@@ -784,13 +996,14 @@ namespace Laclasse.Authentication
 			return res;
 		}
 
-		string SamlAuthnRequest(AafSsoEndPointSetup setup, string service, string assertionConsumerServiceURL)
+		string SamlAuthnRequest(AafSsoEndPointSetup setup, PreTicket preTicket, string assertionConsumerServiceURL)
 		{
 			var dom = new XmlDocument();
 			var samlp = "urn:oasis:names:tc:SAML:2.0:protocol";
 			var saml = "urn:oasis:names:tc:SAML:2.0:assertion";
 
-			var id = "_" + String2Hex(StringExt.RandomString(10) + ":" + service);
+			//var id = "_" + String2Hex(StringExt.RandomString(10) + ":" + service);
+			var id = preTicket.id;
 
 			var ns = new XmlNamespaceManager(dom.NameTable);
 			ns.AddNamespace("samlp", samlp);
@@ -1243,7 +1456,7 @@ namespace Laclasse.Authentication
 				}
 
 				items = await db.SelectAsync("SELECT * FROM sso_client_attribute");
-					    foreach (var item in items)
+				foreach (var item in items)
 				{
 					var client_id = (int)item["sso_client_id"];
 					if (clients.ContainsKey(client_id))
@@ -1277,15 +1490,15 @@ namespace Laclasse.Authentication
 			return attributes;
 		}
 
-		async Task HandleRescueLogin(HttpContext c, Dictionary<string, string> formFields)
+		async Task HandleRescueLogin(HttpContext c, Dictionary<string, string> formFields, PreTicket preTicket)
 		{
 			if (formFields.ContainsKey("rescueId"))
-				await HandleRescueDone(c, formFields);
+				await HandleRescueDone(c, formFields, preTicket);
 			else
-				await HandleRescueSearch(c, formFields);
+				await HandleRescueSearch(c, formFields, preTicket);
 		}
 
-		async Task HandleRescueSearch(HttpContext c, Dictionary<string, string> formFields)
+		async Task HandleRescueSearch(HttpContext c, Dictionary<string, string> formFields, PreTicket preTicket)
 		{
 			List<User> rescueUsers = null;
 			var userIds = new List<string>();
@@ -1356,6 +1569,7 @@ namespace Laclasse.Authentication
 			{
 				c.Response.Content = (new CasView
 				{
+					state = preTicket.id,
 					service = formFields.ContainsKey("service") ? formFields["service"] : "/",
 					error = $"Récupération impossible. '{rescue}' n'est pas connu dans Laclasse"
 				}).TransformText();
@@ -1372,8 +1586,8 @@ namespace Laclasse.Authentication
 					{
 						smtpClient.SendAsync(
 							mailSetup.from, rescue, "[Laclasse] Récupération de mot de passe",
-							"Vous avez demandé un récupération de mot de passe pour l'utilisateur "+
-							$"{rescueUser.firstname} {rescueUser.lastname} sur Laclasse.\n"+
+							"Vous avez demandé un récupération de mot de passe pour l'utilisateur " +
+							$"{rescueUser.firstname} {rescueUser.lastname} sur Laclasse.\n" +
 							$"Voici votre code: {ticket.code}", null
 						);
 					}
@@ -1388,8 +1602,11 @@ namespace Laclasse.Authentication
 						clientRequest.Path = uri.PathAndQuery;
 						clientRequest.Headers["authorization"] = "Bearer " + smsSetup.token;
 						clientRequest.Headers["content-type"] = "application/json";
-						var jsonData = new JsonObject {
-							["content"] = $"Laclasse code: {ticket.code}", ["receiver"] = new JsonArray { rescue } };
+						var jsonData = new JsonObject
+						{
+							["content"] = $"Laclasse code: {ticket.code}",
+							["receiver"] = new JsonArray { rescue }
+						};
 						clientRequest.Content = jsonData.ToString();
 						client.SendRequest(clientRequest);
 						var response = client.GetResponse();
@@ -1399,6 +1616,7 @@ namespace Laclasse.Authentication
 
 				c.Response.Content = (new CasView
 				{
+					state = preTicket.id,
 					service = formFields.ContainsKey("service") ? formFields["service"] : "/",
 					rescue = rescue,
 					rescueUser = rescueUsers[0].firstname + " " + rescueUsers[0].lastname,
@@ -1410,6 +1628,7 @@ namespace Laclasse.Authentication
 			{
 				c.Response.Content = (new CasView
 				{
+					state = preTicket.id,
 					service = formFields.ContainsKey("service") ? formFields["service"] : "/",
 					rescue = rescue,
 					rescueUsers = rescueUsers
@@ -1417,7 +1636,7 @@ namespace Laclasse.Authentication
 			}
 		}
 
-		async Task HandleRescueDone(HttpContext c, Dictionary<string, string> formFields)
+		async Task HandleRescueDone(HttpContext c, Dictionary<string, string> formFields, PreTicket preTicket)
 		{
 			formFields.RequireFields("rescueId", "rescueCode");
 
@@ -1430,6 +1649,7 @@ namespace Laclasse.Authentication
 				c.Response.Headers["content-type"] = "text/html; charset=utf-8";
 				c.Response.Content = (new CasView
 				{
+					state = preTicket.id,
 					service = formFields.ContainsKey("service") ? formFields["service"] : "/",
 					error = "Echec de la récupération. Le code de récupération n'est plus valide. Vous avez probablement attendu trop longtemps."
 				}).TransformText();
@@ -1440,6 +1660,7 @@ namespace Laclasse.Authentication
 				c.Response.Headers["content-type"] = "text/html; charset=utf-8";
 				c.Response.Content = (new CasView
 				{
+					state = preTicket.id,
 					service = formFields.ContainsKey("service") ? formFields["service"] : "/",
 					error = "Code de récupération non valide."
 				}).TransformText();
@@ -1451,9 +1672,12 @@ namespace Laclasse.Authentication
 					idp = Idp.EMAIL;
 				else if (ticket.mode == RescueMode.SMS)
 					idp = Idp.SMS;
+				preTicket.uid = ticket.user_id;
+				preTicket.idp = idp;
 
 				// init the session and redirect to service
-				await CasLoginAsync(c, ticket.user_id, formFields.ContainsKey("service") ? formFields["service"] : null, idp);
+				//await CasLoginAsync(c, ticket.user_id, formFields.ContainsKey("service") ? formFields["service"] : null, idp);
+				await CasLoginAsync(c, preTicket);
 			}
 		}
 

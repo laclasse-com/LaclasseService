@@ -107,7 +107,7 @@ namespace Laclasse
 		public int rescueTicketTimeout = 600;
 	}
 
-	public class OIDCSSOSetup
+	public class CUTSsoSetup
 	{
 		public string name;
 		public string authorizeUrl;
@@ -130,7 +130,7 @@ namespace Laclasse
 		public AafSsoSetup aafSso = new AafSsoSetup();
 		public CasSetup cas = new CasSetup();
 		public SessionSetup session = new SessionSetup();
-		public OIDCSSOSetup[] oidcSso = new OIDCSSOSetup[0];
+		public CUTSsoSetup cutSso = new CUTSsoSetup();
 	}
 
 	public class Setup

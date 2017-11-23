@@ -121,6 +121,7 @@
     <Compile Include="Logger.cs" />
     <Compile Include="Mail\ImapCheck.cs" />
     <Compile Include="Authentication\OidcSso.cs" />
+    <Compile Include="Authentication\PreTickets.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

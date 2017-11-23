@@ -50,4 +50,11 @@ namespace Laclasse.Directory
 				await context.EnsureIsSuperAdminAsync();
 		}
 	}
+
+	public class Ents : ModelService<Ent>
+	{
+		public Ents(string dbUrl): base(dbUrl)
+		{
+		}
+	}
 }

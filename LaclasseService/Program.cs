@@ -144,6 +144,7 @@ namespace Laclasse
 			mapper.Add("/api/news", new PortailNews(dbUrl));
 			mapper.Add("/api/users", new PortailRss(dbUrl));
 			mapper.Add("/api/logs", new Logs(dbUrl));
+			mapper.Add("/api/ent", new Ents(dbUrl));
 			mapper.Add("/api/publipostages", new Publipostages(dbUrl, setup.mail));
 
 			mapper.Add("/api/structures", new StructureRss(dbUrl));
@@ -152,13 +153,12 @@ namespace Laclasse
 				Path.Combine(setup.server.storage, "avatar"),
 				setup.http.defaultCacheDuration));
 
-			var cas = new Cas(
+			mapper.Add("/sso", new Cas(
 				dbUrl, sessions, users, setup.authentication.session.cookie,
 				setup.authentication.cas.ticketTimeout, setup.authentication.aafSso,
-				setup.mail, setup.sms, setup.authentication.cas.rescueTicketTimeout);
-			mapper.Add("/sso", cas);
+				setup.authentication.cutSso, setup.mail, setup.sms, setup.authentication.cas.rescueTicketTimeout));
 
-			mapper.Add("/sso/oidc", new OidcSso(setup.authentication.oidcSso, users, cas));
+			//mapper.Add("/sso/oidc", new OidcSso(setup.authentication.oidcSso, users, cas));
 
 			mapper.Add("/api/aaf/synchronizations", new AafSyncService(
 				dbUrl, setup.aaf.logPath, logger, setup.aaf.path, setup.aaf.zipPath, setup.aaf.logPath));

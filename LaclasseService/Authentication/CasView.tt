@@ -166,9 +166,10 @@ function onRescueBack(e)
 							<div style="margin-bottom: 20px;">
 								<div class="title">Choisissez l'utilisateur pour lequel vous avez perdu le mot de passe</div>
 
-								<form method="post">
+								<form method="post" action="login">
 		    	        			<input type="hidden" name="service" value="<#= service #>">
 		    	        			<input type="hidden" name="ticket" value="<#= ticket #>">
+		    	        			<input type="hidden" name="state" value="<#= state #>">
 		    	        			<input type="hidden" name="rescue" value="<#= rescue #>">
 		    	        			<# var first = "checked"; foreach (var user in rescueUsers) { #>
 		    	        			<input type="radio" name="user" value="<#= user.id #>" <#= first #>><#= user.firstname + " " + user.lastname #></input><br>
@@ -193,9 +194,10 @@ function onRescueBack(e)
 									de <#= rescueUser #>. Une fois connecté, pensez bien à changer le mot de passe.
 								</div>
 								<br>
-								<form method="post">
+								<form method="post" action="login">
 		    	        			<input type="hidden" name="service" value="<#= service #>">
 		    	        			<input type="hidden" name="ticket" value="<#= ticket #>">
+		    	        			<input type="hidden" name="state" value="<#= state #>">
 		    	        			<input type="hidden" name="rescue" value="<#= rescue #>">
 		    	        			<input type="hidden" name="rescueId" value="<#= rescueId #>">
 		    	        			<div>Code:</div>
@@ -217,8 +219,20 @@ function onRescueBack(e)
 							<div style="margin-bottom: 20px;">
 								<div class="title">Connectez-vous avec votre compte Académique.</div>
 								<div>
-									<a class="btn" href="parentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>">Parents/Elèves</a>
-									<a class="btn" href="agentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>">Profs/Agents</a>
+									<a class="btn" href="parentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">Parents/Elèves</a>
+									<a class="btn" href="agentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">Profs/Agents</a>
+								</div>
+							</div>
+							<br>
+							<div style="height: 2px; background-color: #fff; text-align: center; margin-bottom: 1em">
+								<span style="background-color: #48bbd6; position: relative; top: -0.5em; margin: 0px auto;font-weight: bold">&nbsp;OU&nbsp;</span>
+							</div>
+							<br>
+
+							<div style="margin-bottom: 20px;">
+								<div class="title">Connectez-vous avec Grand Lyon CUT.</div>
+								<div>
+									<a class="btn" style="display: block; text-align: center" href="cutIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">CUT</a>
 								</div>
 							</div>
 							<br>
@@ -229,8 +243,9 @@ function onRescueBack(e)
 
 							<div style="margin-bottom: 20px;">
 								<div class="title">Connectez-vous avec votre compte Laclasse.com.</div>
-								<form method="post" action="?">
+								<form method="post" action="login">
 			            			<input type="hidden" name="service" value="<#= service #>">
+			            			<input type="hidden" name="state" value="<#= state #>">
 			            			<input type="hidden" name="ticket" value="<#= ticket #>">
 									<div>Identifiant:</div>
 									<input name="username" type="text" style="width: 80%; margin-bottom: 10px;">
@@ -261,8 +276,9 @@ function onRescueBack(e)
 										<li>pour un parent, votre numéro de téléphone portable que vous avez communiqué lors de l'inscription
 									</ul>
 								</div>
-								<form method="post">
+								<form method="post" action="login">
 		    	        			<input type="hidden" name="service" value="<#= service #>">
+		    	        			<input type="hidden" name="state" value="<#= state #>">
 		    	        			<input type="hidden" name="ticket" value="<#= ticket #>">
 									<input name="rescue" type="text" style="width: 80%; margin-bottom: 10px;">
 									<br>

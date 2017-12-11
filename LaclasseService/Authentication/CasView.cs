@@ -70,42 +70,78 @@ namespace Laclasse.Authentication {
             #line hidden
             
             #line 145 ""
- if (message != null) { 
+ if (info != null) { 
             
             #line default
             #line hidden
             
             #line 146 ""
+            this.Write("\n\t\t\t\t\t\t<div style=\"display: inherit\" id=\"info-content\">\n\t\t\t\t\t\t\t<div style=\"font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #85d800;\">\n\t\t\t\t\t\t\t\tInfo\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px; color: #d2ff89\">\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\t");
+            
+            #line default
+            #line hidden
+            
+            #line 153 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( info ));
+            
+            #line default
+            #line hidden
+            
+            #line 153 ""
+            this.Write("\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\t\t\t\t\t\t");
+            
+            #line default
+            #line hidden
+            
+            #line 157 ""
+ } 
+            
+            #line default
+            #line hidden
+            
+            #line 158 ""
+            this.Write("\n\t\t\t\t\t\t");
+            
+            #line default
+            #line hidden
+            
+            #line 159 ""
+ if (message != null) { 
+            
+            #line default
+            #line hidden
+            
+            #line 160 ""
             this.Write("\n\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t<div class=\"title\">");
             
             #line default
             #line hidden
             
-            #line 148 ""
+            #line 162 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( title ));
             
             #line default
             #line hidden
             
-            #line 148 ""
+            #line 162 ""
             this.Write("</div>\n\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 150 ""
+            #line 164 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( message ));
             
             #line default
             #line hidden
             
-            #line 150 ""
+            #line 164 ""
             this.Write("\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<a class=\"btn\" href=\"logout\">SE DÉCONNECTER</a>\n\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 155 ""
+            #line 169 ""
 
 						}
 						else
@@ -115,391 +151,391 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 160 ""
+            #line 174 ""
             this.Write("\n\t\t\t\t\t\t<div id=\"rescue-content\">\n\t\t\t\t\t\t\t<div style=\"font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;\">\n\t\t\t\t\t\t\t\t<a href=\"#back\" onclick=\"onRescueBack()\" style=\"font-weight: bold; text-decoration: none; float: left\">&#8592;</a> Mot de passe perdu\n\t\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div class=\"title\">Choisissez l'utilisateur pour lequel vous avez perdu le mot de passe</div>\n\n\t\t\t\t\t\t\t\t<form method=\"post\" action=\"login\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"service\" value=\"");
             
             #line default
             #line hidden
             
-            #line 170 ""
+            #line 184 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( service ));
-            
-            #line default
-            #line hidden
-            
-            #line 170 ""
-            this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
-            
-            #line default
-            #line hidden
-            
-            #line 171 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
-            
-            #line default
-            #line hidden
-            
-            #line 171 ""
-            this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
-            
-            #line default
-            #line hidden
-            
-            #line 172 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( state ));
-            
-            #line default
-            #line hidden
-            
-            #line 172 ""
-            this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescue\" value=\"");
-            
-            #line default
-            #line hidden
-            
-            #line 173 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
-            
-            #line default
-            #line hidden
-            
-            #line 173 ""
-            this.Write("\">\n\t\t    \t        \t\t\t");
-            
-            #line default
-            #line hidden
-            
-            #line 174 ""
- var first = "checked"; foreach (var user in rescueUsers) { 
-            
-            #line default
-            #line hidden
-            
-            #line 175 ""
-            this.Write("\t\t    \t        \t\t\t<input type=\"radio\" name=\"user\" value=\"");
-            
-            #line default
-            #line hidden
-            
-            #line 175 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( user.id ));
-            
-            #line default
-            #line hidden
-            
-            #line 175 ""
-            this.Write("\" ");
-            
-            #line default
-            #line hidden
-            
-            #line 175 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( first ));
-            
-            #line default
-            #line hidden
-            
-            #line 175 ""
-            this.Write(">");
-            
-            #line default
-            #line hidden
-            
-            #line 175 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( user.firstname + " " + user.lastname ));
-            
-            #line default
-            #line hidden
-            
-            #line 175 ""
-            this.Write("</input><br>\n\t\t\t\t\t\t\t\t\t");
-            
-            #line default
-            #line hidden
-            
-            #line 176 ""
- first = ""; } 
-            
-            #line default
-            #line hidden
-            
-            #line 177 ""
-            this.Write("\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" type=\"submit\" value=\"VALIDER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t");
-            
-            #line default
-            #line hidden
-            
-            #line 183 ""
- 	} else if (rescueId != null) { 
             
             #line default
             #line hidden
             
             #line 184 ""
-            this.Write("\n\t\t\t\t\t\t<div id=\"rescue-content\">\n\t\t\t\t\t\t\t<div style=\"font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;\">\n\t\t\t\t\t\t\t\t<a href=\"#back\" onclick=\"onRescueBack()\" style=\"font-weight: bold; text-decoration: none; float: left\">&#8592;</a> Mot de passe perdu\n\t\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\tUn code vient de vous être envoyé à <b>");
-            
-            #line default
-            #line hidden
-            
-            #line 192 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
-            
-            #line default
-            #line hidden
-            
-            #line 192 ""
-            this.Write("</b>. Merci de le saisir dans\n\t\t\t\t\t\t\t\t\tle champ ci-dessous. Cela vous permettra de vous connecter sur le compte\n\t\t\t\t\t\t\t\t\tde ");
-            
-            #line default
-            #line hidden
-            
-            #line 194 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( rescueUser ));
-            
-            #line default
-            #line hidden
-            
-            #line 194 ""
-            this.Write(". Une fois connecté, pensez bien à changer le mot de passe.\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t<form method=\"post\" action=\"login\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"service\" value=\"");
-            
-            #line default
-            #line hidden
-            
-            #line 198 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( service ));
-            
-            #line default
-            #line hidden
-            
-            #line 198 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
             
             #line default
             #line hidden
             
-            #line 199 ""
+            #line 185 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
             
             #line default
             #line hidden
             
-            #line 199 ""
+            #line 185 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
             
             #line default
             #line hidden
             
-            #line 200 ""
+            #line 186 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( state ));
             
             #line default
             #line hidden
             
-            #line 200 ""
+            #line 186 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescue\" value=\"");
             
             #line default
             #line hidden
             
-            #line 201 ""
+            #line 187 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
             
             #line default
             #line hidden
             
-            #line 201 ""
-            this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescueId\" value=\"");
+            #line 187 ""
+            this.Write("\">\n\t\t    \t        \t\t\t");
             
             #line default
             #line hidden
             
-            #line 202 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( rescueId ));
+            #line 188 ""
+ var first = "checked"; foreach (var user in rescueUsers) { 
             
             #line default
             #line hidden
             
-            #line 202 ""
-            this.Write("\">\n\t\t    \t        \t\t\t<div>Code:</div>\n\t\t    \t        \t\t\t<input type=\"text\" name=\"rescueCode\" value=\"\">\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" type=\"submit\" value=\"VALIDER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t");
+            #line 189 ""
+            this.Write("\t\t    \t        \t\t\t<input type=\"radio\" name=\"user\" value=\"");
             
             #line default
             #line hidden
             
-            #line 211 ""
- 	} 
+            #line 189 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( user.id ));
+            
+            #line default
+            #line hidden
+            
+            #line 189 ""
+            this.Write("\" ");
+            
+            #line default
+            #line hidden
+            
+            #line 189 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( first ));
+            
+            #line default
+            #line hidden
+            
+            #line 189 ""
+            this.Write(">");
+            
+            #line default
+            #line hidden
+            
+            #line 189 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( user.firstname + " " + user.lastname ));
+            
+            #line default
+            #line hidden
+            
+            #line 189 ""
+            this.Write("</input><br>\n\t\t\t\t\t\t\t\t\t");
+            
+            #line default
+            #line hidden
+            
+            #line 190 ""
+ first = ""; } 
+            
+            #line default
+            #line hidden
+            
+            #line 191 ""
+            this.Write("\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" type=\"submit\" value=\"VALIDER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t");
+            
+            #line default
+            #line hidden
+            
+            #line 197 ""
+ 	} else if (rescueId != null) { 
+            
+            #line default
+            #line hidden
+            
+            #line 198 ""
+            this.Write("\n\t\t\t\t\t\t<div id=\"rescue-content\">\n\t\t\t\t\t\t\t<div style=\"font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;\">\n\t\t\t\t\t\t\t\t<a href=\"#back\" onclick=\"onRescueBack()\" style=\"font-weight: bold; text-decoration: none; float: left\">&#8592;</a> Mot de passe perdu\n\t\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\tUn code vient de vous être envoyé à <b>");
+            
+            #line default
+            #line hidden
+            
+            #line 206 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
+            
+            #line default
+            #line hidden
+            
+            #line 206 ""
+            this.Write("</b>. Merci de le saisir dans\n\t\t\t\t\t\t\t\t\tle champ ci-dessous. Cela vous permettra de vous connecter sur le compte\n\t\t\t\t\t\t\t\t\tde ");
+            
+            #line default
+            #line hidden
+            
+            #line 208 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( rescueUser ));
+            
+            #line default
+            #line hidden
+            
+            #line 208 ""
+            this.Write(". Une fois connecté, pensez bien à changer le mot de passe.\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t<form method=\"post\" action=\"login\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"service\" value=\"");
             
             #line default
             #line hidden
             
             #line 212 ""
-            this.Write("\n\t\t\t\t\t\t<!-- authentication -->\n\t\t\t\t\t\t<div style=\"display: ");
-            
-            #line default
-            #line hidden
-            
-            #line 214 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( (rescue != null) ? "none" : "inherit" ));
-            
-            #line default
-            #line hidden
-            
-            #line 214 ""
-            this.Write("\" id=\"authentication-content\">\n\t\t\t\t\t\t\t<div style=\"font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;\">\n\t\t\t\t\t\t\t\tAuthentification\n\t\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div class=\"title\">Connectez-vous avec votre compte Académique.</div>\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\t<a class=\"btn\" href=\"parentPortalIdp?service=");
-            
-            #line default
-            #line hidden
-            
-            #line 222 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
-            
-            #line default
-            #line hidden
-            
-            #line 222 ""
-            this.Write("&state=");
-            
-            #line default
-            #line hidden
-            
-            #line 222 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
-            
-            #line default
-            #line hidden
-            
-            #line 222 ""
-            this.Write("\">Parents/Elèves</a>\n\t\t\t\t\t\t\t\t\t<a class=\"btn\" href=\"agentPortalIdp?service=");
-            
-            #line default
-            #line hidden
-            
-            #line 223 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
-            
-            #line default
-            #line hidden
-            
-            #line 223 ""
-            this.Write("&state=");
-            
-            #line default
-            #line hidden
-            
-            #line 223 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
-            
-            #line default
-            #line hidden
-            
-            #line 223 ""
-            this.Write("\">Profs/Agents</a>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t<div style=\"height: 2px; background-color: #fff; text-align: center; margin-bottom: 1em\">\n\t\t\t\t\t\t\t\t<span style=\"background-color: #48bbd6; position: relative; top: -0.5em; margin: 0px auto;font-weight: bold\">&nbsp;OU&nbsp;</span>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<br>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div class=\"title\">Connectez-vous avec Grand Lyon CUT.</div>\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\t<a class=\"btn\" style=\"display: block; text-align: center\" href=\"cutIdp?service=");
-            
-            #line default
-            #line hidden
-            
-            #line 235 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
-            
-            #line default
-            #line hidden
-            
-            #line 235 ""
-            this.Write("&state=");
-            
-            #line default
-            #line hidden
-            
-            #line 235 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
-            
-            #line default
-            #line hidden
-            
-            #line 235 ""
-            this.Write("\">CUT</a>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t<div style=\"height: 2px; background-color: #fff; text-align: center; margin-bottom: 1em\">\n\t\t\t\t\t\t\t\t<span style=\"background-color: #48bbd6; position: relative; top: -0.5em; margin: 0px auto;font-weight: bold\">&nbsp;OU&nbsp;</span>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<br>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div class=\"title\">Connectez-vous avec votre compte Laclasse.com.</div>\n\t\t\t\t\t\t\t\t<form method=\"post\" action=\"login\">\n\t\t\t            \t\t\t<input type=\"hidden\" name=\"service\" value=\"");
-            
-            #line default
-            #line hidden
-            
-            #line 247 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( service ));
             
             #line default
             #line hidden
             
-            #line 247 ""
-            this.Write("\">\n\t\t\t            \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
-            
-            #line default
-            #line hidden
-            
-            #line 248 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( state ));
-            
-            #line default
-            #line hidden
-            
-            #line 248 ""
-            this.Write("\">\n\t\t\t            \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
-            
-            #line default
-            #line hidden
-            
-            #line 249 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
-            
-            #line default
-            #line hidden
-            
-            #line 249 ""
-            this.Write("\">\n\t\t\t\t\t\t\t\t\t<div>Identifiant:</div>\n\t\t\t\t\t\t\t\t\t<input name=\"username\" type=\"text\" style=\"width: 80%; margin-bottom: 10px;\">\n\t\t\t\t\t\t\t\t\t<div>Mot de passe:</div>\n\t\t\t\t\t\t\t\t\t<input name=\"password\" type=\"password\" style=\"width: 80%; margin-bottom: 10px;\">\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" type=\"submit\" value=\"SE CONNECTER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<a href=\"#\" onclick=\"onRescue()\">Mot de passe oublié ?</a>\n\t\t\t\t\t\t</div>\n\n\t   \t\t\t\t\t<!-- lost password -->\n\t\t\t\t\t\t<div style=\"display: none\" id=\"rescue-content\">\n\t\t\t\t\t\t\t<div style=\"font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;\">\n\t\t\t\t\t\t\t\t<a href=\"#back\" onclick=\"onRescueBack()\" style=\"font-weight: bold; text-decoration: none; float: left\">&#8592;</a> Mot de passe perdu\n\t\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\tMerci de renseigner une adresse email (autre que celle de l'ENT) ou numéro de\n\t\t\t\t\t\t\t\t\ttéléphone portable: les vôtres ou ceux d'un de vos parents.<br>\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\tPar exemple:\n\t\t\t\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t\t\t\t<li>pour un compte enseignant, votre adresse email académique.\n\t\t\t\t\t\t\t\t\t\t<li>pour un élève, l'adresse email de votre mère.\n\t\t\t\t\t\t\t\t\t\t<li>pour un parent, votre numéro de téléphone portable que vous avez communiqué lors de l'inscription\n\t\t\t\t\t\t\t\t\t</ul>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t<form method=\"post\" action=\"login\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"service\" value=\"");
-            
-            #line default
-            #line hidden
-            
-            #line 280 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( service ));
-            
-            #line default
-            #line hidden
-            
-            #line 280 ""
-            this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
-            
-            #line default
-            #line hidden
-            
-            #line 281 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( state ));
-            
-            #line default
-            #line hidden
-            
-            #line 281 ""
+            #line 212 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
             
             #line default
             #line hidden
             
-            #line 282 ""
+            #line 213 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
             
             #line default
             #line hidden
             
-            #line 282 ""
+            #line 213 ""
+            this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
+            
+            #line default
+            #line hidden
+            
+            #line 214 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( state ));
+            
+            #line default
+            #line hidden
+            
+            #line 214 ""
+            this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescue\" value=\"");
+            
+            #line default
+            #line hidden
+            
+            #line 215 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
+            
+            #line default
+            #line hidden
+            
+            #line 215 ""
+            this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescueId\" value=\"");
+            
+            #line default
+            #line hidden
+            
+            #line 216 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( rescueId ));
+            
+            #line default
+            #line hidden
+            
+            #line 216 ""
+            this.Write("\">\n\t\t    \t        \t\t\t<div>Code:</div>\n\t\t    \t        \t\t\t<input type=\"text\" name=\"rescueCode\" value=\"\">\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" type=\"submit\" value=\"VALIDER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t");
+            
+            #line default
+            #line hidden
+            
+            #line 225 ""
+ 	} 
+            
+            #line default
+            #line hidden
+            
+            #line 226 ""
+            this.Write("\n\t\t\t\t\t\t<!-- authentication -->\n\t\t\t\t\t\t<div style=\"display: ");
+            
+            #line default
+            #line hidden
+            
+            #line 228 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( (rescue != null) ? "none" : "inherit" ));
+            
+            #line default
+            #line hidden
+            
+            #line 228 ""
+            this.Write("\" id=\"authentication-content\">\n\t\t\t\t\t\t\t<div style=\"font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;\">\n\t\t\t\t\t\t\t\tAuthentification\n\t\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div class=\"title\">Connectez-vous avec votre compte Académique.</div>\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\t<a class=\"btn\" href=\"parentPortalIdp?service=");
+            
+            #line default
+            #line hidden
+            
+            #line 236 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
+            
+            #line default
+            #line hidden
+            
+            #line 236 ""
+            this.Write("&state=");
+            
+            #line default
+            #line hidden
+            
+            #line 236 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
+            
+            #line default
+            #line hidden
+            
+            #line 236 ""
+            this.Write("\">Parents/Elèves</a>\n\t\t\t\t\t\t\t\t\t<a class=\"btn\" href=\"agentPortalIdp?service=");
+            
+            #line default
+            #line hidden
+            
+            #line 237 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
+            
+            #line default
+            #line hidden
+            
+            #line 237 ""
+            this.Write("&state=");
+            
+            #line default
+            #line hidden
+            
+            #line 237 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
+            
+            #line default
+            #line hidden
+            
+            #line 237 ""
+            this.Write("\">Profs/Agents</a>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t<div style=\"height: 2px; background-color: #fff; text-align: center; margin-bottom: 1em\">\n\t\t\t\t\t\t\t\t<span style=\"background-color: #48bbd6; position: relative; top: -0.5em; margin: 0px auto;font-weight: bold\">&nbsp;OU&nbsp;</span>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<br>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div class=\"title\">Connectez-vous avec Grand Lyon CUT.</div>\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\t<a class=\"btn\" style=\"display: block; text-align: center\" href=\"cutIdp?service=");
+            
+            #line default
+            #line hidden
+            
+            #line 249 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
+            
+            #line default
+            #line hidden
+            
+            #line 249 ""
+            this.Write("&state=");
+            
+            #line default
+            #line hidden
+            
+            #line 249 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
+            
+            #line default
+            #line hidden
+            
+            #line 249 ""
+            this.Write("\">CUT</a>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t<div style=\"height: 2px; background-color: #fff; text-align: center; margin-bottom: 1em\">\n\t\t\t\t\t\t\t\t<span style=\"background-color: #48bbd6; position: relative; top: -0.5em; margin: 0px auto;font-weight: bold\">&nbsp;OU&nbsp;</span>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<br>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div class=\"title\">Connectez-vous avec votre compte Laclasse.com.</div>\n\t\t\t\t\t\t\t\t<form method=\"post\" action=\"login\">\n\t\t\t            \t\t\t<input type=\"hidden\" name=\"service\" value=\"");
+            
+            #line default
+            #line hidden
+            
+            #line 261 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( service ));
+            
+            #line default
+            #line hidden
+            
+            #line 261 ""
+            this.Write("\">\n\t\t\t            \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
+            
+            #line default
+            #line hidden
+            
+            #line 262 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( state ));
+            
+            #line default
+            #line hidden
+            
+            #line 262 ""
+            this.Write("\">\n\t\t\t            \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
+            
+            #line default
+            #line hidden
+            
+            #line 263 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
+            
+            #line default
+            #line hidden
+            
+            #line 263 ""
+            this.Write("\">\n\t\t\t\t\t\t\t\t\t<div>Identifiant:</div>\n\t\t\t\t\t\t\t\t\t<input name=\"username\" type=\"text\" style=\"width: 80%; margin-bottom: 10px;\">\n\t\t\t\t\t\t\t\t\t<div>Mot de passe:</div>\n\t\t\t\t\t\t\t\t\t<input name=\"password\" type=\"password\" style=\"width: 80%; margin-bottom: 10px;\">\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" type=\"submit\" value=\"SE CONNECTER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<a href=\"#\" onclick=\"onRescue()\">Mot de passe oublié ?</a>\n\t\t\t\t\t\t</div>\n\n\t   \t\t\t\t\t<!-- lost password -->\n\t\t\t\t\t\t<div style=\"display: none\" id=\"rescue-content\">\n\t\t\t\t\t\t\t<div style=\"font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #1aaacc;\">\n\t\t\t\t\t\t\t\t<a href=\"#back\" onclick=\"onRescueBack()\" style=\"font-weight: bold; text-decoration: none; float: left\">&#8592;</a> Mot de passe perdu\n\t\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\tMerci de renseigner une adresse email (autre que celle de l'ENT) ou numéro de\n\t\t\t\t\t\t\t\t\ttéléphone portable: les vôtres ou ceux d'un de vos parents.<br>\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\tPar exemple:\n\t\t\t\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t\t\t\t<li>pour un compte enseignant, votre adresse email académique.\n\t\t\t\t\t\t\t\t\t\t<li>pour un élève, l'adresse email de votre mère.\n\t\t\t\t\t\t\t\t\t\t<li>pour un parent, votre numéro de téléphone portable que vous avez communiqué lors de l'inscription\n\t\t\t\t\t\t\t\t\t</ul>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t<form method=\"post\" action=\"login\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"service\" value=\"");
+            
+            #line default
+            #line hidden
+            
+            #line 294 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( service ));
+            
+            #line default
+            #line hidden
+            
+            #line 294 ""
+            this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
+            
+            #line default
+            #line hidden
+            
+            #line 295 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( state ));
+            
+            #line default
+            #line hidden
+            
+            #line 295 ""
+            this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
+            
+            #line default
+            #line hidden
+            
+            #line 296 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
+            
+            #line default
+            #line hidden
+            
+            #line 296 ""
             this.Write("\">\n\t\t\t\t\t\t\t\t\t<input name=\"rescue\" type=\"text\" style=\"width: 80%; margin-bottom: 10px;\">\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" type=\"submit\" value=\"RÉCUPÉRER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 289 ""
+            #line 303 ""
  } 
             
             #line default
             #line hidden
             
-            #line 290 ""
+            #line 304 ""
             this.Write("\t\t\t\t\t</div>\n\t\t\t\t</div>\n\n\t\t\t\t<div class=\"footer\">\n\t\t\t\t\t<img draggable=\"false\" style=\"width: 40%\" src=\"images/grandlyon-logo-blanc.svg\" alt=\"Logo Métropole du Grand Lyon\" />\n\t\t\t\t\t<img draggable=\"false\" style=\"width: 25%\" src=\"images/logo-academie-blanc.svg\" alt=\"Logo Académie de Lyon\" />\n\t\t\t\t</div>\n\t\t\t</center>\n\t\t</div>\n\t</body>\n</html>");
             
             #line default

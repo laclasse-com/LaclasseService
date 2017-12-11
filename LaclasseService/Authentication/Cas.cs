@@ -51,6 +51,7 @@ namespace Laclasse.Authentication
 		public bool ticket = true;
 		public string state = "";
 		public string error;
+		public string info;
 		public string title;
 		public string message;
 		public IEnumerable<User> rescueUsers;
@@ -641,7 +642,7 @@ namespace Laclasse.Authentication
 						c.Response.Content = (new CasView
 						{
 							state = preTicket.id,
-							error = @"
+							info = @"
 								Il n'y a pas de compte utilisateur dans laclasse.com associé à votre
 								compte Grand Lyon CUT.<br>
 								Si vous avez en votre possession un compte laclasse.com ou Académique

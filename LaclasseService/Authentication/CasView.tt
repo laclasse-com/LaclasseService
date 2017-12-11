@@ -142,6 +142,20 @@ function onRescueBack(e)
 						</div>
 						<# } #>
 
+						<# if (info != null) { #>
+
+						<div style="display: inherit" id="info-content">
+							<div style="font-size: 30px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #85d800;">
+								Info
+							</div>
+							<div style="margin-bottom: 20px; color: #d2ff89">
+								<div>
+									<#= info #>
+								</div>
+							</div>
+						</div>
+						<# } #>
+
 						<# if (message != null) { #>
 
 						<div style="margin-bottom: 20px;">

@@ -122,6 +122,7 @@
     <Compile Include="Mail\ImapCheck.cs" />
     <Compile Include="Authentication\OidcSso.cs" />
     <Compile Include="Authentication\PreTickets.cs" />
+    <Compile Include="Directory\ChildrenGroupsUsers.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

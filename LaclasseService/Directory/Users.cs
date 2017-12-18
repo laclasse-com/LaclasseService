@@ -168,6 +168,12 @@ namespace Laclasse.Directory
 			return groups;
 		}
 
+		[ModelExpandField(Name = nameof(children_groups), ForeignModel = typeof(ChildrenGroupUser))]
+		public ModelList<ChildrenGroupUser> children_groups { get { return GetField<ModelList<ChildrenGroupUser>>(nameof(children_groups), null); } set { SetField(nameof(children_groups), value); } }
+
+		[ModelExpandField(Name = nameof(all_groups), ForeignModel = typeof(AllGroupUser), Visible = false)]
+		public ModelList<AllGroupUser> all_groups { get { return GetField<ModelList<AllGroupUser>>(nameof(all_groups), null); } set { SetField(nameof(all_groups), value); } }
+
 		[ModelExpandField(Name = nameof(news), ForeignModel = typeof(News), Visible = false)]
 		public ModelList<News> news { get { return GetField<ModelList<News>>(nameof(news), null); } set { SetField(nameof(news), value); } }
 

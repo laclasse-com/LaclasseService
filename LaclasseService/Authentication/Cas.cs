@@ -408,7 +408,8 @@ namespace Laclasse.Authentication
 				dom.LoadXml(SAMLResponse);
 
 				var id = dom.DocumentElement.GetAttribute("InResponseTo");
-				//var decoded = Hex2String(id.Substring(1));
+				var decoded = Hex2String(id.Substring(1));
+				id = decoded;
 				//var pos = decoded.IndexOf(':');
 				//var service = (pos > 0) ? decoded.Substring(pos + 1) : null;
 
@@ -1004,7 +1005,8 @@ namespace Laclasse.Authentication
 			var saml = "urn:oasis:names:tc:SAML:2.0:assertion";
 
 			//var id = "_" + String2Hex(StringExt.RandomString(10) + ":" + service);
-			var id = preTicket.id;
+			var id = "_" + String2Hex(preTicket.id);
+			//var id = preTicket.id;
 
 			var ns = new XmlNamespaceManager(dom.NameTable);
 			ns.AddNamespace("samlp", samlp);

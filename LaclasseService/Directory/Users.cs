@@ -38,6 +38,12 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
+	public enum Gender
+	{
+		M,
+		F
+	}
+
 	[Model(Table = "user", PrimaryKey = nameof(id))]
 	public class User : Model
 	{
@@ -62,7 +68,7 @@ namespace Laclasse.Directory
 		[ModelField(Required = true)]
 		public string firstname { get { return GetField<string>(nameof(firstname), null); } set { SetField(nameof(firstname), value); } }
 		[ModelField]
-		public string gender { get { return GetField<string>(nameof(gender), null); } set { SetField(nameof(gender), value); } }
+		public Gender? gender { get { return GetField<Gender?>(nameof(gender), null); } set { SetField(nameof(gender), value); } }
 		[ModelField]
 		public DateTime? birthdate { get { return GetField<DateTime?>(nameof(birthdate), null); } set { SetField(nameof(birthdate), value); } }
 		[ModelField]
@@ -207,12 +213,12 @@ namespace Laclasse.Directory
 				string jsonAvatar;
 				if ((avatar == null) || (avatar == "empty"))
 				{
-					if (gender == "M")
-						jsonAvatar = "avatar/avatar_masculin.svg";
-					else if (gender == "F")
-						jsonAvatar = "avatar/avatar_feminin.svg";
-					else
+					if (gender == null)
 						jsonAvatar = "avatar/avatar_neutre.svg";
+					else if (gender == Gender.M)
+						jsonAvatar = "avatar/avatar_masculin.svg";
+					else
+						jsonAvatar = "avatar/avatar_feminin.svg";
 				}
 				else
 					jsonAvatar = "api/avatar/user/" +

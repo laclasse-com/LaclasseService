@@ -375,7 +375,7 @@ catch(e) {
 
 		string GenerateHtmlMessage(string message, RecipientUser recipient)
 		{
-			message = message.Replace("[civilite]", (recipient.user.gender == null) ? "M" : ((recipient.user.gender == "F") ? "Mme" : "M."));
+			message = message.Replace("[civilite]", (recipient.user.gender == null) ? "M" : ((recipient.user.gender == Gender.F) ? "Mme" : "M."));
 			message = message.Replace("[nom]", recipient.user.lastname);
 			message = message.Replace("[prenom]", recipient.user.firstname);
 			message = message.Replace("[adresse]", (recipient.user.address ?? "") + " " + (recipient.user.zip_code ?? "") + " " + (recipient.user.city ?? ""));

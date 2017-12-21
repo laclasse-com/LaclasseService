@@ -1508,12 +1508,12 @@ namespace Laclasse.Aaf
 			Dictionary<string, List<string>> attrsMul, Dictionary<int, Structure> structures)
 		{
 			var user = new User { aaf_jointure_id = id };
-			string gender = null;
+			Gender? gender = null;
 			if (attrs.ContainsKey("personalTitle"))
 				if (attrs["personalTitle"] == "Mme")
-					gender = "F";
+					gender = Gender.F;
 				else if (attrs["personalTitle"] == "M.")
-					gender = "M";
+					gender = Gender.M;
 			if (gender != null)
 				user.gender = gender;
 

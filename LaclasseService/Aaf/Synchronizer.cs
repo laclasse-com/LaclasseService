@@ -681,7 +681,7 @@ namespace Laclasse.Aaf
 				if (user.aaf_jointure_id != null)
 					entUsersByAafId[(int)user.aaf_jointure_id] = user;
 				foreach (var email in user.emails)
-					if (email.type == "Academique")
+					if (email.type == EmailType.Academique)
 						entUsersByAcademicEmail[email.address.ToLower()] = user;
 				if ((user.firstname != null) && (user.lastname != null) && (user.birthdate != null))
 					entUsersByNameBirthdate[user.firstname.RemoveDiacritics().ToLowerInvariant() + "$" +
@@ -854,7 +854,7 @@ namespace Laclasse.Aaf
 				var entUser = GetEntUserByAaf((int)aafUser.aaf_jointure_id);
 				if ((entUser == null) && (aafUser.emails != null))
 				{
-					var acaEmail = aafUser.emails.Find((obj) => obj.type == "Academique");
+					var acaEmail = aafUser.emails.Find((obj) => obj.type == EmailType.Academique);
 					if (acaEmail != null)
 						entUser = GetUserByAcademicEmail(acaEmail.address);
 				}
@@ -896,7 +896,7 @@ namespace Laclasse.Aaf
 					// handle emails
 					if (aafUser.emails != null)
 					{
-						var emailsDiff = Model.Diff(entUser.emails.FindAll((obj) => obj.type == "Academique"), aafUser.emails, (s, d) => s.type == d.type && s.address == d.address);
+						var emailsDiff = Model.Diff(entUser.emails.FindAll((obj) => obj.type == EmailType.Academique), aafUser.emails, (s, d) => s.type == d.type && s.address == d.address);
 						if (!emailsDiff.IsEmpty)
 						{
 							userDiff.emails = new ModelList<Email>();
@@ -1074,7 +1074,7 @@ namespace Laclasse.Aaf
 					// handle emails
 					if (aafUser.emails != null)
 					{
-						var emailsDiff = Model.Diff(entUser.emails.FindAll((obj) => obj.type == "Autre"), aafUser.emails, (s, d) => s.type == d.type && s.address == d.address);
+						var emailsDiff = Model.Diff(entUser.emails.FindAll((obj) => obj.type == EmailType.Autre), aafUser.emails, (s, d) => s.type == d.type && s.address == d.address);
 						if (!emailsDiff.IsEmpty)
 						{
 							userDiff.emails = new ModelList<Email>();
@@ -1237,7 +1237,7 @@ namespace Laclasse.Aaf
 					// handle emails
 					if (aafUser.emails != null)
 					{
-						var emailsDiff = Model.Diff(entUser.emails.FindAll((obj) => obj.type == "Autre"), aafUser.emails, (s, d) => s.type == d.type && s.address == d.address);
+						var emailsDiff = Model.Diff(entUser.emails.FindAll((obj) => obj.type == EmailType.Autre), aafUser.emails, (s, d) => s.type == d.type && s.address == d.address);
 						if (!emailsDiff.IsEmpty)
 						{
 							userDiff.emails = new ModelList<Email>();
@@ -1616,7 +1616,7 @@ namespace Laclasse.Aaf
 					user.emails.Add(new Email
 					{
 						address = mail,
-						type = (categoriePersonne == "PersEducNat") ? "Academique" : "Autre"
+						type = (categoriePersonne == "PersEducNat") ? EmailType.Academique : EmailType.Autre
 					});
 				}
 			}

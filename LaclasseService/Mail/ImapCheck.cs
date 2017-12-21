@@ -57,7 +57,7 @@ namespace Laclasse.Mail
 				using (var db = await DB.CreateAsync(dbUrl, true))
 				{
 					// if user exists and as an Ent email
-					if (await user.LoadAsync(db, true) && user.email_backend_id != null && user.emails.Any((email) => email.type == "Ent"))
+					if (await user.LoadAsync(db, true) && user.email_backend_id != null && user.emails.Any((email) => email.type == EmailType.Ent))
 					{
 						// check rights
 						await c.EnsureHasRightsOnUserAsync(user, false, true, false);

@@ -190,7 +190,7 @@ namespace Laclasse.Directory
 				primary = true,
 				user_id = id,
 				address = await Emails.OfferEntEmailAsync(db, firstname, lastname),
-				type = "Ent"
+				type = EmailType.Ent
 			};
 			await email.SaveAsync(db);
 			return email;

@@ -36,6 +36,13 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
+	public enum EmailType 
+	{
+		Ent,
+		Academique,
+		Autre
+	}
+
 	[Model(Table = "email", PrimaryKey = nameof(id))]
 	public class Email : Model
 	{ 
@@ -48,7 +55,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public bool primary { get { return GetField(nameof(primary), false); } set { SetField(nameof(primary), value); } }
 		[ModelField]
-		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
+		public EmailType type { get { return GetField<EmailType>(nameof(type), EmailType.Autre); } set { SetField(nameof(type), value); } }
 
 		public async override Task<bool> InsertAsync(DB db)
 		{

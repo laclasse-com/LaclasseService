@@ -148,15 +148,20 @@ namespace Laclasse.Authentication
 				}
 				else
 				{
-					//string service = "";
-					//var wantTicket = true;
-					//if (c.Request.QueryString.ContainsKey("service"))
-					//	service = c.Request.QueryString["service"];
+					string service = "";
+					var wantTicket = true;
+					if (c.Request.QueryString.ContainsKey("service"))
+						service = c.Request.QueryString["service"];
 
 					if (preTicket == null)
 					{
 						preTicket = new PreTicket();
 						preTickets.Add(preTicket);
+					}
+					else
+					{
+						if (preTicket.service != null)
+							service = preTicket.service;
 					}
 					if (c.Request.QueryString.ContainsKey("ticket"))
 						preTicket.wantTicket = Convert.ToBoolean(c.Request.QueryString["ticket"]);
@@ -165,7 +170,7 @@ namespace Laclasse.Authentication
 
 					c.Response.StatusCode = 200;
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
-					c.Response.Content = (new CasView { state = preTicket.id /*service = service, ticket = wantTicket*/ }).TransformText();
+					c.Response.Content = (new CasView { state = preTicket.id, service = service, ticket = wantTicket }).TransformText();
 				}
 			};
 

@@ -1270,6 +1270,39 @@ namespace Laclasse
 			return result;
 		}
 
+		void DBToFields<T>(System.Data.Common.DbDataReader reader, T result) where T : Model
+		{
+			for (int i = 0; i < reader.FieldCount; i++)
+			{
+				var fieldValue = reader.GetValue(i);
+
+				var property = typeof(T).GetProperty(reader.GetName(i));
+				if (property == null)
+					continue;
+				var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
+				if (fieldAttribute == null)
+					continue;
+
+				var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
+				if (nullableType == null)
+				{
+					if (property.PropertyType.IsEnum && fieldValue is string)
+						result.Fields[property.Name] = Enum.Parse(property.PropertyType, (string)fieldValue);
+					else
+						result.Fields[property.Name] = Convert.ChangeType(fieldValue, property.PropertyType);
+				}
+				else
+				{
+					if (reader.IsDBNull(i))
+						result.Fields[property.Name] = null;
+					else if (nullableType.IsEnum && fieldValue is string)
+						result.Fields[property.Name] = Enum.Parse(nullableType, (string)fieldValue);
+					else
+						result.Fields[property.Name] = Convert.ChangeType(fieldValue, nullableType);
+				}
+			}
+		}
+
 		public async Task<ModelList<T>> SelectAsync<T>(string query, params object[] args) where T : Model, new()
 		{
 			var result = new ModelList<T>();
@@ -1282,8 +1315,7 @@ namespace Laclasse
 				while (await reader.ReadAsync())
 				{
 					var item = new T();
-					for (int i = 0; i < reader.FieldCount; i++)
-						item.Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+					DBToFields(reader, item);
 					result.Add(item);
 				}
 			}
@@ -1308,12 +1340,9 @@ namespace Laclasse
 				while (await reader.ReadAsync())
 				{
 					var item = new T();
-					for (int i = 0; i < reader.FieldCount; i++)
-					{
-						item.Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
-						if (reader.GetName(i) == primaryKey)
-							ids.Add(item.Fields[reader.GetName(i)]);
-					}
+					DBToFields(reader, item);
+					if (item.Fields.ContainsKey(primaryKey))
+						ids.Add(item.Fields[primaryKey]);
 					result.Add(item);
 				}
 			}
@@ -1374,7 +1403,7 @@ namespace Laclasse
 					result = new T();
 					for (int i = 0; i < reader.FieldCount; i++)
 					{
-						result.Fields[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+						DBToFields(reader, result);
 						if (expand && (reader.GetName(i) == primaryKey))
 							id = result.Fields[reader.GetName(i)];
 					}

@@ -310,6 +310,76 @@ namespace Laclasse
 							}
 						}
 					}
+					else
+					{
+						var jsonObject = json[property.Name] as JsonObject;
+						// Handle ModelListDiff
+						if (jsonObject != null && jsonObject.ContainsKey("diff"))
+						{
+							var diff = jsonObject["diff"] as JsonObject;
+
+							if (diff != null)
+							{
+								var modelListType = (typeof(ModelList<>)).MakeGenericType(expandFieldAttribute.ForeignModel);
+								var list = (IModelList)Activator.CreateInstance(modelListType);
+								Fields[property.Name] = list;
+
+								var modelListDiffType = (typeof(ModelListDiff<>)).MakeGenericType(expandFieldAttribute.ForeignModel);
+								var listDiff = (IModelListDiff)Activator.CreateInstance(modelListDiffType);
+
+								modelListType.GetField("diff").SetValue(list, listDiff);
+
+								if (diff.ContainsKey("add") && diff["add"] is JsonArray)
+								{
+									var listAdd = (IModelList)Activator.CreateInstance(modelListType);
+									(listDiff as Model).Fields["add"] = listAdd;
+									var jsonAddArray = diff["add"] as JsonArray;
+									foreach (var jsonItem in jsonAddArray)
+									{
+										if (jsonItem.JsonType == JsonType.Object)
+										{
+											var item = (Model)Activator.CreateInstance(expandFieldAttribute.ForeignModel);
+											item.FromJson((JsonObject)jsonItem, null, context);
+											listAdd.Add(item);
+										}
+									}
+								}
+
+								if (diff.ContainsKey("change") && diff["change"] is JsonArray)
+								{
+									var listChange = (IModelList)Activator.CreateInstance(modelListType);
+									(listDiff as Model).Fields["change"] = listChange;
+									var jsonChangeArray = diff["change"] as JsonArray;
+									foreach (var jsonItem in jsonChangeArray)
+									{
+										if (jsonItem.JsonType == JsonType.Object)
+										{
+											var item = (Model)Activator.CreateInstance(expandFieldAttribute.ForeignModel);
+											item.FromJson((JsonObject)jsonItem, null, context);
+											listChange.Add(item);
+										}
+									}
+
+								}
+
+								if (diff.ContainsKey("remove") && diff["remove"] is JsonArray)
+								{
+									var listRemove = (IModelList)Activator.CreateInstance(modelListType);
+									(listDiff as Model).Fields["remove"] = listRemove;
+									var jsonRemoveArray = diff["remove"] as JsonArray;
+									foreach (var jsonItem in jsonRemoveArray)
+									{
+										if (jsonItem.JsonType == JsonType.Object)
+										{
+											var item = (Model)Activator.CreateInstance(expandFieldAttribute.ForeignModel);
+											item.FromJson((JsonObject)jsonItem, null, context);
+											listRemove.Add(item);
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}

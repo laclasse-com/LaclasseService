@@ -376,6 +376,7 @@ namespace Laclasse.Directory
 									var itemDiff = new T();
 									itemDiff.FromJson((JsonObject)json, null, c);
 									itemDiff.Fields[details.PrimaryKeyName] = id;
+
 									using (DB db = await DB.CreateAsync(dbUrl, true))
 									{
 										await itemDiff.UpdateAsync(db);

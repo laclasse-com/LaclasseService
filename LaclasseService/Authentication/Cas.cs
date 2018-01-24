@@ -156,6 +156,7 @@ namespace Laclasse.Authentication
 					if (preTicket == null)
 					{
 						preTicket = new PreTicket();
+						preTicket.wantTicket = wantTicket;
 						preTickets.Add(preTicket);
 					}
 					else
@@ -180,10 +181,10 @@ namespace Laclasse.Authentication
 				Dictionary<string, string> formFields;
 				Dictionary<string, List<string>> formArrayFields;
 				HttpUtility.ParseFormUrlEncoded(formUrl, out formFields, out formArrayFields);
-
 				PreTicket preTicket = null;
 				if (formFields.ContainsKey("state"))
 					preTicket = preTickets[formFields["state"]];
+				
 				if (preTicket == null)
 				{
 					preTicket = new PreTicket();
@@ -199,9 +200,8 @@ namespace Laclasse.Authentication
 				else
 				{
 					formFields.RequireFields("username", "password");
-					//bool wantTicket = true;
-					//if (formFields.ContainsKey("ticket"))
-					//	wantTicket = Convert.ToBoolean(formFields["ticket"]);
+					if (formFields.ContainsKey("ticket"))
+						preTicket.wantTicket = Convert.ToBoolean(formFields["ticket"]);
 
 					var uid = await users.CheckPasswordAsync(formFields["username"], formFields["password"]);
 					if (uid == null)
@@ -219,7 +219,6 @@ namespace Laclasse.Authentication
 					{
 						preTicket.uid = uid;
 						// init the session and redirect to service
-						//await CasLoginAsync(c, uid, formFields.ContainsKey("service") ? formFields["service"] : null, Idp.ENT, wantTicket, state);
 						await CasLoginAsync(c, preTicket);
 					}
 				}

@@ -1356,7 +1356,9 @@ namespace Laclasse
 				var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
 				if (nullableType == null)
 				{
-					if (property.PropertyType.IsEnum && fieldValue is string)
+					if (reader.IsDBNull(i))
+						result.Fields[property.Name] = null;
+					else if (property.PropertyType.IsEnum && fieldValue is string)
 						result.Fields[property.Name] = Enum.Parse(property.PropertyType, (string)fieldValue);
 					else
 						result.Fields[property.Name] = Convert.ChangeType(fieldValue, property.PropertyType);

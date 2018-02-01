@@ -165,9 +165,10 @@ namespace Laclasse.Authentication
 							service = preTicket.service;
 					}
 					if (c.Request.QueryString.ContainsKey("ticket"))
-						preTicket.wantTicket = Convert.ToBoolean(c.Request.QueryString["ticket"]);
+						wantTicket = Convert.ToBoolean(c.Request.QueryString["ticket"]);
 					if (c.Request.QueryString.ContainsKey("service"))
 						preTicket.service = c.Request.QueryString["service"];
+					preTicket.wantTicket = wantTicket;
 
 					c.Response.StatusCode = 200;
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";

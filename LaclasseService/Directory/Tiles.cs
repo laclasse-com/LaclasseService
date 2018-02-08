@@ -35,14 +35,16 @@ namespace Laclasse.Directory
 	{
 		[ModelField]
 		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
-		//[ModelField(Required = false, ForeignModel = typeof(Tile))]
-		//public int? parent_id { get { return GetField<int?>(nameof(parent_id), null); } set { SetField(nameof(parent_id), value); } }
-		[ModelField(Required = true, ForeignModel = typeof(Structure))]
+		[ModelField(Required = false, ForeignModel = typeof(Tile))]
+		public int? parent_id { get { return GetField<int?>(nameof(parent_id), null); } set { SetField(nameof(parent_id), value); } }
+		[ModelField(Required = false, ForeignModel = typeof(Structure))]
 		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
-		//[ModelField(Required = false, ForeignModel = typeof(User))]
-		//public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
+		[ModelField(Required = false, ForeignModel = typeof(User))]
+		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 		[ModelField(ForeignModel = typeof(Application))]
 		public string application_id { get { return GetField<string>(nameof(application_id), null); } set { SetField(nameof(application_id), value); } }
+		[ModelField(ForeignModel = typeof(Resource))]
+		public int? resource_id { get { return GetField<int?>(nameof(resource_id), null); } set { SetField(nameof(resource_id), value); } }
 		[ModelField(Required = true)]
 		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
 		[ModelField]

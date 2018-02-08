@@ -1642,8 +1642,7 @@ namespace Laclasse.Aaf
 								user.groups.Add(new GroupUser
 								{
 									type = "ELV",
-									group_id = group.id,
-									pending_validation = false
+									group_id = group.id
 								});
 							}
 						}
@@ -1672,8 +1671,7 @@ namespace Laclasse.Aaf
 								user.groups.Add(new GroupUser
 								{
 									type = "ELV",
-									group_id = group.id,
-									pending_validation = false
+									group_id = group.id
 								});
 							}
 						}
@@ -1715,8 +1713,7 @@ namespace Laclasse.Aaf
 								{
 									type = "ENS",
 									group_id = group.id,
-									subject_id = subjectId,
-									pending_validation = false
+									subject_id = subjectId
 								});
 							}
 						}
@@ -1759,8 +1756,7 @@ namespace Laclasse.Aaf
 								{
 									type = "ENS",
 									group_id = group.id,
-									subject_id = subjectId,
-									pending_validation = false
+									subject_id = subjectId
 								});
 							}
 						}
@@ -1787,8 +1783,7 @@ namespace Laclasse.Aaf
 							user.groups.Add(new GroupUser
 							{
 								type = "PRI",
-								group_id = group.id,
-								pending_validation = false
+								group_id = group.id
 							});
 						}
 					}

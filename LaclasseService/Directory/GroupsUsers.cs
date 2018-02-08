@@ -49,8 +49,6 @@ namespace Laclasse.Directory
 		public DateTime ctime { get { return GetField(nameof(ctime), DateTime.Now); } set { SetField(nameof(ctime), value); } }
 		[ModelField]
 		public DateTime? aaf_mtime { get { return GetField<DateTime?>(nameof(aaf_mtime), null); } set { SetField(nameof(aaf_mtime), value); } }
-		[ModelField]
-		public bool pending_validation { get { return GetField(nameof(pending_validation), false); } set { SetField(nameof(pending_validation), value); } }
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
@@ -67,19 +65,8 @@ namespace Laclasse.Directory
 			// load the target user
 			if (user_id != null)
 			{
-				// a user can ask to enter in a group or remove himself from the group
-				if (authUser.IsUser && authUser.user.id == user_id && ((right == Right.Delete) || ((right == Right.Create) && (pending_validation == true))))
-					return;
-
-				var user = new User { id = user_id };
-				using (var db = await DB.CreateAsync(context.GetSetup().database.url))
-				{
-					if (!await user.LoadAsync(db, true))
-						throw new WebException(403, "Can check the user");
-				}
-
-				// a user with admin rights on the group's user can ask for a pending validation
-				if ((right == Right.Create) && (pending_validation == true) && authUser.HasRightsOnUser(user, false, false, true))
+				// a user can remove himself from the group
+				if (authUser.IsUser && authUser.user.id == user_id && ((right == Right.Delete)))
 					return;
 			}
 

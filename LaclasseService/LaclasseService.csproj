@@ -123,6 +123,7 @@
     <Compile Include="Authentication\OidcSso.cs" />
     <Compile Include="Authentication\PreTickets.cs" />
     <Compile Include="Directory\ChildrenGroupsUsers.cs" />
+    <Compile Include="Directory\TilesRights.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

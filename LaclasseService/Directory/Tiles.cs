@@ -59,6 +59,8 @@ namespace Laclasse.Directory
 		public string color { get { return GetField<string>(nameof(color), null); } set { SetField(nameof(color), value); } }
 		[ModelField]
 		public string icon { get { return GetField<string>(nameof(icon), null); } set { SetField(nameof(icon), value); } }
+		[ModelExpandField(Name = nameof(rights), ForeignModel = typeof(TileRight))]
+		public ModelList<TileRight> rights { get { return GetField<ModelList<TileRight>>(nameof(rights), null); } set { SetField(nameof(rights), value); } }
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{

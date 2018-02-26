@@ -64,8 +64,11 @@ namespace Laclasse.Directory
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
-			var structure = new Structure { id = structure_id };
-			await context.EnsureHasRightsOnStructureAsync(structure, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+			if (structure_id != null)
+			{
+				var structure = new Structure { id = structure_id };
+				await context.EnsureHasRightsOnStructureAsync(structure, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+			}
 		}
 	}
 

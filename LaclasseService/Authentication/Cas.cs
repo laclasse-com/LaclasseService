@@ -706,7 +706,7 @@ namespace Laclasse.Authentication
 			["DOC"] = "National_3"
 		};
 
-		async Task<Dictionary<string, string>> UserToSsoAttributesAsync(DB db, User user)
+		async Task<Dictionary<string, object>> UserToSsoAttributesAsync(DB db, User user)
 		{
 			// TODO: add ENTEleveClasses
 
@@ -719,6 +719,7 @@ namespace Laclasse.Authentication
 			foreach (var profileType in await db.SelectAsync<ProfileType>("SELECT * FROM `profile_type`"))
 				profilesTypes[profileType.id] = profileType;
 
+			List<string> ENTAuxEnsClasses = null;
 			string ENTEleveClasses = null;
 			string ENTPersonStructRattachRNE = null;
 			string ENTPersonProfils = null;
@@ -790,9 +791,23 @@ namespace Laclasse.Authentication
 						}
 					}
 				}
+				else
+				{
+					var group = new Directory.Group { id = user_group.group_id };
+					if (await group.LoadAsync(db))
+					{
+						if ((group.type == "CLS") && (group.structure_id == ENTPersonStructRattachRNE))
+						{
+							if (ENTAuxEnsClasses == null)
+								ENTAuxEnsClasses = new List<string>();
+							if (!ENTAuxEnsClasses.Any((arg) => arg == group.name))
+								ENTAuxEnsClasses.Add(group.name);
+						}
+					}
+				}
 			}
 
-			var result = new Dictionary<string, string>
+			var result = new Dictionary<string, object>
 			{
 				["uid"] = user.id,
 				["user"] = user.id,
@@ -817,6 +832,8 @@ namespace Laclasse.Authentication
 				result["ENTEleveClasses"] = ENTEleveClasses;
 			if (user.aaf_jointure_id != null)
 				result["ENTPersonJointure"] = ((long)user.aaf_jointure_id).ToString();
+			if (ENTAuxEnsClasses != null)
+				result["ENTAuxEnsClasses"] = ENTAuxEnsClasses;
 			return result;
 		}
 
@@ -894,7 +911,7 @@ namespace Laclasse.Authentication
 			preTickets.Remove(preTicket.id);
 		}
 
-		public async Task<Dictionary<string, string>> GetUserSsoAttributesAsync(string uid)
+		public async Task<Dictionary<string, object>> GetUserSsoAttributesAsync(string uid)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 			{
@@ -933,7 +950,7 @@ namespace Laclasse.Authentication
 			}
 		}
 
-		public string ServiceResponseSuccess(Dictionary<string, string> attributes, string identityAttribute)
+		public string ServiceResponseSuccess(Dictionary<string, object> attributes, string identityAttribute)
 		{
 			var dom = new XmlDocument();
 			var cas = "http://www.yale.edu/tp/cas";
@@ -958,7 +975,25 @@ namespace Laclasse.Authentication
 			foreach (var attribute in attributes.Keys)
 			{
 				var casAttribute = dom.CreateElement("cas:" + attribute, cas);
-				casAttribute.InnerText = attributes[attribute];
+				if (attributes[attribute] is string)
+				{
+					casAttribute.InnerText = attributes[attribute] as string;
+				}
+				else if (attributes[attribute] is List<string>)
+				{
+					var list = attributes[attribute] as List<string>;
+					string valueAttributeName = attribute;
+					if (attribute.EndsWith("s", StringComparison.InvariantCulture))
+					{
+						valueAttributeName = attribute.Substring(0, attribute.Length - 1);
+					}
+					foreach (var value in list)
+					{
+						var valueAttribute = dom.CreateElement("cas:" + valueAttributeName, cas);
+						valueAttribute.InnerText = value;
+						casAttribute.AppendChild(valueAttribute);
+					}
+				}
 				var casAttribute2 = casAttribute.CloneNode(true);
 				casAttributes.AppendChild(casAttribute);
 				authenticationSuccess.AppendChild(casAttribute2);
@@ -1088,7 +1123,7 @@ namespace Laclasse.Authentication
 			return doc;
 		}
 
-		XmlDocument SamlResponse1(Dictionary<string, string> attributes, string inResponseTo, string issuer,
+		XmlDocument SamlResponse1(Dictionary<string, object> attributes, string inResponseTo, string issuer,
 								  string nameIdentifier, string recipient)
 		{
 			var samlp = "urn:oasis:names:tc:SAML:1.0:protocol";
@@ -1154,7 +1189,7 @@ namespace Laclasse.Authentication
 			var subject = doc.CreateElement("Subject", saml);
 			attributeStatement.AppendChild(subject);
 			var nameIdentifierNode = doc.CreateElement("NameIdentifier", saml);
-			nameIdentifierNode.InnerText = attributes[nameIdentifier];
+			nameIdentifierNode.InnerText = attributes[nameIdentifier] as string;
 			subject.AppendChild(nameIdentifierNode);
 			var subjectConfirmation = doc.CreateElement("SubjectConfirmation", saml);
 			subject.AppendChild(subjectConfirmation);
@@ -1162,7 +1197,7 @@ namespace Laclasse.Authentication
 			confirmationMethod.InnerText = "urn:oasis:names:tc:SAML:1.0:cm:artifact";
 			subjectConfirmation.AppendChild(confirmationMethod);
 
-			foreach (KeyValuePair<string, string> keyValue in attributes)
+			foreach (KeyValuePair<string, object> keyValue in attributes)
 			{
 				var attribute = doc.CreateElement("Attribute", saml);
 				attributeStatement.AppendChild(attribute);
@@ -1171,9 +1206,23 @@ namespace Laclasse.Authentication
 				attribute.SetAttribute("AttributeNamespace", issuer);
 				attributeStatement.AppendChild(attribute);
 
-				var attributeValue = doc.CreateElement("AttributeValue", saml);
-				attributeValue.InnerText = keyValue.Value;
-				attribute.AppendChild(attributeValue);
+
+				if (keyValue.Value is string)
+				{
+					var attributeValue = doc.CreateElement("AttributeValue", saml);
+					attributeValue.InnerText = keyValue.Value as string;
+					attribute.AppendChild(attributeValue);
+				}
+				else if (keyValue.Value is List<string>)
+				{
+					var list = keyValue.Value as List<string>;
+					foreach (var value in list)
+					{
+						var attributeValue = doc.CreateElement("AttributeValue", saml);
+						attributeValue.InnerText = value;
+						attribute.AppendChild(attributeValue);
+					}
+				}
 			}
 
 			var authenticationStatement = doc.CreateElement("AuthenticationStatement", saml);
@@ -1186,7 +1235,7 @@ namespace Laclasse.Authentication
 			subject = doc.CreateElement("Subject", saml);
 			authenticationStatement.AppendChild(subject);
 			nameIdentifierNode = doc.CreateElement("NameIdentifier", saml);
-			nameIdentifierNode.InnerText = attributes[nameIdentifier];
+			nameIdentifierNode.InnerText = attributes[nameIdentifier] as string;
 			subject.AppendChild(nameIdentifierNode);
 			subjectConfirmation = doc.CreateElement("SubjectConfirmation", saml);
 			subject.AppendChild(subjectConfirmation);
@@ -1220,7 +1269,7 @@ namespace Laclasse.Authentication
 			return doc;
 		}
 
-		XmlDocument SoapSamlResponse(string selfUrl, XmlDocument request, Dictionary<string, string> attributes,
+		XmlDocument SoapSamlResponse(string selfUrl, XmlDocument request, Dictionary<string, object> attributes,
 									 string nameIdentifier, string recipient)
 		{
 			var SOAPENV = "http://schemas.xmlsoap.org/soap/envelope/";
@@ -1486,10 +1535,10 @@ namespace Laclasse.Authentication
 			return null;
 		}
 
-		public Dictionary<string, string> FilterAttributesFromClient(
-			SsoClient client, Dictionary<string, string> userAttributes)
+		public Dictionary<string, object> FilterAttributesFromClient(
+			SsoClient client, Dictionary<string, object> userAttributes)
 		{
-			var attributes = new Dictionary<string, string>();
+			var attributes = new Dictionary<string, object>();
 			foreach (var attr in client.attributes)
 			{
 				if (userAttributes.ContainsKey(attr))
@@ -1752,7 +1801,7 @@ namespace Laclasse.Authentication
 
 			c.Response.StatusCode = 200;
 			c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-			c.Response.Content = ServiceResponseSuccess(attributes, userAttributes[client.identity_attribute]);
+			c.Response.Content = ServiceResponseSuccess(attributes, userAttributes[client.identity_attribute] as string);
 		}
 	}
 }

@@ -31,6 +31,7 @@ using System.Linq;
 using Dir = System.IO.Directory;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Erasme.Json;
@@ -323,18 +324,31 @@ namespace Laclasse.Directory
 							var dir = DirExt.CreateRecursive(Path.Combine(
 								avatarDir, uid[0].ToString(), uid[1].ToString(), uid[2].ToString()));
 							var ext = ".jpg";
-							if (part.Headers["content-type"] == "image/png")
+							var format = "jpeg";
+							if ((part.Headers["content-type"] == "image/png") || (part.Headers["content-type"] == "image/svg+xml"))
+							{
 								ext = ".png";
-							else if (part.Headers["content-type"] == "image/svg+xml")
-								ext = ".svg";
+								format = "png";
+							}
 
 							var name = StringExt.RandomString(16) + "_" + uid + ext;
 
-							// get and save the image
-							using (var stream = File.OpenWrite(Path.Combine(dir.FullName, name)))
-							{
-								await part.Stream.CopyToAsync(stream);
-							}
+							// crop / resize / convert the image using ImageMagick
+							var startInfo = new ProcessStartInfo("/usr/bin/convert", "- -auto-orient -strip -set option:distort:viewport \"%[fx:min(w,h)]x%[fx:min(w,h)]+%[fx:max((w-h)/2,0)]+%[fx:max((h-w)/2,0)]\" -distort SRT 0 +repage -quality 80 -resize 256x256 "+format+":" + Path.Combine(dir.FullName, name));
+							startInfo.RedirectStandardOutput = false;
+							startInfo.RedirectStandardInput = true;
+							startInfo.UseShellExecute = false;
+							var process = new Process();
+							process.StartInfo = startInfo;
+							process.Start();
+
+							// read the file stream and send it to ImageMagick
+							await part.Stream.CopyToAsync(process.StandardInput.BaseStream);
+							process.StandardInput.Close();
+
+							process.WaitForExit();
+							process.Dispose();
+
 							c.Response.StatusCode = 200;
 							var userDiff = new User { id = uid, avatar = name };
 							using (DB db = await DB.CreateAsync(dbUrl))

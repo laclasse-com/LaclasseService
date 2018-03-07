@@ -322,7 +322,7 @@ function onContactBack(e) {
 		    	        			<input type="hidden" name="service" value="<#= service #>">
 		    	        			<input type="hidden" name="state" value="<#= state #>">
 		    	        			<input type="hidden" name="ticket" value="<#= ticket #>">
-		    	        			<div>Code:</div>
+		    	        			<div>Email ou Tel:</div>
 									<input name="rescue" type="text" style="margin-bottom: 10px;">
 									<br><br>
 									<input style="width: calc(100% - 10px);" class="btn" name="submit" type="submit" value="RÉCUPÉRER">

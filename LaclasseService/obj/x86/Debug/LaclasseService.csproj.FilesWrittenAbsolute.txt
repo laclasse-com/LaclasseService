@@ -12,3 +12,4 @@
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/BouncyCastle.Crypto.dll
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/MimeKit.dll
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/MailKit.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/ICSharpCode.SharpZipLib.dll

@@ -30,9 +30,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="MySql.Data">
-      <HintPath>..\packages\MySql.Data.6.9.9\lib\net45\MySql.Data.dll</HintPath>
-    </Reference>
     <Reference Include="Erasme.Http">
       <HintPath>..\..\..\liberasme-http-cil\liberasme-http-cil\Erasme.Http\bin\Debug\Erasme.Http.dll</HintPath>
     </Reference>
@@ -47,9 +44,6 @@
     <Reference Include="System.Numerics" />
     <Reference Include="System.Security" />
     <Reference Include="Mono.Posix" />
-    <Reference Include="SharpCompress">
-      <HintPath>..\packages\SharpCompress.0.17.1\lib\net45\SharpCompress.dll</HintPath>
-    </Reference>
     <Reference Include="SgmlReaderDll">
       <HintPath>..\packages\Microsoft.Xml.SgmlReader.1.8.14\lib\net45\SgmlReaderDll.dll</HintPath>
     </Reference>
@@ -59,11 +53,21 @@
     <Reference Include="BouncyCastle.Crypto">
       <HintPath>..\packages\BouncyCastle.1.8.1\lib\BouncyCastle.Crypto.dll</HintPath>
     </Reference>
-    <Reference Include="MimeKit">
-      <HintPath>..\packages\MimeKit.1.18.1\lib\net45\MimeKit.dll</HintPath>
+    <Reference Include="SharpCompress">
+      <HintPath>..\packages\SharpCompress.0.19.2\lib\net45\SharpCompress.dll</HintPath>
     </Reference>
+    <Reference Include="MimeKit">
+      <HintPath>..\packages\MimeKit.2.0.1\lib\net45\MimeKit.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Net.Http" />
     <Reference Include="MailKit">
-      <HintPath>..\packages\MailKit.1.18.1.1\lib\net45\MailKit.dll</HintPath>
+      <HintPath>..\packages\MailKit.2.0.1\lib\net45\MailKit.dll</HintPath>
+    </Reference>
+    <Reference Include="MySql.Data">
+      <HintPath>..\packages\MySql.Data.6.9.11\lib\net45\MySql.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>..\packages\SharpZipLib.0.86.0\lib\20\ICSharpCode.SharpZipLib.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -124,6 +128,7 @@
     <Compile Include="Authentication\PreTickets.cs" />
     <Compile Include="Directory\ChildrenGroupsUsers.cs" />
     <Compile Include="Directory\TilesRights.cs" />
+    <Compile Include="Doc\Docs.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -140,6 +145,7 @@
     <Folder Include="Manage\" />
     <Folder Include="Scheduler\" />
     <Folder Include="Mail\" />
+    <Folder Include="Doc\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>

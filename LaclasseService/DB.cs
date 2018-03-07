@@ -71,6 +71,7 @@ namespace Laclasse
 	{
 		public string Table;
 		public string PrimaryKey;
+		public string DB;
 	}
 
 	[AttributeUsage(AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
@@ -1794,18 +1795,18 @@ namespace Laclasse
 			return values;
 		}
 
-		public static bool CheckDBModels(string dbUrl)
+		public static bool CheckDBModels(Dictionary<string,string> dbsUrl)
 		{
 			bool valid = true;
 			foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
 			{
 				if (type.IsSubclassOf(typeof(Model)))
-					valid &= CheckDBModel(dbUrl, type);
+					valid &= CheckDBModel(dbsUrl, type);
 			}
 			return valid;
 		}
 
-		public static bool CheckDBModel(string dbUrl, Type model)
+		public static bool CheckDBModel(Dictionary<string, string> dbsUrl, Type model)
 		{
 			if (!model.IsSubclassOf(typeof(Model)))
 				return false;
@@ -1818,6 +1819,11 @@ namespace Laclasse
 
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : model.Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
+			string dbName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).DB : "DEFAULT";
+			if (dbName == null)
+				dbName = "DEFAULT";
+
+			var dbUrl = dbsUrl[dbName];
 
 			var fieldsProperties = new Dictionary<string, PropertyInfo>();
 			var properties = model.GetProperties();

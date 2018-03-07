@@ -28,6 +28,12 @@ namespace Laclasse
 		public string url = "server=localhost;userid=user;password=password;database=annuairev3";
 	}
 
+	public class DocSetup
+	{
+		public string url = "server=localhost;userid=user;password=password;database=docsv3";
+		public string path = "/var/lib/laclasse-docs/";
+	}
+
 	public class LogSetup
 	{
 		public string alertEmail = null;
@@ -144,5 +150,6 @@ namespace Laclasse
 		public MailSetup mail = new MailSetup();
 		public SmsSetup sms = new SmsSetup();
 		public AuthenticationSetup authentication = new AuthenticationSetup();
+		public DocSetup doc = new DocSetup();
 	}
 }

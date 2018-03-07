@@ -29,6 +29,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Collections.Generic;
 using Mono.Unix;
 using Mono.Unix.Native;
 using Erasme.Http;
@@ -170,6 +171,8 @@ namespace Laclasse
 
 			mapper.Add("/api/users", new Mail.ImapCheck(dbUrl));
 
+			mapper.Add("/api/docs", new Docs.Docs(setup.doc.url, setup.doc.path));
+
 			// if the request is not already handled, try static files
 			server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));
 
@@ -182,7 +185,7 @@ namespace Laclasse
 
 			// quick check to validate the currents models.
 			// If not compatible with the DB Schema. STOP HERE
-			if (!DB.CheckDBModels(dbUrl))
+			if (!DB.CheckDBModels(new Dictionary<string, string>() { ["DEFAULT"] = dbUrl, ["DOCS"] = setup.doc.url }))
 				return;
 			
 			// start a day scheduler to run the AAF sync task

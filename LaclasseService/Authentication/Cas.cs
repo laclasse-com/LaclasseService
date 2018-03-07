@@ -67,6 +67,7 @@ namespace Laclasse.Authentication
 		public string identity_attribute;
 		public List<string> urls;
 		public List<string> attributes;
+		public bool cas_attributes;
 	}
 
 	public class Cas : HttpRouting
@@ -950,7 +951,7 @@ namespace Laclasse.Authentication
 			}
 		}
 
-		public string ServiceResponseSuccess(Dictionary<string, object> attributes, string identityAttribute)
+		public string ServiceResponseSuccess(Dictionary<string, object> attributes, string identityAttribute, bool wantCasAttributes)
 		{
 			var dom = new XmlDocument();
 			var cas = "http://www.yale.edu/tp/cas";
@@ -970,7 +971,8 @@ namespace Laclasse.Authentication
 			authenticationSuccess.AppendChild(casUser);
 
 			var casAttributes = dom.CreateElement("cas:attributes", cas);
-			authenticationSuccess.AppendChild(casAttributes);
+			if (wantCasAttributes)
+				authenticationSuccess.AppendChild(casAttributes);
 
 			foreach (var attribute in attributes.Keys)
 			{
@@ -1499,7 +1501,8 @@ namespace Laclasse.Authentication
 						name = (string)item["name"],
 						identity_attribute = (string)item["identity_attribute"],
 						urls = new List<string>(),
-						attributes = new List<string>()
+						attributes = new List<string>(),
+						cas_attributes = (bool)item["cas_attributes"],
 					};
 					clients[client.id] = client;
 				}
@@ -1801,7 +1804,7 @@ namespace Laclasse.Authentication
 
 			c.Response.StatusCode = 200;
 			c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
-			c.Response.Content = ServiceResponseSuccess(attributes, userAttributes[client.identity_attribute] as string);
+			c.Response.Content = ServiceResponseSuccess(attributes, userAttributes[client.identity_attribute] as string, client.cas_attributes);
 		}
 	}
 }

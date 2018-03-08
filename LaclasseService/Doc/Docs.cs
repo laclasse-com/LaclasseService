@@ -84,6 +84,9 @@ namespace Laclasse.Docs
 		public int? groupe_libre_id { get { return GetField<int?>(nameof(groupe_libre_id), null); } set { SetField(nameof(groupe_libre_id), value); } }
 		[ModelField]
 		public DateTime? return_date { get { return GetField<DateTime?>(nameof(return_date), null); } set { SetField(nameof(return_date), value); } }
+
+		[ModelExpandField(Name = nameof(children), ForeignModel = typeof(Node))]
+		public ModelList<Node> children { get { return GetField<ModelList<Node>>(nameof(children), null); } set { SetField(nameof(children), value); } }
 	}
 
 	/// <summary>
@@ -227,12 +230,12 @@ namespace Laclasse.Docs
 		}
 	}
 
-	public class Docs : HttpRouting
+	public class Docs : Directory.ModelService<Node>
 	{
 		string dbUrl;
 		string path;
 
-		public Docs(string dbUrl, string path)
+		public Docs(string dbUrl, string path): base(dbUrl)
 		{
 			this.dbUrl = dbUrl;
 			this.path = path;
@@ -264,6 +267,8 @@ namespace Laclasse.Docs
 
 		public override async Task ProcessRequestAsync(HttpContext context)
 		{
+			await context.EnsureIsAuthenticatedAsync();
+			 
 			var match = Regex.Match(context.Request.Path, @"^/zip/(\d+)/content/(.*)$");
 			if (match.Success)
 			{

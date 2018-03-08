@@ -249,14 +249,27 @@ namespace Laclasse.Directory
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
+			// get the expanded user if we dont already have it. expanded fields like profiles
+			// are needed to check rights
+			var expandUser = this;
+			if (expandUser.profiles == null || expandUser.groups == null || expandUser.children == null || expandUser.parents == null)
+			{
+				using (var db = await DB.CreateAsync(context.GetSetup().database.url))
+				{
+					expandUser = new User { id = expandUser.id };
+					if (!await expandUser.LoadAsync(db, true))
+						throw new WebException(403, "Insufficient authorization");
+				}
+			}
+
 			// password field only visible to the admin of the user
 			if (IsSet(nameof(password)))
 			{
 				var authUser = await context.GetAuthenticatedUserAsync();
-				if ((authUser == null) || !authUser.HasRightsOnUser(this, false, false, true))
+				if ((authUser == null) || !authUser.HasRightsOnUser(expandUser, false, false, true))
 					Fields.Remove(nameof(password));
 			}
-			await context.EnsureHasRightsOnUserAsync(this, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+			await context.EnsureHasRightsOnUserAsync(expandUser, true, right == Right.Update, right == Right.Create || right == Right.Delete);
 		}
 	}
 
@@ -297,9 +310,12 @@ namespace Laclasse.Directory
 			{
 				var uid = (string)p["uid"];
 
-				User oldUser;
-				using (DB db = await DB.CreateAsync(dbUrl))
-					 oldUser = await db.SelectRowAsync<User>(uid, false);
+				var oldUser = new User { id = uid };
+				using (var db = await DB.CreateAsync(dbUrl))
+				{
+					if (!await oldUser.LoadAsync(db, true))
+						oldUser = null;
+				}
 
 				//var oldUser = await GetUserAsync(uid);
 				if (oldUser == null)

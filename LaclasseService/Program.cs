@@ -81,12 +81,15 @@ namespace Laclasse
 			// get the config file from args
 			string configFile = null;
 			bool interactive = false;
+			bool checkDB = false;
 			for (int i = 0; i < args.Length; i++)
 			{
 				if ((args[i] == "-c") || (args[i] == "--configFile"))
 					configFile = args[++i];
 				else if (args[i] == "-i")
 					interactive = true;
+				else if ((args[i] == "-d") || (args[i] == "--checkDB"))
+					checkDB = true;
 			}
 
 			// load the current setup
@@ -102,6 +105,15 @@ namespace Laclasse
 			}
 
 			string dbUrl = setup.database.url;
+
+			// quick check to validate the currents models.
+			// If not compatible with the DB Schema. STOP HERE
+			if (!DB.CheckDBModels(new Dictionary<string, string>() { ["DEFAULT"] = dbUrl, ["DOCS"] = setup.doc.url }))
+				return;
+			
+			// if only check DB is asked, stop here
+			if (checkDB)
+				return;
 
 			var logger = new Logger(setup.log, setup.mail);
 
@@ -182,11 +194,6 @@ namespace Laclasse
 			contextInjector.Inject("applications", applications);
 			contextInjector.Inject("publicUrl", setup.server.publicUrl);
 			contextInjector.Inject("setup", setup);
-
-			// quick check to validate the currents models.
-			// If not compatible with the DB Schema. STOP HERE
-			if (!DB.CheckDBModels(new Dictionary<string, string>() { ["DEFAULT"] = dbUrl, ["DOCS"] = setup.doc.url }))
-				return;
 			
 			// start a day scheduler to run the AAF sync task
 			var dayScheduler = new Scheduler.DayScheduler(logger);

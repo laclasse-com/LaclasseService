@@ -252,7 +252,7 @@ namespace Laclasse.Directory
 			// get the expanded user if we dont already have it. expanded fields like profiles
 			// are needed to check rights
 			var expandUser = this;
-			if (expandUser.profiles == null || expandUser.groups == null || expandUser.children == null || expandUser.parents == null)
+			if (right != Right.Create && (expandUser.profiles == null || expandUser.groups == null || expandUser.children == null || expandUser.parents == null))
 			{
 				using (var db = await DB.CreateAsync(context.GetSetup().database.url))
 				{

@@ -4,12 +4,12 @@
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/LaclasseService.exe
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe.mdb
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/MySql.Data.dll
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/Erasme.Http.dll
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/BCrypt.Net.dll
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/SharpCompress.dll
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/SgmlReaderDll.dll
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/BouncyCastle.Crypto.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/SharpCompress.dll
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/MimeKit.dll
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/MailKit.dll
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/ICSharpCode.SharpZipLib.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/MySql.Data.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/SharpZipLib.dll
+/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Debug/Erasme.Http.dll

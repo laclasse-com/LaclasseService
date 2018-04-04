@@ -60,17 +60,40 @@ namespace Laclasse.Aaf
 		readonly List<string> errors = new List<string>();
 
 		/// <summary>
-		/// Convert user to user link type from the AAF 2D id to the ENT id
+		/// Convert user to user link type from the AAF 2D id to the ENT id.
+		/// See: http://infocentre.pleiade.education.fr/bcn/workspace/viewTable/n/N_LIEN_ELEVE_RESPONSABLE
 		/// </summary>
 		public readonly static Dictionary<int, string> aafRelationType = new Dictionary<int, string>
 		{
-			[1] = "PERE",
-			[2] = "MERE",
-			[3] = "TUTEUR",
-			[4] = "A_MMBR",
-			[5] = "DDASS",
-			[6] = "A_CAS",
-			[7] = "ELEVE"
+			[1] = "PERE", // PERE
+			[2] = "MERE", // MERE
+			[3] = "TUTEUR", // TUTEUR
+			[4] = "A_MMBR", // AUTRE MEMBRE DE LA FAMILLE
+			[5] = "DDASS", // AIDE SOCIALE A L'ENFANCE
+			[6] = "A_CAS", // AUTRE CAS
+			//[7] = "ELEVE", // ELEVE LUI_MEME
+
+			[20] = "PERE", // PERE
+			[10] = "MERE", // MERE
+			[50] = "TUTEUR", // TUTEUR
+			[39] = "A_MMBR", // AUTRE MEMBRE DE LA FAMILLE
+			[51] = "DDASS", // AIDE SOCIALE A L'ENFANCE
+			[90] = "A_CAS", // AUTRE LIEN
+			//[70] = "ELEVE", // ELEVE LUI MEME
+
+			//[37] = "FRATRIE", // FRATRIE
+			[38] = "ASCENDANT", // ASCENDANT
+			[41] = "EDUCATEUR",  // EDUCATEUR
+			[42] = "ASS. FAMIL", // ASSISTANT FAMILIAL
+			[43] = "GARDE ENF.", // GARDE d'ENFANT
+
+			//[31] = "FRERE", // FRERE
+			//[32] = "SOEUR", // SOEUR
+			[33] = "GRAND-PERE", // GRAND-PERE
+			[34] = "GRAND-MERE", // GRAND-MERE
+			[35] = "ONCLE", // ONCLE
+			[36] = "TANTE", // TANTE
+			//[40] = "COLLATERAU" // COLLATERAUX
 		};
 
 		/// <summary>
@@ -1874,36 +1897,47 @@ namespace Laclasse.Aaf
 						}
 						else
 						{
-							user.parents.Add(new UserChild
+							var relTypeInt = int.Parse(tab[1]);
+							if (aafRelationType.ContainsKey(relTypeInt))
 							{
-								type = aafRelationType[int.Parse(tab[1])],
-								parent_id = parent.id,
-								child_id = user.id,
-								financial = tab[2] == "1",
-								legal = tab[3] == "1",
-								contact = tab[4] == "1"
-							});
+								var relType = aafRelationType[relTypeInt];
 
-							// copy the child relation to the parent
-							if (parent.children == null)
-								parent.children = new ModelList<UserChild>();
-							if (!parent.children.Any((arg) => arg.child_id == user.id))
-								parent.children.Add(new UserChild {
-									type = aafRelationType[int.Parse(tab[1])],
+								user.parents.Add(new UserChild
+								{
+									type = relType,
 									parent_id = parent.id,
 									child_id = user.id,
 									financial = tab[2] == "1",
 									legal = tab[3] == "1",
 									contact = tab[4] == "1"
 								});
-							// convert the child profiles to parent profiles in the structures
-							if (user.profiles != null)
+
+								// copy the child relation to the parent
+								if (parent.children == null)
+									parent.children = new ModelList<UserChild>();
+								if (!parent.children.Any((arg) => arg.child_id == user.id))
+									parent.children.Add(new UserChild
+									{
+										type = relType,
+										parent_id = parent.id,
+										child_id = user.id,
+										financial = tab[2] == "1",
+										legal = tab[3] == "1",
+										contact = tab[4] == "1"
+									});
+								// convert the child profiles to parent profiles in the structures
+								if (user.profiles != null)
+								{
+									if (parent.profiles == null)
+										parent.profiles = new ModelList<UserProfile>();
+									foreach (var profile in user.profiles.FindAll((obj) => obj.type == "ELV"))
+										if (!parent.profiles.Any((arg) => arg.type == "TUT" && arg.structure_id == profile.structure_id))
+											parent.profiles.Add(new UserProfile { type = "TUT", structure_id = profile.structure_id });
+								}
+							}
+							else
 							{
-								if (parent.profiles == null)
-									parent.profiles = new ModelList<UserProfile>();
-								foreach (var profile in user.profiles.FindAll((obj) => obj.type == "ELV"))
-									if (!parent.profiles.Any((arg) => arg.type == "TUT" && arg.structure_id == profile.structure_id))
-										parent.profiles.Add(new UserProfile { type = "TUT", structure_id = profile.structure_id });
+								Console.WriteLine($"WARNING: INVALID ENTElevePersRelEleve aafRelationType WITH ID {relTypeInt} NOT FOUND");
 							}
 						}
 					}

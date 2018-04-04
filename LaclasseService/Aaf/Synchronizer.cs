@@ -86,14 +86,6 @@ namespace Laclasse.Aaf
 			[41] = "EDUCATEUR",  // EDUCATEUR
 			[42] = "ASS. FAMIL", // ASSISTANT FAMILIAL
 			[43] = "GARDE ENF.", // GARDE d'ENFANT
-
-			//[31] = "FRERE", // FRERE
-			//[32] = "SOEUR", // SOEUR
-			[33] = "GRAND-PERE", // GRAND-PERE
-			[34] = "GRAND-MERE", // GRAND-MERE
-			[35] = "ONCLE", // ONCLE
-			[36] = "TANTE", // TANTE
-			//[40] = "COLLATERAU" // COLLATERAUX
 		};
 
 		/// <summary>

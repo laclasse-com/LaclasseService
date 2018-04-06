@@ -129,6 +129,7 @@
     <Compile Include="Directory\ChildrenGroupsUsers.cs" />
     <Compile Include="Directory\TilesRights.cs" />
     <Compile Include="Doc\Docs.cs" />
+    <Compile Include="Directory\Icons.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

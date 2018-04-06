@@ -185,6 +185,8 @@ namespace Laclasse
 
 			mapper.Add("/api/docs", new Docs.Docs(setup.doc.url, setup.doc.path));
 
+			mapper.Add("/api/icons", new Icons(dbUrl));
+
 			// if the request is not already handled, try static files
 			server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));
 

@@ -34,6 +34,20 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
+	public enum ResourceUrlMode
+	{
+		GLOBAL,
+		USERDEFINED
+	}
+
+	public enum ResourceEmbedMode
+	{
+		IFRAME,
+		EXTERNAL,
+		PORTAL,
+		REPLACE
+	}
+
 	[Model(Table = "resource", PrimaryKey = nameof(id))]
 	public class Resource : Model
 	{
@@ -49,6 +63,19 @@ namespace Laclasse.Directory
 		public DateTime? mtime { get { return GetField<DateTime?>(nameof(mtime), null); } set { SetField(nameof(mtime), value); } }
 		[ModelField]
 		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
+		[ModelField]
+		public string icon { get { return GetField<string>(nameof(icon), null); } set { SetField(nameof(icon), value); } }
+		[ModelField]
+		public string color { get { return GetField<string>(nameof(color), null); } set { SetField(nameof(color), value); } }
+		[ModelField]
+		public string description { get { return GetField<string>(nameof(description), null); } set { SetField(nameof(description), value); } }
+		[ModelField]
+		public string editor { get { return GetField<string>(nameof(editor), null); } set { SetField(nameof(editor), value); } }
+		[ModelField]
+		public ResourceUrlMode url_mode { get { return GetField<ResourceUrlMode>(nameof(url_mode), ResourceUrlMode.GLOBAL); } set { SetField(nameof(url_mode), value); } }
+		[ModelField]
+		public ResourceEmbedMode embed { get { return GetField<ResourceEmbedMode>(nameof(embed), ResourceEmbedMode.EXTERNAL); } set { SetField(nameof(embed), value); } }
+
 
 		[ModelExpandField(Name = nameof(structures), ForeignModel = typeof(StructureResource), Visible = false)]
 		public ModelList<StructureResource> structures {

@@ -241,6 +241,9 @@ namespace Laclasse.Directory
 
 		public override void FromJson(JsonObject json, string[] filterFields = null, HttpContext context = null)
 		{
+			// only accept "empty" in avatar field
+			if (json.ContainsKey(nameof(avatar)) && (json["avatar"].Value as string != "empty"))
+				json.Remove(nameof(avatar));
 			base.FromJson(json, filterFields, context);
 			// if the password is set, need to transform it
 			if (json.ContainsKey(nameof(password)))

@@ -187,6 +187,10 @@ namespace Laclasse
 
 			mapper.Add("/api/icons", new Icons(dbUrl));
 
+            mapper.Add ("/api/sso_clients", new SsoClients (dbUrl));
+            mapper.Add ("/api/sso_clients_urls", new SsoClientsUrls (dbUrl));
+            mapper.Add ("/api/sso_clients_attributes", new SsoClientsAttributes (dbUrl));
+
 			// if the request is not already handled, try static files
 			server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));
 

@@ -130,6 +130,9 @@
     <Compile Include="Directory\TilesRights.cs" />
     <Compile Include="Doc\Docs.cs" />
     <Compile Include="Directory\Icons.cs" />
+    <Compile Include="Directory\SsoClients.cs" />
+    <Compile Include="Directory\SsoClientsUrls.cs" />
+    <Compile Include="Directory\SsoClientsAttributes.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -157,7 +160,7 @@
     <MonoDevelop>
       <Properties>
         <Policies>
-          <DotNetNamingPolicy DirectoryNamespaceAssociation="PrefixedHierarchical" ResourceNamePolicy="FileFormatDefault" />
+          <DotNetNamingPolicy ResourceNamePolicy="FileFormatDefault" DirectoryNamespaceAssociation="PrefixedHierarchical" />
         </Policies>
       </Properties>
     </MonoDevelop>

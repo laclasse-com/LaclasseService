@@ -5,7 +5,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017-2018 Metropole de Lyon
 // Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -48,6 +48,22 @@ namespace Laclasse.Directory
 		REPLACE
 	}
 
+    public enum ResourceCost
+    {
+        FREE,
+        SUBSCRIPTION
+    }
+
+    public enum ResourceTargetUser
+    {
+        ENS,
+        ELV,
+        TUT,
+        EDU,
+        ETA,
+        OTHER
+    }
+
 	[Model(Table = "resource", PrimaryKey = nameof(id))]
 	public class Resource : Model
 	{
@@ -72,10 +88,13 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string editor { get { return GetField<string>(nameof(editor), null); } set { SetField(nameof(editor), value); } }
 		[ModelField]
-		public ResourceUrlMode url_mode { get { return GetField<ResourceUrlMode>(nameof(url_mode), ResourceUrlMode.GLOBAL); } set { SetField(nameof(url_mode), value); } }
+		public ResourceUrlMode url_mode { get { return GetField(nameof(url_mode), ResourceUrlMode.GLOBAL); } set { SetField(nameof(url_mode), value); } }
 		[ModelField]
-		public ResourceEmbedMode embed { get { return GetField<ResourceEmbedMode>(nameof(embed), ResourceEmbedMode.EXTERNAL); } set { SetField(nameof(embed), value); } }
-
+		public ResourceEmbedMode embed { get { return GetField(nameof(embed), ResourceEmbedMode.EXTERNAL); } set { SetField(nameof(embed), value); } }
+        [ModelField]
+        public ResourceCost cost { get { return GetField(nameof (cost), ResourceCost.FREE); } set { SetField (nameof (cost), value); } }
+        [ModelField]
+        public ResourceTargetUser? target_user { get { return GetField<ResourceTargetUser?> (nameof (target_user), null); } set { SetField (nameof (target_user), value); } }
 
 		[ModelExpandField(Name = nameof(structures), ForeignModel = typeof(StructureResource), Visible = false)]
 		public ModelList<StructureResource> structures {

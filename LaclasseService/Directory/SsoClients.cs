@@ -41,6 +41,8 @@ namespace Laclasse.Directory
         public string identity_attribute { get { return GetField<string> (nameof (identity_attribute), null); } set { SetField (nameof (identity_attribute), value); } }
         [ModelField]
         public bool cas_attributes { get { return GetField (nameof (cas_attributes), false); } set { SetField (nameof (cas_attributes), value); } }
+        [ModelField (Required = false, ForeignModel = typeof (Resource))]
+        public int? resource_id { get { return GetField<int?> (nameof (resource_id), null); } set { SetField (nameof (resource_id), value); } }
 
         [ModelExpandField (Name = nameof (urls), ForeignModel = typeof (SsoClientUrl))]
         public ModelList<SsoClientUrl> urls { get { return GetField<ModelList<SsoClientUrl>> (nameof (urls), null); } set { SetField (nameof (urls), value); } }

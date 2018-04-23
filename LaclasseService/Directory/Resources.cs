@@ -101,6 +101,9 @@ namespace Laclasse.Directory
 			get { return GetField<ModelList<StructureResource>>(nameof(structures), null); }
 			set { SetField(nameof(structures), value); } }
 
+        [ModelExpandField (Name = nameof (sso_clients), ForeignModel = typeof (SsoClient))]
+        public ModelList<SsoClient> sso_clients { get { return GetField<ModelList<SsoClient>> (nameof (sso_clients), null); } set { SetField (nameof (sso_clients), value); } }
+
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
 			if (right != Right.Read)

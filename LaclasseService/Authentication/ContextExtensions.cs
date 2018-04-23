@@ -114,11 +114,8 @@ namespace Laclasse.Authentication
 				return true;
 			if (user.groups.Exists((obj) => (obj.group_id == group.id)))
 				return true;
-			foreach (var child in user.children)
-			{
-				if (group.users.Exists((obj) => (obj.user_id == child.child_id)))
-					return true;
-			}
+            if (user.children_groups.Exists ((obj) => (obj.group_id == group.id)))
+                return true;
 			return false;
 		}
 

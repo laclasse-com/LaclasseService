@@ -267,9 +267,11 @@ namespace Laclasse.Directory
 			//				$"OR {DB.InFilter("id", allowIds)})";
 
 			var filter = "INNER JOIN(" +
-				$"SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE {DB.InFilter("structure_id", structuresIds)} AND `type` != 'ELV' AND `type` != 'TUT' " +
-				$"UNION SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)}" +
+				$"SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE {DB.InFilter("structure_id", structuresIds)} AND `type` != 'ELV' AND `type` != 'TUT' " +            
 				$"UNION SELECT '{DB.EscapeString(user.user.id)}' ";
+
+			if (groupsIds.Count() > 0)
+				filter += $"UNION SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)} ";
 
 			foreach (var allowId in allowIds)
 				filter += $"UNION SELECT '{DB.EscapeString(allowId)}' ";

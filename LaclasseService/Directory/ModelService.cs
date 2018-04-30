@@ -120,8 +120,12 @@ namespace Laclasse.Directory
 			await base.ProcessRequestAsync(context);
 			var c = context;         
 			if (c.Request.QueryString.ContainsKey("seenBy")) {
-				await context.EnsureIsSuperAdminAsync();
-				await c.SetAuthenticatedUserAsync(c.Request.QueryString["seenBy"]);
+				var authUser = await context.GetAuthenticatedUserAsync();
+				if (authUser == null || !authUser.IsUser || authUser.user.id != c.Request.QueryString["seenBy"])
+				{
+					await context.EnsureIsSuperAdminAsync();
+                    await c.SetAuthenticatedUserAsync(c.Request.QueryString["seenBy"]);					
+				}            
 			}
                 
 			if (c.Response.StatusCode == -1)

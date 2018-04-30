@@ -26,6 +26,7 @@
 //
 
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Laclasse.Authentication;
@@ -94,6 +95,20 @@ namespace Laclasse.Directory
 
 		[ModelExpandField(Name = nameof(flux), ForeignModel = typeof(FluxPortail), Visible = false)]
 		public ModelList<FluxPortail> flux { get { return GetField<ModelList<FluxPortail>>(nameof(flux), null); } set { SetField(nameof(flux), value); } }
+
+        public override SqlFilter FilterAuthUser (AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+                return new SqlFilter();
+
+			// read right on all structures for all user
+            // that are not just only ELV (student) or TUT (parent)
+			if (user.user.profiles.Exists((p) => (p.type != "ELV") && (p.type != "TUT")))
+				return new SqlFilter();
+
+            var structuresIds = user.user.profiles.Select ((arg) => arg.structure_id).Distinct ();
+			return new SqlFilter() { Where = DB.InFilter("id", structuresIds) };
+        }
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{

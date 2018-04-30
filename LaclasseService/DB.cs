@@ -38,6 +38,7 @@ using System.Threading.Tasks;
 using MySql.Data.MySqlClient;
 using Erasme.Json;
 using Erasme.Http;
+using Laclasse.Authentication;
 using System.Reflection;
 
 namespace Laclasse
@@ -93,6 +94,12 @@ namespace Laclasse
 		public Type ForeignModel;
 		public string ForeignField;
 	}
+
+	public struct SqlFilter
+    {
+        public string Where;
+		public string Inner;
+    }
 
 	public class Model
 	{
@@ -691,12 +698,12 @@ namespace Laclasse
 			return res;
 		}
 
-		public static Task<SearchResult<T>> SearchAsync<T>(DB db, HttpContext c) where T : Model, new()
+		public static Task<SearchResult<T>> SearchAsync<T>(DB db, HttpContext c, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
 		{
-			return SearchWithHttpContextAsync<T>(db, c);
+            return SearchWithHttpContextAsync<T>(db, c, sqlFilter);
 		}
 
-		public static async Task<SearchResult<T>> SearchWithHttpContextAsync<T>(DB db, HttpContext c) where T : Model, new()
+		public static async Task<SearchResult<T>> SearchWithHttpContextAsync<T>(DB db, HttpContext c, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
 		{
 			bool expand = true;
 			int offset = 0;
@@ -726,7 +733,7 @@ namespace Laclasse
 			foreach (var key in c.Request.QueryStringArray.Keys)
 				if (!parsedQuery.ContainsKey(key))
 					parsedQuery[key] = c.Request.QueryStringArray[key];
-			return await SearchAsync<T>(db, parsedQuery, orderBy, orderDir, expand, offset, count);
+			return await SearchAsync<T>(db, parsedQuery, orderBy, orderDir, expand, offset, count, sqlFilter);
 		}
 
 		static string CompareOperatorToSql(CompareOperator op)
@@ -747,7 +754,7 @@ namespace Laclasse
 
 		public static async Task<SearchResult<T>> SearchAsync<T>(
 			DB db, Dictionary<string, List<string>> queryFields, string orderBy = null,
-			SortDirection sortDir = SortDirection.Ascending, bool expand = true, int offset = 0, int count = -1) where T : Model, new()
+			SortDirection sortDir = SortDirection.Ascending, bool expand = true, int offset = 0, int count = -1, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
 		{
 			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
 			string modelTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : typeof(T).Name;
@@ -870,7 +877,7 @@ namespace Laclasse
 							}
 						}
 						else
-							filter += "`" + key + "`" + CompareOperatorToSql(op) + "'" + db.EscapeString(words[0]) + "'";
+							filter += "`" + key + "`" + CompareOperatorToSql(op) + "'" + DB.EscapeString(words[0]) + "'";
 					}
 					else if (words.Count > 1)
 					{
@@ -885,7 +892,7 @@ namespace Laclasse
 							filter += " AND ";
 						filter += "(";
 						if (inWords.Count > 0)
-							filter += db.InFilter(key, inWords);
+							filter += DB.InFilter(key, inWords);
 						if (hasNull)
 						{
 							if (inWords.Count > 0)
@@ -923,7 +930,7 @@ namespace Laclasse
 							first = false;
 						else
 							filter += " OR ";
-						filter += "`" + field + "` LIKE '%" + db.EscapeString(word) + "%'";
+						filter += "`" + field + "` LIKE '%" + DB.EscapeString(word) + "%'";
 					}
 					filter += ")";
 				}
@@ -995,7 +1002,7 @@ namespace Laclasse
 							first = false;
 						else
 							filter += " AND ";
-						filter += "`" + itemKey + "`='" + db.EscapeString(words[0]) + "'";
+						filter += "`" + itemKey + "`='" + DB.EscapeString(words[0]) + "'";
 					}
 					else if (words.Count > 1)
 					{
@@ -1003,7 +1010,7 @@ namespace Laclasse
 							first = false;
 						else
 							filter += " AND ";
-						filter += db.InFilter(itemKey, words);
+						filter += DB.InFilter(itemKey, words);
 					}
 				}
 				filter += ")";
@@ -1015,7 +1022,13 @@ namespace Laclasse
 			if (count > 0)
 				limit = $"LIMIT {count} OFFSET {offset}";
 
-			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `{modelTableName}` WHERE {filter} " +
+			var sqlInnerFilter = "";
+			if (sqlFilter.Inner != null)
+				sqlInnerFilter = sqlFilter.Inner;
+			var sqlWhereFilter = "";
+			if (sqlFilter.Where != null)
+				sqlWhereFilter = "AND" + sqlFilter.Where;
+			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `{modelTableName}` {sqlInnerFilter} WHERE {filter} {sqlWhereFilter}" +
 				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC");
 			// if the order is not the primary key add a second order criteria to ensure a predictible order
 			// else paging might be useless
@@ -1120,6 +1133,11 @@ namespace Laclasse
 		{
 			await Task.FromResult(false);
 		}
+
+		public virtual SqlFilter FilterAuthUser (AuthenticatedUser user)
+        {
+			return new SqlFilter() { Where = null, Inner = null };
+        }
 	}
 
 	public interface IModelList : IList
@@ -1289,7 +1307,7 @@ namespace Laclasse
 			connection = new MySqlConnection(connectionUrl);
 		}
 
-		public string EscapeString(string value)
+		public static string EscapeString(string value)
 		{
 			return MySqlHelper.EscapeString(value);
 		}
@@ -1721,7 +1739,7 @@ namespace Laclasse
 			return await cmd.ExecuteNonQueryAsync();
 		}
 
-		public string InFilter(string field, IEnumerable values)
+		public static string InFilter(string field, IEnumerable values)
 		{
 			string filter = "";
 			foreach (var value in values)

@@ -261,6 +261,23 @@ namespace Laclasse.Authentication
 			context.Data[AuthUserKey] = authUser;
 			return authUser;
 		}
+
+		public async static Task<AuthenticatedUser> SetAuthenticatedUserAsync(this HttpContext context, string userId)
+        {
+            AuthenticatedUser authUser = null;
+
+            // check in the sessions
+            if (userId != null)
+            {
+                var user = await ((Directory.Users)context.Data["users"]).GetUserAsync(userId);
+                if (user != null)
+                    authUser = new AuthenticatedUser { user = user };
+            }
+            context.User = (authUser != null) ? authUser.Name : null;
+            context.Data[AuthUserKey] = authUser;
+            return authUser;
+        }
+
 	}
 
 }

@@ -250,6 +250,35 @@ namespace Laclasse.Directory
 				password = json[nameof(password)];
 		}
 
+        public override SqlFilter FilterAuthUser (AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+				return new SqlFilter();
+            var groupsIds = user.user.groups.Select ((arg) => arg.group_id);
+			groupsIds = groupsIds.Concat(user.user.children_groups.Select((arg) => arg.group_id)).Distinct();
+            var structuresIds = user.user.profiles.Select ((arg) => arg.structure_id).Distinct ();
+            var childrenIds = user.user.children.Select ((arg) => arg.child_id).Distinct ();
+            var parentsIds = user.user.parents.Select ((arg) => arg.parent_id).Distinct ();
+            var allowIds = childrenIds.Concat (parentsIds);
+			//            var filter = 
+			//                $"(`id` = '{DB.EscapeString(user.user.id)}' " +
+			//                $"OR `id` IN (SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)}) " +
+			//                $"OR `id` IN (SELECT DISTINCT(`user_id`) FROM `user_profile` WHERE {DB.InFilter ("structure_id", structuresIds)} AND `type` != 'ELV' AND `type` != 'TUT') " +
+			//				$"OR {DB.InFilter("id", allowIds)})";
+
+			var filter = "INNER JOIN(" +
+				$"SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE {DB.InFilter("structure_id", structuresIds)} AND `type` != 'ELV' AND `type` != 'TUT' " +
+				$"UNION SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)}" +
+				$"UNION SELECT '{DB.EscapeString(user.user.id)}' ";
+
+			foreach (var allowId in allowIds)
+				filter += $"UNION SELECT '{DB.EscapeString(allowId)}' ";
+
+			filter += ") `allow` ON( `id` = `allow_id` )";
+
+			return new SqlFilter() { Inner = filter };
+        }
+
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
 			// get the expanded user if we dont already have it. expanded fields like profiles

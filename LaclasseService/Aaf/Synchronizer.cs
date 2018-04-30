@@ -662,7 +662,7 @@ namespace Laclasse.Aaf
 		{
 			var sql = "SELECT * FROM `structure`";
 			if (structuresIds != null)
-				sql += " WHERE " + db.InFilter("id", structuresIds);
+				sql += " WHERE " + DB.InFilter("id", structuresIds);
 
 			entGroupsById = new Dictionary<int, Group>();
 			entStructuresByAafId = new Dictionary<int, Structure>();

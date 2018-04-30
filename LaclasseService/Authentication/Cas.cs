@@ -1609,12 +1609,12 @@ namespace Laclasse.Authentication
 				// add children
 				if (userIds.Count > 0)
 				{
-					var userChildren = await db.SelectAsync<UserChild>("SELECT * FROM `user_child` WHERE " + db.InFilter("parent_id", userIds));
+					var userChildren = await db.SelectAsync<UserChild>("SELECT * FROM `user_child` WHERE " + DB.InFilter("parent_id", userIds));
 					foreach (var child in userChildren)
 						if (!userIds.Contains(child.child_id))
 							userIds.Add(child.child_id);
 
-					rescueUsers = await db.SelectAsync<User>("SELECT * FROM `user` WHERE " + db.InFilter("id", userIds));
+					rescueUsers = await db.SelectAsync<User>("SELECT * FROM `user` WHERE " + DB.InFilter("id", userIds));
 				}
 				db.Commit();
 			}

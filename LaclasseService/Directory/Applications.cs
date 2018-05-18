@@ -46,14 +46,7 @@ namespace Laclasse.Directory
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
-			var authUser = await context.GetAuthenticatedUserAsync();
-			if (authUser == null)
-				throw new WebException(401, "Authentication needed");
-			// password only visible to super admin
-			if (!authUser.IsSuperAdmin)
-				Fields.Remove(nameof(password));
-			if (right != Right.Read && !authUser.IsSuperAdmin)
-				throw new WebException(403, "Insufficient authorization");
+			await context.EnsureIsSuperAdminAsync();
 		}
 	}
 

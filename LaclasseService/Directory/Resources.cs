@@ -28,6 +28,9 @@
 //
 
 using System;
+using System.IO;
+using Dir = System.IO.Directory;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Laclasse.Authentication;
@@ -53,15 +56,21 @@ namespace Laclasse.Directory
         FREE,
         SUBSCRIPTION
     }
+    
+    public enum ResourceType
+	{
+        MANUEL,
+        DICO,
+        NEWS,
+        APPLICATION,
+        AUTRE
+	}
 
-    public enum ResourceTargetUser
+	public enum ResourceGrade
     {
-        ENS,
-        ELV,
-        TUT,
-        EDU,
-        ETA,
-        OTHER
+        PRIMAIRE,
+        SECONDAIRE,
+        ALL
     }
 
 	[Model(Table = "resource", PrimaryKey = nameof(id))]
@@ -78,8 +87,6 @@ namespace Laclasse.Directory
 		[ModelField]
 		public DateTime? mtime { get { return GetField<DateTime?>(nameof(mtime), null); } set { SetField(nameof(mtime), value); } }
 		[ModelField]
-		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
-		[ModelField]
 		public string icon { get { return GetField<string>(nameof(icon), null); } set { SetField(nameof(icon), value); } }
 		[ModelField]
 		public string color { get { return GetField<string>(nameof(color), null); } set { SetField(nameof(color), value); } }
@@ -93,8 +100,12 @@ namespace Laclasse.Directory
 		public ResourceEmbedMode embed { get { return GetField(nameof(embed), ResourceEmbedMode.EXTERNAL); } set { SetField(nameof(embed), value); } }
         [ModelField]
         public ResourceCost cost { get { return GetField(nameof (cost), ResourceCost.FREE); } set { SetField (nameof (cost), value); } }
-        [ModelField]
-        public ResourceTargetUser? target_user { get { return GetField<ResourceTargetUser?> (nameof (target_user), null); } set { SetField (nameof (target_user), value); } }
+		[ModelField]
+		public ResourceType type { get { return GetField(nameof(type), ResourceType.AUTRE); } set { SetField(nameof(type), value); } }
+		[ModelField]
+		public ResourceGrade grade { get { return GetField(nameof(grade), ResourceGrade.ALL); } set { SetField(nameof(grade), value); } }
+		[ModelField]
+         public int index { get { return GetField(nameof(index), 0); } set { SetField(nameof(index), value); } }
 
 		[ModelExpandField(Name = nameof(structures), ForeignModel = typeof(StructureResource), Visible = false)]
 		public ModelList<StructureResource> structures {
@@ -115,8 +126,84 @@ namespace Laclasse.Directory
 
 	public class Resources: ModelService<Resource>
 	{
-		public Resources(string dbUrl) : base(dbUrl)
+		public Resources(string dbUrl, string storageDir) : base(dbUrl)
 		{
-		}
+			var resourceDir = Path.Combine(storageDir, "resource");
+
+			if (!Dir.Exists(resourceDir))
+				Dir.CreateDirectory(resourceDir);         
+
+			PostAsync["/{id:int}/image"] = async (p, c) =>
+            {
+                var id = (int)p["id"];
+            
+                var oldResource = new Resource { id = id };
+                using (var db = await DB.CreateAsync(dbUrl))
+                {
+					if (!await oldResource.LoadAsync(db, true))
+						oldResource = null;
+                }
+
+				if (oldResource == null)
+                    return;
+
+                var reader = c.Request.ReadAsMultipart();
+                MultipartPart part;
+                while ((part = await reader.ReadPartAsync()) != null)
+                {
+                    if (part.Headers.ContainsKey("content-disposition") && part.Headers.ContainsKey("content-type"))
+                    {
+                        if ((part.Headers["content-type"] != "image/jpeg") &&
+                            (part.Headers["content-type"] != "image/png") &&
+                            (part.Headers["content-type"] != "image/svg+xml"))
+                            continue;
+
+                        var disposition = ContentDisposition.Decode(part.Headers["content-disposition"]);
+                        if (disposition.ContainsKey("name") && (disposition["name"] == "image"))
+                        {
+                            var dir = DirExt.CreateRecursive(resourceDir);
+                            var ext = ".jpg";
+                            var format = "jpeg";
+
+                            var name = id + ext;
+
+							Console.WriteLine($"Upload IMAGE {id} to {Path.Combine(dir.FullName, name)}");
+
+                            // crop / resize / convert the image using ImageMagick
+                            var startInfo = new ProcessStartInfo("/usr/bin/convert", "- -auto-orient -strip -distort SRT 0 +repage -quality 80 -resize 512x512 " + format + ":" + Path.Combine(dir.FullName, name));
+                            startInfo.RedirectStandardOutput = false;
+                            startInfo.RedirectStandardInput = true;
+                            startInfo.UseShellExecute = false;
+                            var process = new Process();
+                            process.StartInfo = startInfo;
+                            process.Start();
+
+                            // read the file stream and send it to ImageMagick
+                            await part.Stream.CopyToAsync(process.StandardInput.BaseStream);
+                            process.StandardInput.Close();
+
+                            process.WaitForExit();
+                            process.Dispose();
+
+                            c.Response.StatusCode = 200;
+/*                            var userDiff = new User { id = uid, avatar = name };
+                            using (DB db = await DB.CreateAsync(dbUrl))
+                            {
+                                await userDiff.UpdateAsync(db);
+                                await userDiff.LoadAsync(db, true);
+                            }
+                            c.Response.Content = userDiff;
+
+                            if ((oldUser.avatar != null) && (oldUser.avatar != "empty"))
+                            {
+                                var oldFile = Path.Combine(avatarDir, uid[0].ToString(), uid[1].ToString(), uid[2].ToString(), Path.GetFileName(oldUser.avatar));
+                                if (File.Exists(oldFile))
+                                    File.Delete(oldFile);
+                            }*/
+                        }
+                    }
+                }
+            };         
+		}      
 	}
 }

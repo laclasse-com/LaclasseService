@@ -137,7 +137,7 @@ namespace Laclasse
 			mapper.Add("/api/grades", new Grades(dbUrl));
 			var applications = new Applications(dbUrl);
 			mapper.Add("/api/applications", applications);
-			mapper.Add("/api/resources", new Resources(dbUrl));
+			mapper.Add("/api/resources", new Resources(dbUrl, setup.server.storage));
 			mapper.Add("/api/structures_resources", new StructuresResources(dbUrl));
 			mapper.Add("/api/profiles_types", new ProfilesTypes(dbUrl));
 			mapper.Add("/api/profiles", new Profiles(dbUrl));

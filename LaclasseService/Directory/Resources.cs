@@ -131,7 +131,70 @@ namespace Laclasse.Directory
 			var resourceDir = Path.Combine(storageDir, "resource");
 
 			if (!Dir.Exists(resourceDir))
-				Dir.CreateDirectory(resourceDir);         
+				Dir.CreateDirectory(resourceDir);
+
+			GetAsync["/{id:int}/image"] = async (p, c) =>
+			{
+				var id = (int)p["id"];
+
+                var oldResource = new Resource { id = id };
+                using (var db = await DB.CreateAsync(dbUrl))
+                {
+                    if (!await oldResource.LoadAsync(db, true))
+                        oldResource = null;
+                }
+
+                if (oldResource == null)
+                    return;
+
+				var fullPath = Path.Combine(resourceDir, $"{id}.jpg");
+
+				if (File.Exists(fullPath))
+				{
+					var shortName = Path.GetFileName(fullPath);
+                    c.Response.Headers["content-type"] = "image/jpeg";
+                    
+                    var lastModif = File.GetLastWriteTime(fullPath);
+					string etag = "\"" + lastModif.Ticks.ToString("X") + "\"";
+					c.Response.Headers["etag"] = etag;
+
+					if (c.Request.QueryString.ContainsKey("if-none-match") &&
+					    (c.Request.QueryString["if-none-match"] == etag))
+					{
+						c.Response.StatusCode = 304;
+					}
+					else
+					{
+						c.Response.StatusCode = 200;
+						c.Response.SupportRanges = true;
+						c.Response.Content = new FileContent(fullPath);
+					}               
+				}
+			};
+
+			DeleteAsync["/{id:int}/image"] = async (p, c) =>
+            {
+                var id = (int)p["id"];
+
+                var oldResource = new Resource { id = id };
+                using (var db = await DB.CreateAsync(dbUrl))
+                {
+                    if (!await oldResource.LoadAsync(db, true))
+                        oldResource = null;
+                }
+
+                if (oldResource == null)
+                    return;
+
+                var fullPath = Path.Combine(resourceDir, $"{id}.jpg");
+
+                if (File.Exists(fullPath))
+                {
+					File.Delete(fullPath);
+					c.Response.StatusCode = 200;
+					c.Response.Content = "";
+                }
+            };
 
 			PostAsync["/{id:int}/image"] = async (p, c) =>
             {
@@ -162,15 +225,10 @@ namespace Laclasse.Directory
                         if (disposition.ContainsKey("name") && (disposition["name"] == "image"))
                         {
                             var dir = DirExt.CreateRecursive(resourceDir);
-                            var ext = ".jpg";
-                            var format = "jpeg";
-
-                            var name = id + ext;
-
-							Console.WriteLine($"Upload IMAGE {id} to {Path.Combine(dir.FullName, name)}");
+							var fullPath = Path.Combine(dir.FullName, $"{id}.jpg");
 
                             // crop / resize / convert the image using ImageMagick
-                            var startInfo = new ProcessStartInfo("/usr/bin/convert", "- -auto-orient -strip -distort SRT 0 +repage -quality 80 -resize 512x512 " + format + ":" + Path.Combine(dir.FullName, name));
+							var startInfo = new ProcessStartInfo("/usr/bin/convert", $"- -auto-orient -strip -distort SRT 0 +repage -quality 80 -resize 1024x1024 jpeg:{fullPath}");
                             startInfo.RedirectStandardOutput = false;
                             startInfo.RedirectStandardInput = true;
                             startInfo.UseShellExecute = false;

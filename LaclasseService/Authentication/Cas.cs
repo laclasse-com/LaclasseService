@@ -783,7 +783,7 @@ namespace Laclasse.Authentication
 					var group = new Directory.Group { id = user_group.group_id };
 					if (await group.LoadAsync(db))
 					{
-						if (group.type == "CLS")
+						if (group.type == GroupType.CLS)
 						{
 							if (ENTEleveClasses == null)
 								ENTEleveClasses = group.name;
@@ -797,7 +797,7 @@ namespace Laclasse.Authentication
 					var group = new Directory.Group { id = user_group.group_id };
 					if (await group.LoadAsync(db))
 					{
-						if ((group.type == "CLS") && (group.structure_id == ENTPersonStructRattachRNE))
+						if ((group.type == GroupType.CLS) && (group.structure_id == ENTPersonStructRattachRNE))
 						{
 							if (ENTAuxEnsClasses == null)
 								ENTAuxEnsClasses = new List<string>();

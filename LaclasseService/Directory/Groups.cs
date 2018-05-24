@@ -33,7 +33,14 @@ using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
-{
+{   
+	public enum GroupType
+    {
+        GPL,
+        GRP,
+        CLS
+    }
+
 	[Model(Table = "group", PrimaryKey = nameof(id))]
 	public class Group : Model
 	{
@@ -48,7 +55,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string aaf_name { get { return GetField<string>(nameof(aaf_name), null); } set { SetField(nameof(aaf_name), value); } }
 		[ModelField(Required = true)]
-		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
+		public GroupType type { get { return GetField(nameof(type), GroupType.GPL); } set { SetField(nameof(type), value); } }
 		[ModelField(ForeignModel = typeof(Structure))]
 		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
 		[ModelField]
@@ -89,7 +96,7 @@ namespace Laclasse.Directory
 				throw new WebException(401, "Authentication needed");
 			if (user.IsSuperAdmin)
 				   return;
-			if ((right == Right.Create) && (type == "GPL"))
+			if ((right == Right.Create) && (type == GroupType.GPL))
 			{
 				// allow all profiles except ELV and TUT to group "GPL" group in their structure
 				if (structure_id != null) {

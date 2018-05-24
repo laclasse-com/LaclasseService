@@ -44,7 +44,7 @@ namespace Laclasse.Directory
 		public string rattach { get { return GetField<string>(nameof(rattach), null); } set { SetField(nameof(rattach), value); } }
 		[ModelField]
 		public string stat { get { return GetField<string>(nameof(stat), null); } set { SetField(nameof(stat), value); } }
-
+        
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
 			if (right != Right.Read)
@@ -56,6 +56,12 @@ namespace Laclasse.Directory
 	{
 		public Grades(string dbUrl) : base(dbUrl)
 		{
+			GetAsync["/used"] = async (p, c) => {
+				using (DB db = await DB.CreateAsync(dbUrl)) {
+					c.Response.StatusCode = 200;
+					c.Response.Content = await db.SelectAsync<Grade>($"SELECT * FROM `grade` INNER JOIN (SELECT DISTINCT(`{nameof(User.student_grade_id)}`) AS `allow_id` FROM `user` WHERE `{nameof(User.student_grade_id)}` IS NOT NULL) AS `allow` ON (`id` = `allow_id`) ORDER BY `id` ASC");
+				}
+			};
 		}
 	}
 }

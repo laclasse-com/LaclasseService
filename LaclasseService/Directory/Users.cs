@@ -265,10 +265,17 @@ namespace Laclasse.Directory
 			//                $"OR `id` IN (SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)}) " +
 			//                $"OR `id` IN (SELECT DISTINCT(`user_id`) FROM `user_profile` WHERE {DB.InFilter ("structure_id", structuresIds)} AND `type` != 'ELV' AND `type` != 'TUT') " +
 			//				$"OR {DB.InFilter("id", allowIds)})";
+            
 
-			var filter = "INNER JOIN(" +
-				$"SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE {DB.InFilter("structure_id", structuresIds)} AND `type` != 'ELV' AND `type` != 'TUT' " +            
-				$"UNION SELECT '{DB.EscapeString(user.user.id)}' ";
+			var filter = $"INNER JOIN(SELECT '{DB.EscapeString(user.user.id)}' AS `allow_id` ";
+
+			foreach (var structureId in structuresIds) {
+				if (user.HasRightsOnStructure(structureId, true, true, true))
+					filter += $"UNION SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE `structure_id`='{DB.EscapeString(structureId)}' ";
+				else
+					filter += $"UNION SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE `structure_id`='{DB.EscapeString(structureId)}' AND `type` != 'ELV' AND `type` != 'TUT' ";
+			}
+
 
 			if (groupsIds.Count() > 0)
 				filter += $"UNION SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)} ";
@@ -276,7 +283,7 @@ namespace Laclasse.Directory
 			foreach (var allowId in allowIds)
 				filter += $"UNION SELECT '{DB.EscapeString(allowId)}' ";
 
-			filter += ") `allow` ON( `id` = `allow_id` )";
+			filter += ") `allow` ON (`id` = `allow_id`)";
 
 			return new SqlFilter() { Inner = filter };
         }

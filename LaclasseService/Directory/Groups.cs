@@ -107,7 +107,7 @@ namespace Laclasse.Directory
 				else if (user.user.profiles.Any((arg) => arg.type != "ELV" && arg.type != "TUT"))
 					return;
 			}
-			await context.EnsureHasRightsOnGroupAsync(this, true, (right == Right.Update), (right == Right.Create) || (right == Right.Delete));
+			await context.EnsureHasRightsOnGroupAsync(this, true, false, (right == Right.Create) || (right == Right.Delete) || (right == Right.Update));
 		}
 	}
 

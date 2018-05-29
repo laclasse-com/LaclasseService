@@ -877,7 +877,15 @@ namespace Laclasse
 							}
 						}
 						else
-							filter += "`" + key + "`" + CompareOperatorToSql(op) + "'" + DB.EscapeString(words[0]) + "'";
+						{
+							if (keyProperty.PropertyType == typeof(Boolean))
+							{
+								var value = Boolean.Parse(words[0]);
+								filter += $"`{key}`{CompareOperatorToSql(op)} {(value ? "TRUE" : "FALSE")}";
+							}
+							else
+								filter += "`" + key + "`" + CompareOperatorToSql(op) + "'" + DB.EscapeString(words[0]) + "'";
+						}                  
 					}
 					else if (words.Count > 1)
 					{

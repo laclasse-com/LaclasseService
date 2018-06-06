@@ -115,6 +115,9 @@ namespace Laclasse
 			if (checkDB)
 				return;
 
+			if (!System.IO.Directory.Exists(setup.server.temporaryDirectory))
+				System.IO.Directory.CreateDirectory(setup.server.temporaryDirectory);         
+
 			var logger = new Logger(setup.log, setup.mail);
 
 			var server = new Server(setup.server.port, logger);
@@ -183,7 +186,7 @@ namespace Laclasse
 
 			mapper.Add("/api/users", new Mail.ImapCheck(dbUrl));
 
-			mapper.Add("/api/docs", new Docs.Docs(setup.doc.url, setup.doc.path));
+			mapper.Add("/api/docs", new Docs.Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory));
 
 			mapper.Add("/api/icons", new Icons(dbUrl));
 

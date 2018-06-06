@@ -69,6 +69,9 @@
     <Reference Include="Erasme.Http">
       <HintPath>lib\Erasme.Http.dll</HintPath>
     </Reference>
+    <Reference Include="Erasme.Cloud">
+      <HintPath>lib\Erasme.Cloud.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />

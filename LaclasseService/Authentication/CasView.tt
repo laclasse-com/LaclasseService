@@ -31,7 +31,8 @@ a {
 }
 
 li {
-	padding: 5px;
+	padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 .logo {
@@ -352,7 +353,7 @@ function onContactBack(e) {
 										<li>
 											si vous êtes administrateur d'établissement:
 											<ul>
-												<li><a href="mailto:svp4356@grandlyon.com">svp4356@grandlyon.com</a></li>
+												<li><a href="mailto:contact-informatique@grandlyon.com">contact-informatique@grandlyon.com</a></li>
 												<li><a href="tel:+33478634356">04.78.63.43.56</a></li>
 											</ul>
 										</li>

@@ -6,7 +6,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Daniel LACROIX
-// Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017-2018 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -57,9 +57,13 @@ namespace Laclasse.Directory
 		public Grades(string dbUrl) : base(dbUrl)
 		{
 			GetAsync["/used"] = async (p, c) => {
+				var sql = $"SELECT * FROM `grade` INNER JOIN (SELECT DISTINCT(`{nameof(User.student_grade_id)}`) AS `allow_id` FROM `user` WHERE `{nameof(User.student_grade_id)}` IS NOT NULL) AS `allow` ON (`id` = `allow_id`) ORDER BY `id` ASC";
+				if (c.Request.QueryStringArray.ContainsKey("structure_id")) {
+					sql = $"SELECT * FROM `grade` INNER JOIN(SELECT DISTINCT(`{nameof(User.student_grade_id)}`) AS `allow_id` FROM `user` INNER JOIN(SELECT DISTINCT(`{nameof(UserProfile.user_id)}`) AS `allow_user_id` FROM `user_profile` WHERE  {DB.InFilter(nameof(UserProfile.structure_id), c.Request.QueryStringArray["structure_id"])}) AS `allow_user` ON(`id` = `allow_user_id`) WHERE `{nameof(User.student_grade_id)}` IS NOT NULL) AS `allow` ON(`id` = `allow_id`) ORDER BY `id` ASC";
+				}
 				using (DB db = await DB.CreateAsync(dbUrl)) {
 					c.Response.StatusCode = 200;
-					c.Response.Content = await db.SelectAsync<Grade>($"SELECT * FROM `grade` INNER JOIN (SELECT DISTINCT(`{nameof(User.student_grade_id)}`) AS `allow_id` FROM `user` WHERE `{nameof(User.student_grade_id)}` IS NOT NULL) AS `allow` ON (`id` = `allow_id`) ORDER BY `id` ASC");
+					c.Response.Content = await db.SelectAsync<Grade>(sql);
 				}
 			};
 		}

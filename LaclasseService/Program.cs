@@ -188,7 +188,8 @@ namespace Laclasse
 
 			mapper.Add("/api/docs", new Docs.Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory));
 
-			mapper.Add("/api/icons", new Icons(dbUrl));
+			//mapper.Add("/api/icons", new Icons(dbUrl));
+			mapper.Add("/api/icons", new StaticIcons(setup.server.publicIcons, setup.http.defaultCacheDuration));
 
             mapper.Add ("/api/sso_clients", new SsoClients (dbUrl));
             mapper.Add ("/api/sso_clients_urls", new SsoClientsUrls (dbUrl));

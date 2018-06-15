@@ -136,6 +136,7 @@
     <Compile Include="Directory\SsoClients.cs" />
     <Compile Include="Directory\SsoClientsUrls.cs" />
     <Compile Include="Directory\SsoClientsAttributes.cs" />
+    <Compile Include="Directory\StaticIcons.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

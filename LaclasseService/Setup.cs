@@ -9,6 +9,7 @@ namespace Laclasse
 		public bool stopOnException = false;
 		public string publicUrl = "http://localhost:4321/";
 		public string publicFiles = "/usr/share/laclasse/";
+		public string publicIcons = "/usr/share/laclasse/icons/";
 		public string storage = "/var/lib/laclasse";
 		public string log = "/var/log/laclasse";
 		public string temporaryDirectory = "/var/lib/laclasse/tmp";

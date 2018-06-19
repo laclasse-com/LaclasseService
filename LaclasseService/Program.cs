@@ -195,6 +195,8 @@ namespace Laclasse
             mapper.Add ("/api/sso_clients_urls", new SsoClientsUrls (dbUrl));
             mapper.Add ("/api/sso_clients_attributes", new SsoClientsAttributes (dbUrl));
 
+			mapper.Add("/api/sms", new Sms.SmsService(dbUrl, setup.sms));
+
 			// if the request is not already handled, try static files
 			server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));
 

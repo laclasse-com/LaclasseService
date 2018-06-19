@@ -137,6 +137,7 @@
     <Compile Include="Directory\SsoClientsUrls.cs" />
     <Compile Include="Directory\SsoClientsAttributes.cs" />
     <Compile Include="Directory\StaticIcons.cs" />
+    <Compile Include="Sms\Sms.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -158,6 +159,7 @@
     <Folder Include="Scheduler\" />
     <Folder Include="Mail\" />
     <Folder Include="Doc\" />
+    <Folder Include="Sms\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>

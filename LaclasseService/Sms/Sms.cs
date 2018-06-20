@@ -109,24 +109,9 @@ namespace Laclasse.Sms
                     // save in the DB
 					await sms.SaveAsync(db, true);
 
-                    // send the SMS
-					var uri = new Uri(smsSetup.url);
-					using (var client = HttpClient.Create(uri))
-					{
-						var clientRequest = new HttpClientRequest();
-						clientRequest.Method = "POST";
-						clientRequest.Path = uri.PathAndQuery;
-						clientRequest.Headers["authorization"] = "Bearer " + smsSetup.token;
-						clientRequest.Headers["content-type"] = "application/json";
-						var jsonData = new JsonObject
-						{
-							["content"] = $"Laclasse: {sms.content}",
-							["receiver"] = phones
-						};
-						clientRequest.Content = jsonData.ToString();
-						client.SendRequest(clientRequest);
-						var response = client.GetResponse();
-					}
+					// send the SMS
+					SendSms(phones, sms.content);
+
                     // commit
 					db.Commit();
                 }
@@ -134,5 +119,44 @@ namespace Laclasse.Sms
 				c.Response.Content = sms;
 			};
         }
+
+		void SendSms(JsonArray phones, string message)
+		{
+			if (phones.Count <= 5)
+				SendSmsMax5(phones, message);
+			else
+			{
+				var pos = 0;
+				while (pos < phones.Count)
+				{
+					JsonArray limitedPhones = new JsonArray();
+					for (var i = 0; i < 5 && (pos < phones.Count); i++, pos++)
+						limitedPhones.Add(phones[pos]);
+					SendSmsMax5(phones, message);
+				}
+			}         
+		}
+
+        void SendSmsMax5(JsonArray phones, string message)
+		{
+			// send the SMS
+            var uri = new Uri(smsSetup.url);
+            using (var client = HttpClient.Create(uri))
+            {
+                var clientRequest = new HttpClientRequest();
+                clientRequest.Method = "POST";
+                clientRequest.Path = uri.PathAndQuery;
+                clientRequest.Headers["authorization"] = "Bearer " + smsSetup.token;
+                clientRequest.Headers["content-type"] = "application/json";
+                var jsonData = new JsonObject
+                {
+                    ["content"] = message,
+                    ["receiver"] = phones
+                };
+                clientRequest.Content = jsonData.ToString();
+                client.SendRequest(clientRequest);
+                var response = client.GetResponse();
+            }
+		}
     }
 }

@@ -382,11 +382,11 @@ namespace Laclasse.Directory
 								avatarDir, uid[0].ToString(), uid[1].ToString(), uid[2].ToString()));
 							var ext = ".jpg";
 							var format = "jpeg";
-							if ((part.Headers["content-type"] == "image/png") || (part.Headers["content-type"] == "image/svg+xml"))
-							{
-								ext = ".png";
-								format = "png";
-							}
+							//if ((part.Headers["content-type"] == "image/png") || (part.Headers["content-type"] == "image/svg+xml"))
+							//{
+							//	ext = ".png";
+							//	format = "png";
+							//}
 
 							var name = StringExt.RandomString(16) + "_" + uid + ext;
 

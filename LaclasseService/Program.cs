@@ -160,6 +160,7 @@ namespace Laclasse
 			mapper.Add("/api/news", new PortailNews(dbUrl));
 			mapper.Add("/api/users", new PortailRss(dbUrl));
 			mapper.Add("/api/logs", new Logs(dbUrl));
+			mapper.Add("/api/browser_logs", new BrowserLogs(dbUrl));
 			mapper.Add("/api/ent", new Ents(dbUrl));
 			mapper.Add("/api/publipostages", new Publipostages(dbUrl, setup.mail));
 

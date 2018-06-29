@@ -138,6 +138,7 @@
     <Compile Include="Directory\SsoClientsAttributes.cs" />
     <Compile Include="Directory\StaticIcons.cs" />
     <Compile Include="Sms\Sms.cs" />
+    <Compile Include="Directory\BrowserLog.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

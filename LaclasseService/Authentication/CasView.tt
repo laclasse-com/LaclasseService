@@ -13,13 +13,16 @@
 			<meta name="mobile-web-app-capable" content="yes">
 			<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 			<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <link href="https://fonts.googleapis.com/css?family=Muli" rel="stylesheet">
 			<style>
 body {
 	color: #444;
 	background-color: #f5f5f5;
-	font-family: "Open Sans", sans-serif;
+	font-family: "Muli", sans-serif;
 	font-size: 16px;
 	line-height: 1.3;
+    margin: 0px;
+    padding: 0px;
 }
 
 * {
@@ -46,9 +49,10 @@ li {
 
 .footer {
 	width: 100%;
+    max-width: 1000px;
 	display: inline-block;
-	margin-top: 50px;
-	margin-bottom: 50px;
+    padding: 20px;
+	text-align: left;
 }
 
 .btn {
@@ -61,7 +65,6 @@ li {
 	background-color: #444;
 	margin: 5px;
     color: white;
-	white-space: nowrap;
 	text-decoration: none;
 	cursor: pointer;
 	text-align: center;
@@ -73,16 +76,25 @@ li {
 
 .box {
 	float: right;
-    background: #f8f8f8;
+    background: #f2efef;
     padding: 20px;
-	/*box-shadow: 0 0 1px 1px rgba(0,0,0,0.2);*/
+}
+
+.boxHeader {
+    font-size: 18px;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 10px;
+    padding: 10px;
+    color: #444;
+    font-weight: bold;
 }
 
 input[type=text], input[type=password] {
     width: calc(100% - 10px);
     height: 30px;
     border: 1px solid #cccccc;
-    background-color: #e6e6e6;
+    background-color: #f7f7f7;
     margin: 5px;
     color: #444;
     font-size: 18px;
@@ -96,7 +108,34 @@ input:-webkit-autofill {
 
 .title {
     font-weight: bold;
+    font-size: 18px;
     margin-bottom: 20px;
+}
+
+.authBox {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: stretch;
+    margin-bottom: 20px;
+}
+
+.authSeparator {
+    align-self: center;
+    width: 2px;
+    height: 100%;
+    background-color: #444;
+}
+
+@media screen and (max-width: 600px) {
+    .authBox {
+        flex-direction: column;
+    }
+
+    .authSeparator {
+        width: 100%;
+        height: 2px;
+    }
 }
 		</style>
 		<script>
@@ -130,16 +169,19 @@ function onContactBack(e) {
 		</script>
 	</head>
 <body>
+            <div style="width: 100%; height: 20px; background-color: #d40100; margin: 0px; position: relative; top: 0px; z-index: 2;"></div>
 			<img draggable="false" class="logo" src="images/logolaclasse.svg" alt="Logo ENT">
-			<div style="position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px;">
+			<div style="position: absolute; top: 20px; left: 0px; right: 0px; bottom: 0px;">
 			<center>
-				<div style="max-width: 400px;">
-					<div style="text-align: center; padding-top: 20px; padding-bottom: 20px; font-size: 12px;">
-						<div style="font-weight: bold; font-size: 34px">LACLASSE.COM</div><br>
-						Espace Numérique de Travail<br>
-						des collèges et écoles de la Métropole de Lyon.
-					</div>
+				<div style="max-width: 1000px;">
+                    <div style="display: flex; flex-direction: row; flex-wrap: wrap; padding: 20px;">
+                        <div style="font-weight: bold; font-size: 40px; flex-grow: 1; text-align: left;"><span style="color: #da0100">la</span>classe<span style="color: #da0100">.</span>com</div>
+                        <a href="https://www.grandlyon.com/"><img draggable="false" style="height: 40px" src="images/grandlyon-logo.svg" alt="Logo Métropole du Grand Lyon"></a>
+                    </div>
 
+                    <div style="text-align: left; padding: 20px; font-size: 16px;">
+                        Espace Numérique de Travail des collèges et écoles de la Métropole de Lyon.
+                    </div>
 
 					<div class="box" style="width: 100%; text-align: left;">
 						<# if (error != null) { #>
@@ -187,7 +229,7 @@ function onContactBack(e) {
 							if (rescueUsers != null) { #>
 
 						<div id="rescue-content">
-							<div style="font-size: 16px; text-transform: uppercase; text-align: center; margin-bottom: 10px; padding: 10px; color: #444; background-color: #e8e8e8;">
+							<div class="boxHeader">
 								<a href="#back" onclick="onRescueBack()" style="float: left;">
 									<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48">
 										<path style="fill:#444444;fill-opacity:1;stroke:none" d="M40 22H15.86l11.18-11.18L24 8l-16 16 16 16 2.82-2.82L15.66 26H40v-4z"/>
@@ -215,7 +257,7 @@ function onContactBack(e) {
 						<# 	} else if (rescueId != null) { #>
 
 						<div id="rescue-content">
-							<div style="font-size: 16px; text-transform: uppercase; text-align: center; margin-bottom: 10px; padding: 10px; color: #444; background-color: #e8e8e8;">
+							<div class="boxHeader">
 								<a href="#back" onclick="onRescueBack()" style="float: left;">
 									<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48">
 										<path style="fill:#444444;fill-opacity:1;stroke:none" d="M40 22H15.86l11.18-11.18L24 8l-16 16 16 16 2.82-2.82L15.66 26H40v-4z"/>
@@ -248,58 +290,53 @@ function onContactBack(e) {
 
 						<!-- authentication -->
 						<div style="display: <#= (rescue != null) ? "none" : "inherit" #>" id="authentication-content">
-							<div style="font-size: 16px; text-transform: uppercase; text-align: center; margin-bottom: 10px; padding: 10px; color: #444; background-color: #e8e8e8;">
-								Authentification
-							</div>
+							<div class="boxHeader">Authentification</div>
 
-							<div style="margin-bottom: 20px;">
-								<div class="title">Connectez-vous avec votre compte Académique.</div>
-								<div style="display: flex; flex-direction: row; flex-wrap: wrap;">
-									<a class="btn" style="flex-grow: 1;" href="parentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">Parents/Elèves</a>
-									<a class="btn" style="flex-grow: 1;" href="agentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">Profs/Agents</a>
-								</div>
-							</div>
-							<br>
-							<div style="height: 2px; background-color: #444; text-align: center; margin-bottom: 1em">
-								<span style="background-color: #f8f8f8; position: relative; top: -0.5em; margin: 0px auto;font-weight: bold">&nbsp;OU&nbsp;</span>
-							</div>
-							<br>
+                            <div class="authBox">
+    							<div style="margin-bottom: 0px; flex: 1; display: flex; flex-direction: column;">
+    								<div class="title">Connectez-vous avec un compte partenaire:</div>
+                                    <a class="btn" style="padding: 6px; padding-left: 10px; background-color: #9b0383; display: flex; flex-direction: row;" href="parentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">
+                                        <img src="images/education-nationale.svg" style="height: 24px; align-self: center;">
+                                        <div style="flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;">Compte Académique Parents/Elèves</div>
+                                    </a>
+                                    <a class="btn" style="padding: 6px; padding-left: 10px; background-color: #05a9cc; display: flex; flex-direction: row;" href="agentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">
+                                        <img src="images/education-nationale.svg" style="height: 24px; align-self: center;">
+                                        <div style="flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;">Compte Académique Profs/Agents</div>
+                                    </a>
+                                    <a class="btn" style="margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #da0100; display: flex; flex-direction: row;" href="cutIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">
+                                        <img src="images/grandlyon-connect.svg" style="height: 24px; align-self: center;">
+                                        <div style="flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;">Compte GrandLyon Connect</div>
+                                    </a>
+    							</div>
+                                <div style="display: grid; justify-items: center; margin: 10px;">
+                                    <div class="authSeparator" style="grid-column: 1 / 1;  grid-row: 1 / 1;"></div>
+                                    <span style="grid-column: 1 / 1;  grid-row: 1 / 1; align-self: center; background-color: #f2efef; font-weight: bold">&nbsp;ou&nbsp;</span>
+                                </div>
 
-							<!--div style="margin-bottom: 20px;">
-								<div class="title">Connectez-vous avec Grand Lyon CUT.</div>
-								<div>
-									<a class="btn" style="display: block; text-align: center" href="cutIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">CUT</a>
-								</div>
-							</div>
-							<br>
-							<div style="height: 2px; background-color: #fff; text-align: center; margin-bottom: 1em">
-								<span style="background-color: #f8f8f8; position: relative; top: -0.5em; margin: 0px auto;font-weight: bold">&nbsp;OU&nbsp;</span>
-							</div>
-							<br-->
-
-							<div style="margin-bottom: 20px;">
-								<div class="title">Connectez-vous avec votre compte Laclasse.com.</div>
-								<form method="post" action="login">
-			            			<input type="hidden" name="service" value="<#= service #>">
-			            			<input type="hidden" name="state" value="<#= state #>">
-			            			<input type="hidden" name="ticket" value="<#= ticket #>">
-									<div>Identifiant:</div>
-									<input name="username" type="text" style="margin-bottom: 10px;">
-									<div>Mot de passe:</div>
-									<input name="password" type="password" style="margin-bottom: 10px;">
-									<br><br>
-									<input class="btn" style="display: block; width: calc(100% - 10px);" name="submit" type="submit" value="SE CONNECTER">
-								</form>
-							</div>
-							<div style="display: flex; flex-wrap: wrap; flex-direction: row;">
-								<a href="#" onclick="onRescue()">Mot de passe oublié ?</a>
-								<a style="flex-grow: 1; text-align: right;" href="#" onclick="onContact()">Contact</a>
-							</div>
+    							<div style="margin-bottom: 0px; flex: 1;">
+    								<div class="title">Connectez-vous avec votre compte Laclasse.com:</div>
+    								<form method="post" action="login">
+    			            			<input type="hidden" name="service" value="<#= service #>">
+    			            			<input type="hidden" name="state" value="<#= state #>">
+    			            			<input type="hidden" name="ticket" value="<#= ticket #>">
+    									<div>Identifiant:</div>
+    									<input name="username" type="text" style="margin-bottom: 10px;">
+    									<div>Mot de passe:</div>
+    									<input name="password" type="password" style="margin-bottom: 10px;">
+    									<br><br>
+    									<input class="btn" style="display: block; width: calc(100% - 10px);" name="submit" type="submit" value="SE CONNECTER">
+    								</form>
+                                    <div style="display: flex; flex-wrap: wrap; flex-direction: row; margin-top: 20px;">
+                                        <a href="#" onclick="onRescue()">Mot de passe oublié ?</a>
+                                        <a style="flex-grow: 1; text-align: right;" href="#" onclick="onContact()">Contact</a>
+                                    </div>
+                                </div>
+                            </div>
 						</div>
 
 	   					<!-- lost password -->
 						<div style="display: none" id="rescue-content">
-							<div style="font-size: 16px; text-transform: uppercase; text-align: center; margin-bottom: 10px; padding: 10px; color: #444; background-color: #e8e8e8;">
+							<div class="boxHeader">
 								<a href="#back" onclick="onRescueBack()" style="float: left;">
 									<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48">
 										<path style="fill:#444444;fill-opacity:1;stroke:none" d="M40 22H15.86l11.18-11.18L24 8l-16 16 16 16 2.82-2.82L15.66 26H40v-4z"/>
@@ -333,7 +370,7 @@ function onContactBack(e) {
 
 						<!-- contact -->
 						<div style="display: none" id="contact-content">
-							<div style="font-size: 16px; text-transform: uppercase; text-align: center; margin-bottom: 10px; padding: 10px; color: #444; background-color: #e8e8e8;">
+							<div class="boxHeader">
 								<a href="#back" onclick="onContactBack()" style="float: left;">
 									<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48">
 										<path style="fill:#444444;fill-opacity:1;stroke:none" d="M40 22H15.86l11.18-11.18L24 8l-16 16 16 16 2.82-2.82L15.66 26H40v-4z"/>
@@ -364,8 +401,8 @@ function onContactBack(e) {
 						<# } #>
 					</div>
 					<div class="footer">
-						<a href="https://www.grandlyon.com/"><img draggable="false" style="width: 50%" src="images/grandlyon-logo.svg" alt="Logo Métropole du Grand Lyon" /></a>
-						<a href="http://www.ac-lyon.fr/"><img draggable="false" style="width: 25%" src="images/logo-academie2.svg" alt="Logo Académie de Lyon" /></a>
+                        <a class="btn" href="/portail/#Accueil" style="background-color: #006fa8;">En savoir plus sur laclasse.com</a>
+						<a style="float: right" href="http://www.ac-lyon.fr/"><img draggable="false" style="height: 50px" src="images/logo-academie2.svg" alt="Logo Académie de Lyon" /></a>
 					</div>
 				</div>
 			</center>

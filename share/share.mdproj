@@ -61,5 +61,8 @@
     <None Include="www\avatar\avatar_feminin.svg" />
     <None Include="www\avatar\avatar_masculin.svg" />
     <None Include="www\avatar\avatar_neutre.svg" />
+    <None Include="www\sso\images\education-nationale.svg" />
+    <None Include="www\sso\images\grandlyon-connect.svg" />
+    <None Include="www\sso\images\logo-academie2.svg" />
   </ItemGroup>
 </Project>

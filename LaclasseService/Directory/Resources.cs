@@ -85,6 +85,8 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string site_web { get { return GetField<string>(nameof(site_web), null); } set { SetField(nameof(site_web), value); } }
 		[ModelField]
+		public DateTime ctime { get { return GetField<DateTime>(nameof(ctime), DateTime.Now); } set { SetField(nameof(ctime), value); } }
+		[ModelField]
 		public DateTime? mtime { get { return GetField<DateTime?>(nameof(mtime), null); } set { SetField(nameof(mtime), value); } }
 		[ModelField]
 		public string icon { get { return GetField<string>(nameof(icon), null); } set { SetField(nameof(icon), value); } }

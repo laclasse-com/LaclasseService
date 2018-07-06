@@ -97,6 +97,8 @@ namespace Laclasse.Directory
 		[ModelField(ForeignModel = typeof(Grade))]
 		public string student_grade_id { get { return GetField<string>(nameof(student_grade_id), null); } set { SetField(nameof(student_grade_id), value); } }
 		[ModelField]
+		public string student_ine { get { return GetField<string>(nameof(student_ine), null); } set { SetField(nameof(student_ine), value); } }
+		[ModelField]
 		public string oidc_sso_id { get { return GetField<string>(nameof(oidc_sso_id), null); } set { SetField(nameof(oidc_sso_id), value); } }
 		[ModelField(DB = false)]
 		public bool create_ent_email { get { return GetField<bool>(nameof(create_ent_email), false); } set { SetField(nameof(create_ent_email), value); } }

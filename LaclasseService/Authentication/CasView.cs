@@ -147,10 +147,10 @@ namespace Laclasse.Authentication {
             #line 225 ""
             this.Write(@"
 						<div style=""display: inherit"" id=""info-content"">
-							<div style=""font-size: 20px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #85d800;"">
+							<div style=""font-size: 20px; text-align: center; margin-bottom: 10px; padding: 10px; color: white; background-color: #80ba66;"">
 								Info
 							</div>
-							<div style=""margin-bottom: 20px; color: #d2ff89"">
+							<div style=""margin-bottom: 20px; color: #628e4e; font-weight: bold"">
 								<div>
 									");
             

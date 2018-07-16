@@ -3,7 +3,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017-2018 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,8 @@ namespace Laclasse.Directory
 		public string ent_letter { get { return GetField<string>(nameof(ent_letter), null); } set { SetField(nameof(ent_letter), value); } }
 		[ModelField]
 		public int ent_digit { get { return GetField(nameof(ent_digit), 0); } set { SetField(nameof(ent_digit), value); } }
+		[ModelField]
+		public bool disable_student_parent { get { return GetField(nameof(disable_student_parent), false); } set { SetField(nameof(disable_student_parent), value); } }
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{

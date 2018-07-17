@@ -27,6 +27,7 @@
 
 using System;
 using System.Net;
+using System.Linq;
 using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Authentication;
@@ -74,6 +75,19 @@ namespace Laclasse.Directory
 				ip = contextIp;
 			}
 		}
+
+		public override SqlFilter FilterAuthUser(AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+                return new SqlFilter();
+                
+            // Limit logs to the structures where the logged user has an admin profile
+			var structuresIds = user.user.profiles.Where((arg) => arg.type == "ADM" || arg.type == "DIR").Select((arg) => arg.structure_id).Distinct();
+			if (structuresIds.Count() == 0)
+				return new SqlFilter() { Where = "FALSE" };
+			else
+				return new SqlFilter() { Where = $"{DB.InFilter("structure_id", structuresIds)}" };
+        }
 	}
 
 	public class Logs : ModelService<Log>

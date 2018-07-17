@@ -80,7 +80,7 @@ namespace Laclasse.Directory
 			BeforeAsync = async (p, c) =>
 			{
 				await c.EnsureIsAuthenticatedAsync();
-				if (c.Request.Method != "GET" && c.Request.Method != "POST")
+				if (c.Request.Method != "POST")
 					await c.EnsureIsSuperAdminAsync();
 			};
 

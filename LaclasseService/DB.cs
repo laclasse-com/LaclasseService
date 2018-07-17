@@ -1035,8 +1035,8 @@ namespace Laclasse
 				sqlInnerFilter = sqlFilter.Inner;
 			var sqlWhereFilter = "";
 			if (sqlFilter.Where != null)
-				sqlWhereFilter = "AND" + sqlFilter.Where;
-			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `{modelTableName}` {sqlInnerFilter} WHERE {filter} {sqlWhereFilter}" +
+				sqlWhereFilter = " AND " + sqlFilter.Where;
+			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `{modelTableName}` {sqlInnerFilter} WHERE {filter} {sqlWhereFilter} " +
 				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC");
 			// if the order is not the primary key add a second order criteria to ensure a predictible order
 			// else paging might be useless

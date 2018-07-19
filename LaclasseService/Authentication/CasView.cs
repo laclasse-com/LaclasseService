@@ -34,69 +34,69 @@ namespace Laclasse.Authentication {
                     "ame=\"mobile-web-app-capable\" content=\"yes\">\n\t\t\t<meta http-equiv=\"Content-Type\" c" +
                     "ontent=\"text/html; charset=utf-8\">\n\t\t\t<meta name=\"viewport\" content=\"width=devic" +
                     "e-width, initial-scale=1.0, minimum-scale=1.0\">\n            <meta name=\"theme-co" +
-                    "lor\" content=\"#e10000\" />\n            <link rel=\"icon\" href=\"images/icon-64.png\"" +
+                    "lor\" content=\"#dedede\" />\n            <link rel=\"icon\" href=\"images/icon-64.png\"" +
                     " sizes=\"64x64\" />\n            <link rel=\"icon\" href=\"images/icon-128.png\" sizes=" +
                     "\"128x128\" />\n            <link rel=\"icon\" href=\"images/icon-256.png\" sizes=\"256x" +
                     "256\" />\n            <link rel=\"apple-touch-icon\" href=\"images/icon-72.png\" sizes" +
                     "=\"72x72\" />\n            <link rel=\"apple-touch-icon\" href=\"images/icon-114.png\" " +
-                    "sizes=\"114x114\" />\n            <link rel=\"manifest\" href=\"sso/manifest.json\" />\n" +
-                    "            <link href=\"https://fonts.googleapis.com/css?family=Muli\" rel=\"style" +
-                    "sheet\">\n\t\t\t<style>\nbody {\n\tcolor: #444;\n\tbackground-color: #f5f5f5;\n\tfont-family" +
-                    ": \"Muli\", sans-serif;\n\tfont-size: 16px;\n\tline-height: 1.3;\n    margin: 0px;\n    " +
-                    "padding: 0px;\n}\n\n* {\n\tbox-sizing: border-box;\n}\n\na {\n\tcolor: #444;\n}\n\nimg {\n    " +
-                    "border: none;\n}\n\nli {\n\tpadding-top: 5px;\n    padding-bottom: 5px;\n}\n\n.logo {\n\twi" +
-                    "dth: 60%;\n\topacity: 0.6;\n\tposition: absolute;\n\tleft: -5%;\n\ttop: -15%;\n\t-webkit-u" +
-                    "ser-select: none;\n}\n\n.footer {\n\twidth: 100%;\n    max-width: 1000px;\n\tdisplay: bl" +
-                    "ock;\n    padding: 0px;\n\ttext-align: left;\n    margin-bottom: 40px;\n    margin-to" +
-                    "p: 10px;\n    position: relative;\n    top: 0px;\n}\n\n.btn {\n    -webkit-appearance:" +
-                    " none;\n\tdisplay: inline-block;\n\tfont-size: 14px;\n\ttext-transform: uppercase;\n\tpa" +
-                    "dding: 10px 20px;\n\tborder: 0px solid white;\n\tborder-radius: 0;\n\tbackground-color" +
-                    ": #444;\n\tmargin: 5px;\n    color: white;\n\ttext-decoration: none;\n\tcursor: pointer" +
-                    ";\n\ttext-align: center;\n}\n\n.btn:hover {\n\tbackground-color: #555;\n}\n\n.box {\n    ba" +
-                    "ckground: #f2efef;\n    padding: 20px;\n}\n\n.boxHeader {\n    font-size: 18px;\n    t" +
-                    "ext-transform: uppercase;\n    text-align: center;\n    margin-bottom: 10px;\n    c" +
-                    "olor: #444;\n    font-weight: bold;\n}\n\ninput[type=text], input[type=password] {\n " +
-                    "   -webkit-appearance: none;\n    width: calc(100% - 10px);\n    height: 30px;\n   " +
-                    " border: 1px solid #cccccc;\n    background-color: #f7f7f7;\n    margin: 5px;\n    " +
-                    "color: #444;\n    font-size: 18px;\n    padding-left: 10px;\n    padding-right: 10p" +
-                    "x;\n    border-radius: 0;\n}\n\ninput:-webkit-autofill {\n    -webkit-box-shadow: 0 0" +
-                    " 0 30px #f9f194 inset;\n}\n\n.title {\n    font-weight: bold;\n    font-size: 18px;\n " +
-                    "   margin-bottom: 20px;\n}\n\n.authBox {\n    display: flex;\n    flex-direction: row" +
-                    ";\n    flex-wrap: nowrap;\n    justify-content: stretch;\n    margin-bottom: 20px;\n" +
-                    "}\n\n.authSeparator {\n    position: absolute;\n    left: calc(50% - 1px);\n    top: " +
-                    "0px;\n    width: 2px;\n    height: 100%;\n    background-color: #444;\n}\n\n.authOr {\n" +
-                    "    width: 30px;\n    height: 20px; \n    text-align: center;\n    position: absolu" +
-                    "te;\n    left: calc(50% - 15px);\n    top: calc(50% - 10px);\n    background-color:" +
-                    " #f2efef;\n    font-weight: bold;\n}\n\n@media screen and (max-width: 600px) {\n    ." +
-                    "authBox {\n        display: block;\n        flex-direction: column;\n    }\n\n    .au" +
-                    "thSeparator {\n        left: 0px;\n        top: calc(50% - 1px);\n        width: 10" +
-                    "0%;\n        height: 2px;\n    }\n}\n\t\t</style>\n\t\t<script>\nfunction onRescue()\n{\n\tva" +
-                    "r errorContent = document.getElementById(\"error-content\");\n\tif (errorContent != " +
-                    "null)\n\t\terrorContent.style.display = \"none\";\n\tdocument.getElementById(\"authentic" +
-                    "ation-content\").style.display = \"none\";\n\tdocument.getElementById(\"rescue-content" +
-                    "\").style.display = \"inherit\";\n}\n\nfunction onContact() {\n\tvar contactContent = do" +
-                    "cument.getElementById(\"contact-content\");\n\tif (contactContent != null)\n\t\tcontact" +
-                    "Content.style.display = \"none\";\n\tdocument.getElementById(\"authentication-content" +
-                    "\").style.display = \"none\";\n\tdocument.getElementById(\"contact-content\").style.dis" +
-                    "play = \"inherit\";\n}\n\nfunction onRescueBack(e)\n{\n\tdocument.getElementById(\"authen" +
-                    "tication-content\").style.display = \"inherit\";\n\tdocument.getElementById(\"rescue-c" +
-                    "ontent\").style.display = \"none\";\n}\n\nfunction onContactBack(e) {\n\tdocument.getEle" +
-                    "mentById(\"authentication-content\").style.display = \"inherit\";\n\tdocument.getEleme" +
-                    "ntById(\"contact-content\").style.display = \"none\";\n}\n\t\t</script>\n\t</head>\n<body>\n" +
-                    "            <div style=\"width: 100%; height: 20px; background-color: #e10000; ma" +
-                    "rgin: 0px; position: relative; top: 0px; z-index: 2;\"></div>\n\t\t\t<img draggable=\"" +
-                    "false\" class=\"logo\" src=\"images/logolaclasse.svg\" alt=\"Logo ENT\">\n\t\t\t<div style=" +
-                    "\"position: absolute; top: 20px; left: 0px; right: 0px; bottom: 0px;\">\n\t\t\t<center" +
-                    ">\n\t\t\t\t<div style=\"max-width: 1000px;\">\n                    <div style=\"display: " +
-                    "flex; flex-direction: row; flex-wrap: wrap; padding: 20px;\">\n                   " +
-                    "     <div style=\"font-weight: bold; font-size: 40px; flex-grow: 1; text-align: l" +
-                    "eft;\"><span style=\"color: #da0100\">la</span>classe<span style=\"color: #da0100\">." +
-                    "</span>com</div>\n                        <a href=\"http://www.ac-lyon.fr/\" style=" +
-                    "\"margin-right: 20px;\"><img draggable=\"false\" style=\"height: 46px\" src=\"images/lo" +
-                    "go-academie2.svg\" alt=\"Logo Académie de Lyon\" /></a>\n                        <a " +
-                    "href=\"https://www.grandlyon.com/\"><img draggable=\"false\" style=\"width: 200px\" sr" +
-                    "c=\"images/grandlyon-logo.svg\" alt=\"Logo Métropole du Grand Lyon\"></a>\n          " +
-                    "          </div>\n\n                    ");
+                    "sizes=\"114x114\" />\n            <link rel=\"manifest\" href=\"manifest.json\" />\n    " +
+                    "        <link href=\"https://fonts.googleapis.com/css?family=Muli\" rel=\"styleshee" +
+                    "t\">\n\t\t\t<style>\nbody {\n\tcolor: #444;\n\tbackground-color: #f5f5f5;\n\tfont-family: \"M" +
+                    "uli\", sans-serif;\n\tfont-size: 16px;\n\tline-height: 1.3;\n    margin: 0px;\n    padd" +
+                    "ing: 0px;\n}\n\n* {\n\tbox-sizing: border-box;\n}\n\na {\n\tcolor: #444;\n}\n\nimg {\n    bord" +
+                    "er: none;\n}\n\nli {\n\tpadding-top: 5px;\n    padding-bottom: 5px;\n}\n\n.logo {\n\twidth:" +
+                    " 60%;\n\topacity: 0.6;\n\tposition: absolute;\n\tleft: -5%;\n\ttop: -15%;\n\t-webkit-user-" +
+                    "select: none;\n}\n\n.footer {\n\twidth: 100%;\n    max-width: 1000px;\n\tdisplay: block;" +
+                    "\n    padding: 0px;\n\ttext-align: left;\n    margin-bottom: 40px;\n    margin-top: 1" +
+                    "0px;\n    position: relative;\n    top: 0px;\n}\n\n.btn {\n    -webkit-appearance: non" +
+                    "e;\n\tdisplay: inline-block;\n\tfont-size: 14px;\n\ttext-transform: uppercase;\n\tpaddin" +
+                    "g: 10px 20px;\n\tborder: 0px solid white;\n\tborder-radius: 0;\n\tbackground-color: #4" +
+                    "44;\n\tmargin: 5px;\n    color: white;\n\ttext-decoration: none;\n\tcursor: pointer;\n\tt" +
+                    "ext-align: center;\n}\n\n.btn:hover {\n\tbackground-color: #555;\n}\n\n.box {\n    backgr" +
+                    "ound: #f2efef;\n    padding: 20px;\n}\n\n.boxHeader {\n    font-size: 18px;\n    text-" +
+                    "transform: uppercase;\n    text-align: center;\n    margin-bottom: 10px;\n    color" +
+                    ": #444;\n    font-weight: bold;\n}\n\ninput[type=text], input[type=password] {\n    -" +
+                    "webkit-appearance: none;\n    width: calc(100% - 10px);\n    height: 30px;\n    bor" +
+                    "der: 1px solid #cccccc;\n    background-color: #f7f7f7;\n    margin: 5px;\n    colo" +
+                    "r: #444;\n    font-size: 18px;\n    padding-left: 10px;\n    padding-right: 10px;\n " +
+                    "   border-radius: 0;\n}\n\ninput:-webkit-autofill {\n    -webkit-box-shadow: 0 0 0 3" +
+                    "0px #f9f194 inset;\n}\n\n.title {\n    font-weight: bold;\n    font-size: 18px;\n    m" +
+                    "argin-bottom: 20px;\n}\n\n.authBox {\n    display: flex;\n    flex-direction: row;\n  " +
+                    "  flex-wrap: nowrap;\n    justify-content: stretch;\n    margin-bottom: 20px;\n}\n\n." +
+                    "authSeparator {\n    position: absolute;\n    left: calc(50% - 1px);\n    top: 0px;" +
+                    "\n    width: 2px;\n    height: 100%;\n    background-color: #444;\n}\n\n.authOr {\n    " +
+                    "width: 30px;\n    height: 20px; \n    text-align: center;\n    position: absolute;\n" +
+                    "    left: calc(50% - 15px);\n    top: calc(50% - 10px);\n    background-color: #f2" +
+                    "efef;\n    font-weight: bold;\n}\n\n@media screen and (max-width: 600px) {\n    .auth" +
+                    "Box {\n        display: block;\n        flex-direction: column;\n    }\n\n    .authSe" +
+                    "parator {\n        left: 0px;\n        top: calc(50% - 1px);\n        width: 100%;\n" +
+                    "        height: 2px;\n    }\n}\n\t\t</style>\n\t\t<script>\nfunction onRescue()\n{\n\tvar er" +
+                    "rorContent = document.getElementById(\"error-content\");\n\tif (errorContent != null" +
+                    ")\n\t\terrorContent.style.display = \"none\";\n\tdocument.getElementById(\"authenticatio" +
+                    "n-content\").style.display = \"none\";\n\tdocument.getElementById(\"rescue-content\").s" +
+                    "tyle.display = \"inherit\";\n}\n\nfunction onContact() {\n\tvar contactContent = docume" +
+                    "nt.getElementById(\"contact-content\");\n\tif (contactContent != null)\n\t\tcontactCont" +
+                    "ent.style.display = \"none\";\n\tdocument.getElementById(\"authentication-content\").s" +
+                    "tyle.display = \"none\";\n\tdocument.getElementById(\"contact-content\").style.display" +
+                    " = \"inherit\";\n}\n\nfunction onRescueBack(e)\n{\n\tdocument.getElementById(\"authentica" +
+                    "tion-content\").style.display = \"inherit\";\n\tdocument.getElementById(\"rescue-conte" +
+                    "nt\").style.display = \"none\";\n}\n\nfunction onContactBack(e) {\n\tdocument.getElement" +
+                    "ById(\"authentication-content\").style.display = \"inherit\";\n\tdocument.getElementBy" +
+                    "Id(\"contact-content\").style.display = \"none\";\n}\n\t\t</script>\n\t</head>\n<body>\n    " +
+                    "        <div style=\"width: 100%; height: 20px; background-color: #e10000; margin" +
+                    ": 0px; position: relative; top: 0px; z-index: 2;\"></div>\n\t\t\t<img draggable=\"fals" +
+                    "e\" class=\"logo\" src=\"images/logolaclasse.svg\" alt=\"Logo ENT\">\n\t\t\t<div style=\"pos" +
+                    "ition: absolute; top: 20px; left: 0px; right: 0px; bottom: 0px;\">\n\t\t\t<center>\n\t\t" +
+                    "\t\t<div style=\"max-width: 1000px;\">\n                    <div style=\"display: flex" +
+                    "; flex-direction: row; flex-wrap: wrap; padding: 20px;\">\n                       " +
+                    " <div style=\"font-weight: bold; font-size: 40px; flex-grow: 1; text-align: left;" +
+                    "\"><span style=\"color: #da0100\">la</span>classe<span style=\"color: #da0100\">.</sp" +
+                    "an>com</div>\n                        <a href=\"http://www.ac-lyon.fr/\" style=\"mar" +
+                    "gin-right: 20px;\"><img draggable=\"false\" style=\"height: 46px\" src=\"images/logo-a" +
+                    "cademie2.svg\" alt=\"Logo Académie de Lyon\" /></a>\n                        <a href" +
+                    "=\"https://www.grandlyon.com/\"><img draggable=\"false\" style=\"width: 200px\" src=\"i" +
+                    "mages/grandlyon-logo.svg\" alt=\"Logo Métropole du Grand Lyon\"></a>\n              " +
+                    "      </div>\n\n                    ");
             
             #line default
             #line hidden

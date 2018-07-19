@@ -64,5 +64,6 @@
     <None Include="www\sso\images\education-nationale.svg" />
     <None Include="www\sso\images\grandlyon-connect.svg" />
     <None Include="www\sso\images\logo-academie2.svg" />
+    <None Include="www\sso\manifest.json" />
   </ItemGroup>
 </Project>

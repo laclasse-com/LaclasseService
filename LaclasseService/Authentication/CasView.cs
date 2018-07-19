@@ -46,7 +46,7 @@ namespace Laclasse.Authentication {
                     "opacity: 0.6;\n\tposition: absolute;\n\tleft: -5%;\n\ttop: -15%;\n\t-webkit-user-select:" +
                     " none;\n}\n\n.footer {\n\twidth: 100%;\n    max-width: 1000px;\n\tdisplay: block;\n    pa" +
                     "dding: 0px;\n\ttext-align: left;\n    margin-bottom: 40px;\n    position: relative;\n" +
-                    "    top: -25px;\n}\n\n.btn {\n    -webkit-appearance: none;\n\tdisplay: inline-block;\n" +
+                    "    top: -50px;\n}\n\n.btn {\n    -webkit-appearance: none;\n\tdisplay: inline-block;\n" +
                     "\tfont-size: 14px;\n\ttext-transform: uppercase;\n\tpadding: 10px 20px;\n\tborder: 0px " +
                     "solid white;\n\tborder-radius: 0;\n\tbackground-color: #444;\n\tmargin: 5px;\n    color" +
                     ": white;\n\ttext-decoration: none;\n\tcursor: pointer;\n\ttext-align: center;\n}\n\n.btn:" +
@@ -185,7 +185,7 @@ namespace Laclasse.Authentication {
             
             #line 241 ""
             this.Write(@"
-                    <div style=""text-align: left; padding: 5px; margin-bottom: 10px; font-size: 16px; font-weight: bold; background: #444; color: #f5f5f5;"">
+                    <div style=""text-align: left; padding: 5px; margin-bottom: 10px; font-size: 16px; font-weight: bold; background: #444; color: #f5f5f5; border-top-left-radius: 10px; border-top-right-radius: 10px;"">
                         Espace Numérique de Travail des collèges et écoles de la Métropole de Lyon.
                     </div>
 
@@ -752,8 +752,8 @@ namespace Laclasse.Authentication {
             #line 434 ""
             this.Write(@"					</div>
 					<div class=""footer"">
-                        <div style=""position: relative; height: 60px; width: 60px; border-radius: 30px; background-color: #444; display: inline-block; left: 20px; top: 30px; padding: 0px;""><img src=""images/laclasse-light.svg"" style=""width: 60px; height: 60px;""></div>
-                        <a href=""/portail/#Accueil"" style=""padding: 5px; padding-left: 90px; font-weight: bold; color: #f5f5f5; background-color: #444; text-transform: uppercase; display: block;"">En savoir plus sur laclasse.com</a>
+                        <div style=""position: relative; height: 60px; width: 60px; border-radius: 30px; background-color: #444; display: block; left: 20px; top: 30px; padding: 0px;""><img src=""images/laclasse-light.svg"" style=""width: 60px; height: 60px;""></div>
+                        <a href=""/portail/#Accueil"" style=""padding: 5px; padding-left: 90px; font-weight: bold; color: #f5f5f5; background-color: #444; text-transform: uppercase; display: block; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;"">En savoir plus sur laclasse.com</a>
 					</div>
 				</div>
 			</center>

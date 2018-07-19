@@ -3,8 +3,8 @@
     "short_name": "Laclasse",
     "description": "Espace Numérique de travail",
     "start_url": "/",
-    "background_color": "#f5f5f5",
-    "theme_color": "#e10000",
+    "background_color": "#dedede",
+    "theme_color": "#dedede",
     "icons": [{
       "src": "images/icon-256.png",
       "sizes": "256x256",

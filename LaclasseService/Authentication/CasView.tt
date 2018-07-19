@@ -17,6 +17,8 @@
             <link rel="icon" href="images/icon-64.png" sizes="64x64" />
             <link rel="icon" href="images/icon-128.png" sizes="128x128" />
             <link rel="icon" href="images/icon-256.png" sizes="256x256" />
+            <link rel="apple-touch-icon" href="images/icon-72.png" sizes="72x72" />
+            <link rel="apple-touch-icon" href="images/icon-114.png" sizes="114x114" />
             <link rel="manifest" href="sso/manifest.json" />
             <link href="https://fonts.googleapis.com/css?family=Muli" rel="stylesheet">
 			<style>

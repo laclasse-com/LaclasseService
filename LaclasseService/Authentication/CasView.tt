@@ -63,8 +63,9 @@ li {
     padding: 0px;
 	text-align: left;
     margin-bottom: 40px;
+    margin-top: 10px;
     position: relative;
-    top: -50px;
+    top: 0px;
 }
 
 .btn {
@@ -205,8 +206,8 @@ function onContactBack(e) {
 				<div style="max-width: 1000px;">
                     <div style="display: flex; flex-direction: row; flex-wrap: wrap; padding: 20px;">
                         <div style="font-weight: bold; font-size: 40px; flex-grow: 1; text-align: left;"><span style="color: #da0100">la</span>classe<span style="color: #da0100">.</span>com</div>
-                        <a href="http://www.ac-lyon.fr/" style="margin-right: 20px;"><img draggable="false" style="height: 40px" src="images/logo-academie2.svg" alt="Logo Académie de Lyon" /></a>
-                        <a href="https://www.grandlyon.com/"><img draggable="false" style="height: 40px" src="images/grandlyon-logo.svg" alt="Logo Métropole du Grand Lyon"></a>
+                        <a href="http://www.ac-lyon.fr/" style="margin-right: 20px;"><img draggable="false" style="height: 46px" src="images/logo-academie2.svg" alt="Logo Académie de Lyon" /></a>
+                        <a href="https://www.grandlyon.com/"><img draggable="false" style="width: 200px" src="images/grandlyon-logo.svg" alt="Logo Métropole du Grand Lyon"></a>
                     </div>
 
                     <# if (error != null) { #>
@@ -433,7 +434,7 @@ function onContactBack(e) {
 						<# } #>
 					</div>
 					<div class="footer">
-                        <div style="position: relative; height: 60px; width: 60px; border-radius: 30px; background-color: #444; display: block; left: 20px; top: 30px; padding: 0px;"><img src="images/laclasse-light.svg" style="width: 60px; height: 60px;"></div>
+                        <div style="position: absolute; height: 60px; width: 60px; border-radius: 30px; background-color: #444; display: block; left: 20px; top: -30px; padding: 0px;"><img src="images/laclasse-light.svg" style="width: 60px; height: 60px;"></div>
                         <a href="/portail/#Accueil" style="padding: 5px; padding-left: 90px; font-weight: bold; color: #f5f5f5; background-color: #444; text-transform: uppercase; display: block; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;">En savoir plus sur laclasse.com</a>
 					</div>
 				</div>

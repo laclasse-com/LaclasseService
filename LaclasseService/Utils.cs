@@ -56,6 +56,7 @@ namespace Laclasse
 				return new JsonObject
 				{
 					["total"] = Total,
+					["limit"] = Limit,
 					["page"] = (Offset / Limit) + 1,
 					["data"] = Data
 				};

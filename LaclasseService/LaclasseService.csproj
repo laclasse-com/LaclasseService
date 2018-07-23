@@ -69,6 +69,9 @@
     <Reference Include="Erasme.Http">
       <HintPath>lib\Erasme.Http.dll</HintPath>
     </Reference>
+    <Reference Include="Erasme.Cloud">
+      <HintPath>lib\Erasme.Cloud.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
@@ -129,6 +132,13 @@
     <Compile Include="Directory\ChildrenGroupsUsers.cs" />
     <Compile Include="Directory\TilesRights.cs" />
     <Compile Include="Doc\Docs.cs" />
+    <Compile Include="Directory\Icons.cs" />
+    <Compile Include="Directory\SsoClients.cs" />
+    <Compile Include="Directory\SsoClientsUrls.cs" />
+    <Compile Include="Directory\SsoClientsAttributes.cs" />
+    <Compile Include="Directory\StaticIcons.cs" />
+    <Compile Include="Sms\Sms.cs" />
+    <Compile Include="Directory\BrowserLog.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -150,13 +160,14 @@
     <Folder Include="Scheduler\" />
     <Folder Include="Mail\" />
     <Folder Include="Doc\" />
+    <Folder Include="Sms\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <MonoDevelop>
       <Properties>
         <Policies>
-          <DotNetNamingPolicy DirectoryNamespaceAssociation="PrefixedHierarchical" ResourceNamePolicy="FileFormatDefault" />
+          <DotNetNamingPolicy ResourceNamePolicy="FileFormatDefault" DirectoryNamespaceAssociation="PrefixedHierarchical" />
         </Policies>
       </Properties>
     </MonoDevelop>

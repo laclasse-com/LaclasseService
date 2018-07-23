@@ -1,0 +1,13 @@
+{
+    "name": "Laclasse.com",
+    "short_name": "Laclasse",
+    "description": "Espace Numérique de travail",
+    "start_url": "/",
+    "background_color": "#dedede",
+    "theme_color": "#dedede",
+    "icons": [{
+      "src": "images/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    }]
+}

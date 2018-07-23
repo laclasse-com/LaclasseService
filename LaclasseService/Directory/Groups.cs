@@ -33,7 +33,14 @@ using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
-{
+{   
+	public enum GroupType
+    {
+        GPL,
+        GRP,
+        CLS
+    }
+
 	[Model(Table = "group", PrimaryKey = nameof(id))]
 	public class Group : Model
 	{
@@ -48,7 +55,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string aaf_name { get { return GetField<string>(nameof(aaf_name), null); } set { SetField(nameof(aaf_name), value); } }
 		[ModelField(Required = true)]
-		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
+		public GroupType type { get { return GetField(nameof(type), GroupType.GPL); } set { SetField(nameof(type), value); } }
 		[ModelField(ForeignModel = typeof(Structure))]
 		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
 		[ModelField]
@@ -60,6 +67,28 @@ namespace Laclasse.Directory
 		[ModelExpandField(Name = nameof(users), ForeignModel = typeof(GroupUser))]
 		public ModelList<GroupUser> users { get { return GetField<ModelList<GroupUser>>(nameof(users), null); } set { SetField(nameof(users), value); } }
 
+		public override SqlFilter FilterAuthUser (AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+				return new SqlFilter();
+
+			// users that are not only just only ELV (student) or TUT (parent)
+			// can see all GPL groups and all groups in the structures they
+			// belongs to
+			if (user.user.profiles.Exists((p) => (p.type != "ELV") && (p.type != "TUT")))
+			{
+				var structuresIds = user.user.profiles.Select((arg) => arg.structure_id).Distinct();
+				return new SqlFilter() { Where = $"(`structure_id` IS NULL OR {DB.InFilter("structure_id", structuresIds)})" };
+			}
+                     
+			// ELV (student) and TUT (parent) only sees group they belongs to
+            // or their childre belongs to
+			var groupsIds = user.user.groups.Select ((arg) => arg.group_id);
+			groupsIds = groupsIds.Concat(user.user.children_groups.Select((arg) => arg.group_id));
+			groupsIds = groupsIds.Distinct();
+			return new SqlFilter() { Where = $"{DB.InFilter("id", groupsIds)}" };
+        }
+
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
 			var user = await context.GetAuthenticatedUserAsync();
@@ -67,7 +96,7 @@ namespace Laclasse.Directory
 				throw new WebException(401, "Authentication needed");
 			if (user.IsSuperAdmin)
 				   return;
-			if ((right == Right.Create) && (type == "GPL"))
+			if ((right == Right.Create) && (type == GroupType.GPL))
 			{
 				// allow all profiles except ELV and TUT to group "GPL" group in their structure
 				if (structure_id != null) {
@@ -78,7 +107,7 @@ namespace Laclasse.Directory
 				else if (user.user.profiles.Any((arg) => arg.type != "ELV" && arg.type != "TUT"))
 					return;
 			}
-			await context.EnsureHasRightsOnGroupAsync(this, true, (right == Right.Update), (right == Right.Create) || (right == Right.Delete));
+			await context.EnsureHasRightsOnGroupAsync(this, true, false, (right == Right.Create) || (right == Right.Delete) || (right == Right.Update));
 		}
 	}
 

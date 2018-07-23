@@ -783,7 +783,7 @@ namespace Laclasse.Authentication
 					var group = new Directory.Group { id = user_group.group_id };
 					if (await group.LoadAsync(db))
 					{
-						if (group.type == "CLS")
+						if (group.type == GroupType.CLS)
 						{
 							if (ENTEleveClasses == null)
 								ENTEleveClasses = group.name;
@@ -797,7 +797,7 @@ namespace Laclasse.Authentication
 					var group = new Directory.Group { id = user_group.group_id };
 					if (await group.LoadAsync(db))
 					{
-						if ((group.type == "CLS") && (group.structure_id == ENTPersonStructRattachRNE))
+						if ((group.type == GroupType.CLS) && (group.structure_id == ENTPersonStructRattachRNE))
 						{
 							if (ENTAuxEnsClasses == null)
 								ENTAuxEnsClasses = new List<string>();
@@ -852,10 +852,12 @@ namespace Laclasse.Authentication
 			}
 
 			var client = await GetClientFromServiceAsync(preTicket.service);
+			User user;
+			Ent ent;
 
 			using (var db = await DB.CreateAsync(dbUrl))
 			{
-				var user = new User { id = preTicket.uid };
+				user = new User { id = preTicket.uid };
 				if (await user.LoadAsync(db, true))
 				{
 					// if needed, link the CUT id with the user
@@ -886,29 +888,40 @@ namespace Laclasse.Authentication
 						}).SaveAsync(db);
 					}
 				}
+				ent = new Ent { id = "Laclasse" };
+				await ent.LoadAsync(db, true);
 			}
 
-			c.Response.StatusCode = 302;
-			c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
-			c.Response.Headers["set-cookie"] = cookieName + "=" + sessionId + "; Path=/";
+			if (!ent.disable_student_parent || (user.profiles.Any((p) => p.type != "TUT" && p.type != "ELV")))
+			{
+				c.Response.StatusCode = 302;
+                c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
+                c.Response.Headers["set-cookie"] = cookieName + "=" + sessionId + "; Path=/";
 
-//			if (!string.IsNullOrEmpty(preTicket.service))
-//			{
-				string service = preTicket.service;
-				if (preTicket.wantTicket)
+                string service = preTicket.service;
+                if (preTicket.wantTicket)
+                {
+                    var ticket = await tickets.CreateAsync(sessionId);
+                    if (service.IndexOf('?') >= 0)
+                        service += "&ticket=" + ticket.id;
+                    else
+                        service += "?ticket=" + ticket.id;
+                }
+                Console.WriteLine($"Location: '{service}'");
+                c.Response.Headers["location"] = service;
+			}
+            // student or parent disabled mode. Signal the error to the user
+			else
+			{            
+				c.Response.StatusCode = 200;
+				c.Response.Headers["content-type"] = "text/html; charset=utf-8";
+				c.Response.Content = (new CasView
 				{
-					var ticket = await tickets.CreateAsync(sessionId);
-					if (service.IndexOf('?') >= 0)
-						service += "&ticket=" + ticket.id;
-					else
-						service += "?ticket=" + ticket.id;
-				}
-				Console.WriteLine($"Location: '{service}'");
-				c.Response.Headers["location"] = service;
-			//			}
-			//			else
-			//				// redirect to /
-			//				c.Response.Headers["location"] = "/";
+					state = preTicket.id,
+					title = "Laclasse.com en vacance",
+					info = "Laclasse.com est fermé pendant les vacances d'été. Revenez nous voir à la rentrée prochaine"
+				}).TransformText();
+			}
 			preTickets.Remove(preTicket.id);
 		}
 
@@ -1609,12 +1622,12 @@ namespace Laclasse.Authentication
 				// add children
 				if (userIds.Count > 0)
 				{
-					var userChildren = await db.SelectAsync<UserChild>("SELECT * FROM `user_child` WHERE " + db.InFilter("parent_id", userIds));
+					var userChildren = await db.SelectAsync<UserChild>("SELECT * FROM `user_child` WHERE " + DB.InFilter("parent_id", userIds));
 					foreach (var child in userChildren)
 						if (!userIds.Contains(child.child_id))
 							userIds.Add(child.child_id);
 
-					rescueUsers = await db.SelectAsync<User>("SELECT * FROM `user` WHERE " + db.InFilter("id", userIds));
+					rescueUsers = await db.SelectAsync<User>("SELECT * FROM `user` WHERE " + DB.InFilter("id", userIds));
 				}
 				db.Commit();
 			}

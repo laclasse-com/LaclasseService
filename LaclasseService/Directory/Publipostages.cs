@@ -311,7 +311,7 @@ catch(e) {
 			}
 			else if (item.users != null)
 			{
-				var users = await db.SelectExpandAsync<User>("SELECT * FROM `user` WHERE " + db.InFilter("id", item.users.Select((arg) => arg.user_id)), new object[] { });
+				var users = await db.SelectExpandAsync<User>("SELECT * FROM `user` WHERE " + DB.InFilter("id", item.users.Select((arg) => arg.user_id)), new object[] { });
 				foreach (var user in users)
 					recipients.Add(new RecipientUser { user = user });
 			}

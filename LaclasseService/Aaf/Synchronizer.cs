@@ -649,7 +649,7 @@ namespace Laclasse.Aaf
 			{
 				foreach (var group in struc.groups)
 				{
-					if ((group.type != "CLS") && (group.type != "GRP"))
+					if ((group.type != Directory.GroupType.CLS) && (group.type != Directory.GroupType.GRP))
 						continue;
 					if (group.aaf_name == null)
 						continue;
@@ -662,7 +662,7 @@ namespace Laclasse.Aaf
 		{
 			var sql = "SELECT * FROM `structure`";
 			if (structuresIds != null)
-				sql += " WHERE " + db.InFilter("id", structuresIds);
+				sql += " WHERE " + DB.InFilter("id", structuresIds);
 
 			entGroupsById = new Dictionary<int, Group>();
 			entStructuresByAafId = new Dictionary<int, Structure>();
@@ -1568,6 +1568,9 @@ namespace Laclasse.Aaf
 			if (attrs.ContainsKey("ENTEleveMEF"))
 				user.student_grade_id = attrs["ENTEleveMEF"];
 
+			if (attrs.ContainsKey("ENTEleveINE"))
+                user.student_ine = attrs["ENTEleveINE"];
+
 			// normalize the firstname. Lower the givenName and capitalize the first letters
 			if (attrs.ContainsKey("givenName"))
 				user.firstname = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attrs["givenName"].ToLower());
@@ -2189,7 +2192,7 @@ namespace Laclasse.Aaf
 				var classe = new Group
 				{
 					id = --groupIdGenerator,
-					type = "CLS",
+					type = Directory.GroupType.CLS,
 					aaf_name = tab[0],
 					structure_id = aafStructure.id,
 					description = string.IsNullOrEmpty(tab[1]) ? null : tab[1],
@@ -2228,7 +2231,7 @@ namespace Laclasse.Aaf
 				var groupe = new Group
 				{
 					id = --groupIdGenerator,
-					type = "GRP",
+					type = Directory.GroupType.GRP,
 					aaf_name = tab[0],
 					structure_id = aafStructure.id,
 					description = string.IsNullOrEmpty(tab[1]) ? null : tab[1],

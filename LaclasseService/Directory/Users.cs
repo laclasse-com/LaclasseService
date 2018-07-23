@@ -97,6 +97,8 @@ namespace Laclasse.Directory
 		[ModelField(ForeignModel = typeof(Grade))]
 		public string student_grade_id { get { return GetField<string>(nameof(student_grade_id), null); } set { SetField(nameof(student_grade_id), value); } }
 		[ModelField]
+		public string student_ine { get { return GetField<string>(nameof(student_ine), null); } set { SetField(nameof(student_ine), value); } }
+		[ModelField]
 		public string oidc_sso_id { get { return GetField<string>(nameof(oidc_sso_id), null); } set { SetField(nameof(oidc_sso_id), value); } }
 		[ModelField(DB = false)]
 		public bool create_ent_email { get { return GetField<bool>(nameof(create_ent_email), false); } set { SetField(nameof(create_ent_email), value); } }
@@ -241,11 +243,52 @@ namespace Laclasse.Directory
 
 		public override void FromJson(JsonObject json, string[] filterFields = null, HttpContext context = null)
 		{
+			// only accept "empty" in avatar field
+			if (json.ContainsKey(nameof(avatar)) && (json["avatar"].Value as string != "empty"))
+				json.Remove(nameof(avatar));
 			base.FromJson(json, filterFields, context);
 			// if the password is set, need to transform it
 			if (json.ContainsKey(nameof(password)))
 				password = json[nameof(password)];
 		}
+
+        public override SqlFilter FilterAuthUser (AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+				return new SqlFilter();
+            var groupsIds = user.user.groups.Select ((arg) => arg.group_id);
+			groupsIds = groupsIds.Concat(user.user.children_groups.Select((arg) => arg.group_id)).Distinct();
+            var structuresIds = user.user.profiles.Select ((arg) => arg.structure_id).Distinct ();
+            var childrenIds = user.user.children.Select ((arg) => arg.child_id).Distinct ();
+            var parentsIds = user.user.parents.Select ((arg) => arg.parent_id).Distinct ();
+            var allowIds = childrenIds.Concat (parentsIds);
+			//            var filter = 
+			//                $"(`id` = '{DB.EscapeString(user.user.id)}' " +
+			//                $"OR `id` IN (SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)}) " +
+			//                $"OR `id` IN (SELECT DISTINCT(`user_id`) FROM `user_profile` WHERE {DB.InFilter ("structure_id", structuresIds)} AND `type` != 'ELV' AND `type` != 'TUT') " +
+			//				$"OR {DB.InFilter("id", allowIds)})";
+            
+
+			var filter = $"INNER JOIN(SELECT '{DB.EscapeString(user.user.id)}' AS `allow_id` ";
+
+			foreach (var structureId in structuresIds) {
+				if (user.HasRightsOnStructure(structureId, true, true, true))
+					filter += $"UNION SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE `structure_id`='{DB.EscapeString(structureId)}' ";
+				else
+					filter += $"UNION SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE `structure_id`='{DB.EscapeString(structureId)}' AND `type` != 'ELV' AND `type` != 'TUT' ";
+			}
+
+
+			if (groupsIds.Count() > 0)
+				filter += $"UNION SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)} ";
+
+			foreach (var allowId in allowIds)
+				filter += $"UNION SELECT '{DB.EscapeString(allowId)}' ";
+
+			filter += ") `allow` ON (`id` = `allow_id`)";
+
+			return new SqlFilter() { Inner = filter };
+        }
 
 		public override async Task EnsureRightAsync(HttpContext context, Right right)
 		{
@@ -341,11 +384,11 @@ namespace Laclasse.Directory
 								avatarDir, uid[0].ToString(), uid[1].ToString(), uid[2].ToString()));
 							var ext = ".jpg";
 							var format = "jpeg";
-							if ((part.Headers["content-type"] == "image/png") || (part.Headers["content-type"] == "image/svg+xml"))
-							{
-								ext = ".png";
-								format = "png";
-							}
+							//if ((part.Headers["content-type"] == "image/png") || (part.Headers["content-type"] == "image/svg+xml"))
+							//{
+							//	ext = ".png";
+							//	format = "png";
+							//}
 
 							var name = StringExt.RandomString(16) + "_" + uid + ext;
 

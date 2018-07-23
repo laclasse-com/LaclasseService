@@ -114,11 +114,8 @@ namespace Laclasse.Authentication
 				return true;
 			if (user.groups.Exists((obj) => (obj.group_id == group.id)))
 				return true;
-			foreach (var child in user.children)
-			{
-				if (group.users.Exists((obj) => (obj.user_id == child.child_id)))
-					return true;
-			}
+            if (user.children_groups.Exists ((obj) => (obj.group_id == group.id)))
+                return true;
 			return false;
 		}
 
@@ -264,6 +261,23 @@ namespace Laclasse.Authentication
 			context.Data[AuthUserKey] = authUser;
 			return authUser;
 		}
+
+		public async static Task<AuthenticatedUser> SetAuthenticatedUserAsync(this HttpContext context, string userId)
+        {
+            AuthenticatedUser authUser = null;
+
+            // check in the sessions
+            if (userId != null)
+            {
+                var user = await ((Directory.Users)context.Data["users"]).GetUserAsync(userId);
+                if (user != null)
+                    authUser = new AuthenticatedUser { user = user };
+            }
+            context.User = (authUser != null) ? authUser.Name : null;
+            context.Data[AuthUserKey] = authUser;
+            return authUser;
+        }
+
 	}
 
 }

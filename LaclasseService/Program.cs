@@ -115,6 +115,9 @@ namespace Laclasse
 			if (checkDB)
 				return;
 
+			if (!System.IO.Directory.Exists(setup.server.temporaryDirectory))
+				System.IO.Directory.CreateDirectory(setup.server.temporaryDirectory);         
+
 			var logger = new Logger(setup.log, setup.mail);
 
 			var server = new Server(setup.server.port, logger);
@@ -137,7 +140,7 @@ namespace Laclasse
 			mapper.Add("/api/grades", new Grades(dbUrl));
 			var applications = new Applications(dbUrl);
 			mapper.Add("/api/applications", applications);
-			mapper.Add("/api/resources", new Resources(dbUrl));
+			mapper.Add("/api/resources", new Resources(dbUrl, setup.server.storage));
 			mapper.Add("/api/structures_resources", new StructuresResources(dbUrl));
 			mapper.Add("/api/profiles_types", new ProfilesTypes(dbUrl));
 			mapper.Add("/api/profiles", new Profiles(dbUrl));
@@ -157,6 +160,7 @@ namespace Laclasse
 			mapper.Add("/api/news", new PortailNews(dbUrl));
 			mapper.Add("/api/users", new PortailRss(dbUrl));
 			mapper.Add("/api/logs", new Logs(dbUrl));
+			mapper.Add("/api/browser_logs", new BrowserLogs(dbUrl));
 			mapper.Add("/api/ent", new Ents(dbUrl));
 			mapper.Add("/api/publipostages", new Publipostages(dbUrl, setup.mail));
 
@@ -183,7 +187,16 @@ namespace Laclasse
 
 			mapper.Add("/api/users", new Mail.ImapCheck(dbUrl));
 
-			mapper.Add("/api/docs", new Docs.Docs(setup.doc.url, setup.doc.path));
+			mapper.Add("/api/docs", new Docs.Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory));
+
+			//mapper.Add("/api/icons", new Icons(dbUrl));
+			mapper.Add("/api/icons", new StaticIcons(setup.server.publicIcons, setup.http.defaultCacheDuration));
+
+            mapper.Add ("/api/sso_clients", new SsoClients (dbUrl));
+            mapper.Add ("/api/sso_clients_urls", new SsoClientsUrls (dbUrl));
+            mapper.Add ("/api/sso_clients_attributes", new SsoClientsAttributes (dbUrl));
+
+			mapper.Add("/api/sms", new Sms.SmsService(dbUrl, setup.sms));
 
 			// if the request is not already handled, try static files
 			server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));

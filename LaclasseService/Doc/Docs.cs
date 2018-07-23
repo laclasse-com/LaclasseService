@@ -37,6 +37,29 @@ using ICSharpCode.SharpZipLib.Zip;
 
 namespace Laclasse.Docs
 {
+	public enum RightProfile
+	{
+		TUT,
+		ENS,
+		ELV
+	}
+
+	[Model(Table = "right", PrimaryKey = nameof(id), DB = "DOCS")]
+    public class Right : Model
+    {
+        [ModelField]
+        public long id { get { return GetField(nameof(id), 0L); } set { SetField(nameof(id), value); } }
+        [ModelField(Required = true, ForeignModel = typeof(Node))]
+		public long? node_id { get { return GetField<long?>(nameof(node_id), null); } set { SetField(nameof(node_id), value); } }
+        [ModelField]
+		public RightProfile profile { get { return GetField<RightProfile>(nameof(profile), RightProfile.ELV); } set { SetField(nameof(profile), value); } }
+		[ModelField]
+        public bool read { get { return GetField(nameof(read), true); } set { SetField(nameof(read), value); } }
+        [ModelField]
+        public bool write { get { return GetField(nameof(write), true); } set { SetField(nameof(write), value); } }        
+    }
+
+
 	[Model(Table = "node", PrimaryKey = nameof(id), DB = "DOCS")]
 	public class Node : Model
 	{
@@ -87,6 +110,8 @@ namespace Laclasse.Docs
 
 		[ModelExpandField(Name = nameof(children), ForeignModel = typeof(Node))]
 		public ModelList<Node> children { get { return GetField<ModelList<Node>>(nameof(children), null); } set { SetField(nameof(children), value); } }
+		[ModelExpandField(Name = nameof(rights), ForeignModel = typeof(Right))]
+		public ModelList<Node> rights { get { return GetField<ModelList<Node>>(nameof(rights), null); } set { SetField(nameof(rights), value); } }
 	}
 
 	/// <summary>
@@ -234,11 +259,13 @@ namespace Laclasse.Docs
 	{
 		string dbUrl;
 		string path;
+		string tempDir;
 
-		public Docs(string dbUrl, string path): base(dbUrl)
+		public Docs(string dbUrl, string path, string tempDir): base(dbUrl)
 		{
 			this.dbUrl = dbUrl;
 			this.path = path;
+			this.tempDir = tempDir;
 
 			GetAsync["/file/{id:int}/content"] = async (p, c) =>
 			{
@@ -262,6 +289,41 @@ namespace Laclasse.Docs
 						}
 					}
 				}
+			};
+
+            // generate thumbnail
+			// TODO: handle caching
+			GetAsync["/file/{id:int}/tmb"] = async (p, c) =>
+			{
+				Node node = null;
+				using (var db = await DB.CreateAsync(dbUrl))
+				{
+					node = await db.SelectRowAsync<Node>(p["id"], false);
+				}
+                if (node == null)
+					return;
+
+				// build the thumbnail
+                try
+                {
+                    string previewMimetype;
+                    string previewPath;
+                    string error;
+                    
+                    if (Erasme.Cloud.Preview.PreviewService.BuildPreview(
+						tempDir, ContentToPath(path, node.content), node.mime,
+                        128, 128, out previewMimetype, out previewPath, out error))
+                    {
+						c.Response.Headers["content-type"] = previewMimetype;
+						c.Response.Content = new FileContent(previewPath);
+						await c.SendResponseAsync();
+						File.Delete(previewPath);
+                    }
+                }
+                catch (Exception e)
+                {
+					Console.WriteLine($"ThumbnailPlugin {node.name} fails {e.ToString()}");
+                }
 			};
 		}
 

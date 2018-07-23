@@ -3,7 +3,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017-2018 Metropole de Lyon
 // Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -27,6 +27,7 @@
 
 using System;
 using System.Net;
+using System.Linq;
 using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Authentication;
@@ -40,13 +41,13 @@ namespace Laclasse.Directory
 		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
 		[ModelField(Required = true)]
 		public string ip { get { return GetField<string>(nameof(ip), null); } set { SetField(nameof(ip), value); } }
-		[ModelField(Required = true, ForeignModel = typeof(User))]
+		[ModelField(ForeignModel = typeof(Application))]
 		public string application_id { get { return GetField<string>(nameof(application_id), null); } set { SetField(nameof(application_id), value); } }
-		[ModelField(Required = true, ForeignModel = typeof(User))]
+		[ModelField(ForeignModel = typeof(User))]
 		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
-		[ModelField(Required = true, ForeignModel = typeof(Structure))]
+		[ModelField(ForeignModel = typeof(Structure))]
 		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
-		[ModelField(Required = true)]
+		[ModelField]
 		public string profil_id { get { return GetField<string>(nameof(profil_id), null); } set { SetField(nameof(profil_id), value); } }
 		[ModelField(Required = true)]
 		public string url { get { return GetField<string>(nameof(url), null); } set { SetField(nameof(url), value); } }
@@ -54,6 +55,10 @@ namespace Laclasse.Directory
 		public string parameters { get { return GetField<string>(nameof(parameters), null); } set { SetField(nameof(parameters), value); } }
 		[ModelField]
 		public DateTime timestamp { get { return GetField(nameof(timestamp), DateTime.Now); } set { SetField(nameof(timestamp), value); } }
+		[ModelField(ForeignModel = typeof(Resource))]
+		public int? resource_id { get { return GetField<int?>(nameof(resource_id), null); } set { SetField(nameof(resource_id), value); } }
+		[ModelField(ForeignModel = typeof(Tile))]
+        public int? tile_id { get { return GetField<int?>(nameof(tile_id), null); } set { SetField(nameof(tile_id), value); } }
 
 		public override void FromJson(JsonObject json, string[] filterFields = null, HttpContext context = null)
 		{
@@ -70,6 +75,19 @@ namespace Laclasse.Directory
 				ip = contextIp;
 			}
 		}
+
+		public override SqlFilter FilterAuthUser(AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+                return new SqlFilter();
+                
+            // Limit logs to the structures where the logged user has an admin profile
+			var structuresIds = user.user.profiles.Where((arg) => arg.type == "ADM" || arg.type == "DIR").Select((arg) => arg.structure_id).Distinct();
+			if (structuresIds.Count() == 0)
+				return new SqlFilter() { Where = "FALSE" };
+			else
+				return new SqlFilter() { Where = $"{DB.InFilter("structure_id", structuresIds)}" };
+        }
 	}
 
 	public class Logs : ModelService<Log>

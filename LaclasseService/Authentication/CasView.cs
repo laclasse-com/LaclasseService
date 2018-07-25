@@ -92,11 +92,11 @@ namespace Laclasse.Authentication {
                     " <div style=\"font-weight: bold; font-size: 40px; flex-grow: 1; text-align: left;" +
                     "\"><span style=\"color: #da0100\">la</span>classe<span style=\"color: #da0100\">.</sp" +
                     "an>com</div>\n                        <a href=\"http://www.ac-lyon.fr/\" style=\"mar" +
-                    "gin-right: 20px;\"><img draggable=\"false\" style=\"height: 46px\" src=\"images/logo-a" +
-                    "cademie2.svg\" alt=\"Logo Académie de Lyon\" /></a>\n                        <a href" +
-                    "=\"https://www.grandlyon.com/\"><img draggable=\"false\" style=\"width: 200px\" src=\"i" +
-                    "mages/grandlyon-logo.svg\" alt=\"Logo Métropole du Grand Lyon\"></a>\n              " +
-                    "      </div>\n\n                    ");
+                    "gin-right: 20px;\"><img draggable=\"false\" style=\"width: 74px; height: 46px\" src=\"" +
+                    "images/logo-academie2.svg\" alt=\"Logo Académie de Lyon\" /></a>\n                  " +
+                    "      <a href=\"https://www.grandlyon.com/\"><img draggable=\"false\" style=\"width: " +
+                    "200px; height: 46px;\" src=\"images/grandlyon-logo.svg\" alt=\"Logo Métropole du Gra" +
+                    "nd Lyon\"></a>\n                    </div>\n\n                    ");
             
             #line default
             #line hidden

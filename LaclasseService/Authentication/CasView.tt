@@ -208,8 +208,8 @@ function onContactBack(e) {
 				<div style="max-width: 1000px;">
                     <div style="display: flex; flex-direction: row; flex-wrap: wrap; padding: 20px;">
                         <div style="font-weight: bold; font-size: 40px; flex-grow: 1; text-align: left;"><span style="color: #da0100">la</span>classe<span style="color: #da0100">.</span>com</div>
-                        <a href="http://www.ac-lyon.fr/" style="margin-right: 20px;"><img draggable="false" style="height: 46px" src="images/logo-academie2.svg" alt="Logo Académie de Lyon" /></a>
-                        <a href="https://www.grandlyon.com/"><img draggable="false" style="width: 200px" src="images/grandlyon-logo.svg" alt="Logo Métropole du Grand Lyon"></a>
+                        <a href="http://www.ac-lyon.fr/" style="margin-right: 20px;"><img draggable="false" style="width: 74px; height: 46px" src="images/logo-academie2.svg" alt="Logo Académie de Lyon" /></a>
+                        <a href="https://www.grandlyon.com/"><img draggable="false" style="width: 200px; height: 46px;" src="images/grandlyon-logo.svg" alt="Logo Métropole du Grand Lyon"></a>
                     </div>
 
                     <# if (error != null) { #>

@@ -3,7 +3,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017-2018 Metropole de Lyon
 // Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -426,6 +426,39 @@ namespace Laclasse.Directory
 						}
 					}
 				}
+			};
+
+			GetAsync["/{uid:uid}/avatar"] = async (p, c) =>
+			{
+				var uid = (string)p["uid"];
+
+				var user = new User { id = uid };
+				using (var db = await DB.CreateAsync(dbUrl))
+				{
+					if (!await user.LoadAsync(db, true))
+						user = null;
+				}
+
+				if (user == null)
+					return;
+
+				string avatarPath;
+				if ((user.avatar == null) || (user.avatar == "empty"))
+				{
+					if (user.gender == null)
+						avatarPath = "/avatar/avatar_neutre.svg";
+					else if (user.gender == Gender.M)
+						avatarPath = "/avatar/avatar_masculin.svg";
+					else
+						avatarPath = "/avatar/avatar_feminin.svg";
+				}
+				else
+					avatarPath = "/api/avatar/user/" +
+                        uid.Substring(0, 1) + "/" + uid.Substring(1, 1) + "/" +
+                        uid.Substring(2, 1) + "/" + user.avatar;
+                
+				c.Response.StatusCode = 302;
+				c.Response.Headers["location"] = avatarPath;
 			};
 		}
 

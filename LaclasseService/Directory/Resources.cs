@@ -107,7 +107,9 @@ namespace Laclasse.Directory
 		[ModelField]
 		public ResourceGrade grade { get { return GetField(nameof(grade), ResourceGrade.ALL); } set { SetField(nameof(grade), value); } }
 		[ModelField]
-         public int index { get { return GetField(nameof(index), 0); } set { SetField(nameof(index), value); } }
+        public int index { get { return GetField(nameof(index), 0); } set { SetField(nameof(index), value); } }
+		[ModelField]
+		public bool default_visible { get { return GetField(nameof(default_visible), false); } set { SetField(nameof(default_visible), value); } }      
 
 		[ModelExpandField(Name = nameof(structures), ForeignModel = typeof(StructureResource), Visible = false)]
 		public ModelList<StructureResource> structures {

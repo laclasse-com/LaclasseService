@@ -35,11 +35,17 @@ using Laclasse.Authentication;
 namespace Laclasse.Directory
 {   
 	public enum GroupType
-    {
-        GPL,
-        GRP,
-        CLS
-    }
+	{
+		GPL,
+		GRP,
+		CLS
+	}
+
+	public enum GroupVisibility
+	{
+		PRIVATE,
+		PUBLIC
+	}
 
 	[Model(Table = "group", PrimaryKey = nameof(id))]
 	public class Group : Model
@@ -60,7 +66,9 @@ namespace Laclasse.Directory
 		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
 		[ModelField]
 		public DateTime? ctime { get { return GetField<DateTime?>(nameof(ctime), null); } set { SetField(nameof(ctime), value); } }
-
+		[ModelField]
+		public GroupVisibility visibility { get { return GetField<GroupVisibility>(nameof(visibility), GroupVisibility.PRIVATE); } set { SetField(nameof(visibility), value); } }
+              
 		[ModelExpandField(Name = nameof(grades), ForeignModel = typeof(GroupGrade))]
 		public ModelList<GroupGrade> grades { get { return GetField<ModelList<GroupGrade>>(nameof(grades), null); } set { SetField(nameof(grades), value); } }
 
@@ -78,7 +86,7 @@ namespace Laclasse.Directory
 			if (user.user.profiles.Exists((p) => (p.type != "ELV") && (p.type != "TUT")))
 			{
 				var structuresIds = user.user.profiles.Select((arg) => arg.structure_id).Distinct();
-				return new SqlFilter() { Where = $"(`structure_id` IS NULL OR {DB.InFilter("structure_id", structuresIds)})" };
+				return new SqlFilter() { Where = $"(`visibility`='PUBLIC' OR {DB.InFilter("structure_id", structuresIds)})" };
 			}
                      
 			// ELV (student) and TUT (parent) only sees group they belongs to

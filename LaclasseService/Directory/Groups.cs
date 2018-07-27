@@ -80,20 +80,21 @@ namespace Laclasse.Directory
             if (user.IsSuperAdmin || user.IsApplication)
 				return new SqlFilter();
 
+			var groupsIds = user.user.groups.Select((arg) => arg.group_id);
+            groupsIds = groupsIds.Concat(user.user.children_groups.Select((arg) => arg.group_id));
+            groupsIds = groupsIds.Distinct();
+
 			// users that are not only just only ELV (student) or TUT (parent)
 			// can see all GPL groups and all groups in the structures they
 			// belongs to
 			if (user.user.profiles.Exists((p) => (p.type != "ELV") && (p.type != "TUT")))
 			{
 				var structuresIds = user.user.profiles.Select((arg) => arg.structure_id).Distinct();
-				return new SqlFilter() { Where = $"(`visibility`='PUBLIC' OR {DB.InFilter("structure_id", structuresIds)})" };
+				return new SqlFilter() { Where = $"(`visibility`='PUBLIC' OR {DB.InFilter("structure_id", structuresIds)} OR {DB.InFilter("id", groupsIds)})" };
 			}
                      
 			// ELV (student) and TUT (parent) only sees group they belongs to
             // or their childre belongs to
-			var groupsIds = user.user.groups.Select ((arg) => arg.group_id);
-			groupsIds = groupsIds.Concat(user.user.children_groups.Select((arg) => arg.group_id));
-			groupsIds = groupsIds.Distinct();
 			return new SqlFilter() { Where = $"{DB.InFilter("id", groupsIds)}" };
         }
 

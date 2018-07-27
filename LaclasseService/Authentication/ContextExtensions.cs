@@ -68,6 +68,15 @@ namespace Laclasse.Authentication
 			}
 		}
 
+        public bool IsRestrictedUser
+		{
+			get {
+				if (user.profiles.Count == 0)
+					return true;
+				return !user.profiles.Exists((obj) => (obj.type != "ELV") && (obj.type != "TUT"));
+			}
+		}      
+
 		public bool HasRightsOnUser(User user, bool read, bool write, bool admin)
 		{
 			if (IsSuperAdmin)
@@ -83,11 +92,11 @@ namespace Laclasse.Authentication
 				return (this.user.id == user.id) || user.profiles.Exists((obj) => HasRightsOnStructure(new Structure { id = obj.structure_id }, false, false, true));
 			if (this.user.id == user.id)
 				return true;
+			// all users except parents and students and user without any profiles have read access on other users
+			if (!IsRestrictedUser)
+				return true;
 			// parents have read right on their children
 			if (this.user.children.Exists((obj) => obj.child_id == user.id))
-				return true;
-			// all users except parents and students and user without any profiles have read access on other users
-			if (this.user.profiles.Exists(obj => (obj.type != "ELV") && (obj.type != "TUT")))
 				return true;
 			// if the users are in common group, allow read access
 			if (this.user.groups.Any((arg) => user.groups.Any((arg2) => arg.group_id == arg2.group_id)))
@@ -110,7 +119,7 @@ namespace Laclasse.Authentication
 				return user.groups.Exists((obj) => (obj.group_id == group.id));
 			if ((group.structure_id != null) && HasRightsOnStructure(new Structure { id = group.structure_id }, true, false, false))
 				return true;
-			if (group.structure_id == null)
+			if (group.visibility == GroupVisibility.PUBLIC)
 				return true;
 			if (user.groups.Exists((obj) => (obj.group_id == group.id)))
 				return true;

@@ -254,7 +254,7 @@ namespace Laclasse.Directory
 
         public override SqlFilter FilterAuthUser (AuthenticatedUser user)
         {
-            if (user.IsSuperAdmin || user.IsApplication)
+			if (user.IsSuperAdmin || user.IsApplication || !user.IsRestrictedUser)
 				return new SqlFilter();
             var groupsIds = user.user.groups.Select ((arg) => arg.group_id);
 			groupsIds = groupsIds.Concat(user.user.children_groups.Select((arg) => arg.group_id)).Distinct();

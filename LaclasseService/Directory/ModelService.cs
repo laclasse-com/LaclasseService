@@ -306,10 +306,13 @@ namespace Laclasse.Directory
                                 foreach (var jsonItem in (JsonArray)json) {
                                     var item = new T ();
                                     item.FromJson ((JsonObject)jsonItem, null, c);
+									var oldItem = new T();
+									oldItem.Fields[details.PrimaryKeyName] = item.Fields[details.PrimaryKeyName];
+									await oldItem.LoadAsync(db, true);
+									// need a loaded user to check the rights
+                                    await oldItem.EnsureRightAsync(c, Right.Update);
                                     await item.UpdateAsync (db);
                                     await item.LoadAsync (db, true);
-                                    // need a loaded user to check the rights
-                                    await item.EnsureRightAsync (c, Right.Update);
                                     await OnChangedAsync (db, item);
                                     result.Add (item);
                                 }
@@ -335,10 +338,14 @@ namespace Laclasse.Directory
                                 itemDiff.Fields [details.PrimaryKeyName] = id;
 
                                 using (DB db = await DB.CreateAsync (dbUrl, true)) {
+									var oldItem = new T();
+                                    oldItem.Fields[details.PrimaryKeyName] = id;
+                                    await oldItem.LoadAsync(db, true);
+									// need a loaded user to check the rights
+                                    await oldItem.EnsureRightAsync(c, Right.Update);
+
                                     await itemDiff.UpdateAsync (db);
                                     await itemDiff.LoadAsync (db, true);
-                                    // need a loaded user to check the rights
-                                    await itemDiff.EnsureRightAsync (c, Right.Update);
                                     await OnChangedAsync (db, itemDiff);
                                     db.Commit ();
                                 }
@@ -365,6 +372,12 @@ namespace Laclasse.Directory
                                     await RunBeforeAsync (null, context);
                                     Model foreignItem = null;
                                     using (DB db = await DB.CreateAsync (dbUrl, true)) {
+										var oldItem = new T();
+                                        oldItem.Fields[details.PrimaryKeyName] = id;
+                                        await oldItem.LoadAsync(db, true);
+                                        // need a loaded user to check the rights
+                                        await oldItem.EnsureRightAsync(c, Right.Update);
+
                                         var task = typeof (DB).GetMethod (nameof (DB.SelectRowAsync)).MakeGenericMethod (expandFields [parts [1]].Attribute.ForeignModel).Invoke (db, new object [] { foreignId, false }) as Task;
                                         await task;
                                         var resultProperty = typeof (Task<>).MakeGenericType (expandFields [parts [1]].Attribute.ForeignModel).GetProperty ("Result");
@@ -384,7 +397,6 @@ namespace Laclasse.Directory
                                         // return the whole item
                                         T item = null;
                                         item = await db.SelectRowAsync<T> (id, true);
-                                        await item.EnsureRightAsync (c, Right.Update);
                                         await OnChangedAsync (db, item);
                                         if (item != null) {
                                             c.Response.StatusCode = 200;
@@ -405,11 +417,15 @@ namespace Laclasse.Directory
                                         // TODO
                                         throw new NotImplementedException ();
                                     }
+									var oldItem = new T();
+                                    oldItem.Fields[details.PrimaryKeyName] = id;
+                                    await oldItem.LoadAsync(db, true);
+                                    // need a loaded user to check the rights
+                                    await oldItem.EnsureRightAsync(c, Right.Update);
 
                                     // return the whole item
                                     T item = null;
                                     item = await db.SelectRowAsync<T> (id, true);
-                                    await item.EnsureRightAsync (c, Right.Update);
                                     await OnChangedAsync (db, item);
                                     if (item != null) {
                                         c.Response.StatusCode = 200;

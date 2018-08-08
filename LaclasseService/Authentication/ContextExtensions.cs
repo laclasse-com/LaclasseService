@@ -71,6 +71,8 @@ namespace Laclasse.Authentication
         public bool IsRestrictedUser
 		{
 			get {
+				if (IsSuperAdmin)
+					return false;
 				if (user.profiles.Count == 0)
 					return true;
 				return !user.profiles.Exists((obj) => (obj.type != "ELV") && (obj.type != "TUT"));

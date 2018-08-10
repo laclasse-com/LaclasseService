@@ -187,7 +187,7 @@ namespace Laclasse.Authentication {
             
             #line 244 ""
             this.Write(@"
-                    <div style=""text-align: left; padding: 5px; margin-bottom: 10px; font-size: 16px; font-weight: bold; background: #444; color: #f5f5f5; border-top-left-radius: 10px; border-top-right-radius: 10px;"">
+                    <div style=""text-align: left; padding: 5px; padding-left: 15px; margin-bottom: 10px; font-size: 16px; font-weight: bold; background: #444; color: #f5f5f5; border-top-left-radius: 10px; border-top-right-radius: 10px;"">
                         Espace Numérique de Travail des collèges et écoles de la Métropole de Lyon.
                     </div>
 

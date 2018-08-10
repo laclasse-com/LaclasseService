@@ -50,7 +50,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public DateTime? aaf_mtime { get { return GetField<DateTime?>(nameof(aaf_mtime), null); } set { SetField(nameof(aaf_mtime), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			var authUser = await context.EnsureIsAuthenticatedAsync();
 

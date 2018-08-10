@@ -46,7 +46,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public bool disable_student_parent { get { return GetField(nameof(disable_student_parent), false); } set { SetField(nameof(disable_student_parent), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			if (right != Right.Read)
 				await context.EnsureIsSuperAdminAsync();

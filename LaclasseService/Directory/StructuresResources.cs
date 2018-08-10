@@ -40,7 +40,7 @@ namespace Laclasse.Directory
 		[ModelField(Required = true, ForeignModel = typeof(Structure))]
 		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			var structure = new Structure { id = structure_id };
 			await context.EnsureHasRightsOnStructureAsync(structure, true, right == Right.Update, right == Right.Create || right == Right.Delete);

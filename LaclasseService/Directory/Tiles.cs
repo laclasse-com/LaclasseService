@@ -62,7 +62,7 @@ namespace Laclasse.Directory
 		[ModelExpandField(Name = nameof(rights), ForeignModel = typeof(TileRight))]
 		public ModelList<TileRight> rights { get { return GetField<ModelList<TileRight>>(nameof(rights), null); } set { SetField(nameof(rights), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			if (structure_id != null)
 			{

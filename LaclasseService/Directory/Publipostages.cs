@@ -66,7 +66,7 @@ namespace Laclasse.Directory
 		[ModelExpandField(Name = nameof(users), ForeignModel = typeof(PublipostageUser))]
 		public ModelList<PublipostageUser> users { get { return GetField<ModelList<PublipostageUser>>(nameof(users), null); } set { SetField(nameof(users), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			if(right == Right.Update)
 				throw new WebException(403, "Publipostage update not allowed");
@@ -177,16 +177,16 @@ catch(e) {
 				var publi = Model.CreateFromJson<Publipostage>(await c.Request.ReadAsJsonAsync());
 				using (DB db = await DB.CreateAsync(dbUrl))
 				{
-					await publi.EnsureRightAsync(c, Right.Read);
+					await publi.EnsureRightAsync(c, Right.Read, null as Publipostage);
 					var recipientsMessages = await GetRecipientsMessagesAsync(db, publi);
 					foreach (var recipient in recipientsMessages)
 					{
 						if (recipient.user != null)
-							await recipient.user.EnsureRightAsync(c, Right.Read);
+							await recipient.user.EnsureRightAsync(c, Right.Read, null as User);
 						if (recipient.group != null)
-							await recipient.group.EnsureRightAsync(c, Right.Read);
+							await recipient.group.EnsureRightAsync(c, Right.Read, null as User);
 						if (recipient.child != null)
-							await recipient.child.EnsureRightAsync(c, Right.Read);
+							await recipient.child.EnsureRightAsync(c, Right.Read, null as User);
 					}
 					c.Response.StatusCode = 200;
 					c.Response.Content = recipientsMessages;

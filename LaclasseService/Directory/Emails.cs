@@ -145,23 +145,6 @@ namespace Laclasse.Directory
 				using (DB db = await DB.CreateAsync(dbUrl))
 					c.Response.Content = new JsonPrimitive(await OfferEntEmailAsync(db, c.Request.QueryString["firstname"], c.Request.QueryString["lastname"]));
 			};
-
-			// TODO: remove this useless API
-			GetAsync["/mail_available"] = async (p, c) =>
-			{
-				var json = await c.Request.ReadAsJsonAsync();
-				json.RequireFields("mail");
-
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					var emails = await db.SelectAsync("SELECT * FROM `email` WHERE `address`=?", (string)json["mail"]);
-					c.Response.StatusCode = 200;
-					c.Response.Content = new JsonObject
-					{
-						["available"] = (emails.Count() == 0)
-					};
-				}
-			};
 		}
 
 		public static async Task<string> OfferEntEmailAsync(DB db, string firstname, string lastname)

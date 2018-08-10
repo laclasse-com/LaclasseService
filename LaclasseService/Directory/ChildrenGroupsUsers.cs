@@ -43,14 +43,14 @@ namespace Laclasse.Directory
 		[ModelField(Required = true, ForeignModel = typeof(User))]
 		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			await context.EnsureIsAuthenticatedAsync();
 			if (right != Right.Read)
 				throw new WebException(403, "Insufficient authorization");
 		}
 	}
-
+    
 	[Model(Table = "all_group_user", PrimaryKey = nameof(id))]
 	public class AllGroupUser : Model
 	{
@@ -63,7 +63,7 @@ namespace Laclasse.Directory
 		[ModelField(Required = true, ForeignModel = typeof(User))]
 		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			await context.EnsureIsAuthenticatedAsync();
 			if (right != Right.Read)

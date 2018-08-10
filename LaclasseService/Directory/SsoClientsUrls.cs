@@ -40,7 +40,7 @@ namespace Laclasse.Directory
         [ModelField (Required = true)]
         public string url { get { return GetField<string> (nameof (url), null); } set { SetField (nameof (url), value); } }
 
-        public override async Task EnsureRightAsync (HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
         {
             await context.EnsureIsSuperAdminAsync ();
         }

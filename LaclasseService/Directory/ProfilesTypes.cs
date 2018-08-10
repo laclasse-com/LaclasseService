@@ -42,7 +42,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string code_national { get { return GetField<string>(nameof(code_national), null); } set { SetField(nameof(code_national), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			if (right != Right.Read)
 				await context.EnsureIsSuperAdminAsync();

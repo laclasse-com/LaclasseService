@@ -42,7 +42,7 @@ namespace Laclasse.Directory
 		readonly ModelDetails details;
 
 		readonly string dbUrl;
-		readonly Dictionary<string,ModelExpandDetails> expandFields;
+		readonly Dictionary<string, ModelExpandDetails> expandFields;
 
 		class ModelDetails
 		{
@@ -118,439 +118,514 @@ namespace Laclasse.Directory
 		public async override Task ProcessRequestAsync(HttpContext context)
 		{
 			await base.ProcessRequestAsync(context);
-			var c = context;         
-			if (c.Request.QueryString.ContainsKey("seenBy")) {
+			var c = context;
+			if (c.Request.QueryString.ContainsKey("seenBy"))
+			{
 				var authUser = await context.GetAuthenticatedUserAsync();
 				if (authUser == null || !authUser.IsUser || authUser.user.id != c.Request.QueryString["seenBy"])
 				{
 					await context.EnsureIsSuperAdminAsync();
-                    await c.SetAuthenticatedUserAsync(c.Request.QueryString["seenBy"]);					
-				}            
+					await c.SetAuthenticatedUserAsync(c.Request.QueryString["seenBy"]);
+				}
 			}
-                
+
 			if (c.Response.StatusCode == -1)
 			{
 				var parts = c.Request.Path.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-                switch (c.Request.Method) {
-                case "GET":
-                    // search API
-                    if (parts.Length == 0) {
-                        await RunBeforeAsync (null, context);
-                        var authUser = await context.GetAuthenticatedUserAsync ();
-                        var filterAuth = (new T ()).FilterAuthUser (authUser);
-                        using (DB db = await DB.CreateAsync (dbUrl)) {
-                            var result = await Model.SearchAsync<T> (db, c, filterAuth);
-                            foreach (var item in result.Data)
-                                await item.EnsureRightAsync (c, Right.Read);
-                            c.Response.Content = result.ToJson (context);
-                        }
-                        c.Response.StatusCode = 200;
-                    }
-                    // get item
-                    else if (parts.Length == 1) {
-                        await RunBeforeAsync (null, context);
-                        object id = null;
-                        try {
-                            id = Convert.ChangeType (parts [0], details.PrimaryKeyType);
-                        } catch (InvalidCastException) { } catch (FormatException) { }
-                        if (id != null) {
-                            bool expand = true;
-                            if (context.Request.QueryString.ContainsKey ("expand"))
-                                expand = Convert.ToBoolean (context.Request.QueryString ["expand"]);
-                            T item = null;
-                            using (DB db = await DB.CreateAsync (dbUrl))
-                                item = await db.SelectRowAsync<T> (id, expand);
-                            if (item != null) {
-                                await item.EnsureRightAsync (c, Right.Read);
-                                c.Response.StatusCode = 200;
-                                c.Response.Content = item;
-                            }
-                        }
-                    } else if ((parts.Length > 1) && expandFields.ContainsKey (parts [1])) {
-                        object id = null;
-                        try {
-                            id = Convert.ChangeType (parts [0], details.PrimaryKeyType);
-                        } catch (InvalidCastException) { } catch (FormatException) { }
-                        if (id != null) {
-                            if (parts.Length == 3) {
-                                object foreignId = null;
-                                try {
-                                    foreignId = Convert.ChangeType (parts [2], expandFields [parts [1]].ForeignDetails.PrimaryKeyType);
-                                } catch (InvalidCastException) { } catch (FormatException) { }
+				switch (c.Request.Method)
+				{
+					case "GET":
+						// search API
+						if (parts.Length == 0)
+						{
+							await RunBeforeAsync(null, context);
+							var authUser = await context.GetAuthenticatedUserAsync();
+							var filterAuth = (new T()).FilterAuthUser(authUser);
+							using (DB db = await DB.CreateAsync(dbUrl))
+							{
+								var result = await Model.SearchAsync<T>(db, c, filterAuth);
+								foreach (var item in result.Data)
+									await item.EnsureRightAsync(c, Right.Read, null);
+								c.Response.Content = result.ToJson(context);
+							}
+							c.Response.StatusCode = 200;
+						}
+						// get item
+						else if (parts.Length == 1)
+						{
+							await RunBeforeAsync(null, context);
+							object id = null;
+							try
+							{
+								id = Convert.ChangeType(parts[0], details.PrimaryKeyType);
+							}
+							catch (InvalidCastException) { }
+							catch (FormatException) { }
+							if (id != null)
+							{
+								bool expand = true;
+								if (context.Request.QueryString.ContainsKey("expand"))
+									expand = Convert.ToBoolean(context.Request.QueryString["expand"]);
+								T item = null;
+								using (DB db = await DB.CreateAsync(dbUrl))
+									item = await db.SelectRowAsync<T>(id, expand);
+								if (item != null)
+								{
+									await item.EnsureRightAsync(c, Right.Read, null);
+									c.Response.StatusCode = 200;
+									c.Response.Content = item;
+								}
+							}
+						}
+						else if ((parts.Length > 1) && expandFields.ContainsKey(parts[1]))
+						{
+							object id = null;
+							try
+							{
+								id = Convert.ChangeType(parts[0], details.PrimaryKeyType);
+							}
+							catch (InvalidCastException) { }
+							catch (FormatException) { }
+							if (id != null)
+							{
+								if (parts.Length == 3)
+								{
+									object foreignId = null;
+									try
+									{
+										foreignId = Convert.ChangeType(parts[2], expandFields[parts[1]].ForeignDetails.PrimaryKeyType);
+									}
+									catch (InvalidCastException) { }
+									catch (FormatException) { }
 
-                                if (foreignId != null) {
-                                    await RunBeforeAsync (null, context);
-                                    Model item = null;
-                                    using (DB db = await DB.CreateAsync (dbUrl, true)) {
-                                        var task = typeof (DB).GetMethod (nameof (DB.SelectRowAsync)).MakeGenericMethod (expandFields [parts [1]].Attribute.ForeignModel).Invoke (db, new object [] { foreignId, false }) as Task;
-                                        await task;
-                                        var resultProperty = typeof (Task<>).MakeGenericType (expandFields [parts [1]].Attribute.ForeignModel).GetProperty ("Result");
-                                        item = resultProperty.GetValue (task) as Model;
+									if (foreignId != null)
+									{
+										await RunBeforeAsync(null, context);
+										Model item = null;
+										using (DB db = await DB.CreateAsync(dbUrl, true))
+										{
+											var task = typeof(DB).GetMethod(nameof(DB.SelectRowAsync)).MakeGenericMethod(expandFields[parts[1]].Attribute.ForeignModel).Invoke(db, new object[] { foreignId, false }) as Task;
+											await task;
+											var resultProperty = typeof(Task<>).MakeGenericType(expandFields[parts[1]].Attribute.ForeignModel).GetProperty("Result");
+											item = resultProperty.GetValue(task) as Model;
 
-                                        // check if it correspond to the current parent ID
-                                        if ((item != null) && (!id.Equals (item.Fields [expandFields [parts [1]].ForeignField])))
-                                            item = null;
+											// check if it correspond to the current parent ID
+											if ((item != null) && (!id.Equals(item.Fields[expandFields[parts[1]].ForeignField])))
+												item = null;
 
-                                        db.Commit ();
-                                    }
-                                    if (item == null)
-                                        c.Response.StatusCode = 404;
-                                    else {
-                                        c.Response.StatusCode = 200;
-                                        c.Response.Content = item;
-                                    }
-                                }
-                            } else if (parts.Length == 2) {
-                                await RunBeforeAsync (null, context);
-                                T item = null;
-                                using (DB db = await DB.CreateAsync (dbUrl)) {
-                                    item = await db.SelectRowAsync<T> (id, true);
-                                    if (item != null)
-                                        await item.LoadExpandFieldAsync (db, parts [1]);
-                                }
+											db.Commit();
+										}
+										if (item == null)
+											c.Response.StatusCode = 404;
+										else
+										{
+											c.Response.StatusCode = 200;
+											c.Response.Content = item;
+										}
+									}
+								}
+								else if (parts.Length == 2)
+								{
+									await RunBeforeAsync(null, context);
+									T item = null;
+									using (DB db = await DB.CreateAsync(dbUrl))
+									{
+										item = await db.SelectRowAsync<T>(id, true);
+										if (item != null)
+											await item.LoadExpandFieldAsync(db, parts[1]);
+									}
 
-                                if ((item != null) && (item.Fields.ContainsKey (parts [1]))) {
-                                    await item.EnsureRightAsync (c, Right.Read);
-                                    c.Response.StatusCode = 200;
-                                    // filter the result
-                                    var modelListType = item.GetType ().GetProperty (parts [1]).PropertyType;
-                                    var resultFiltered = modelListType.GetMethod (nameof (ModelList<T>.Filter), new Type [] { typeof (HttpContext) }).Invoke (item.Fields [parts [1]], new object [] { c });
-                                    c.Response.Content = (resultFiltered as IModelList).ToJson ();
-                                }
-                            }
-                        }
-                    }
-                    break;
-                case "POST":
-                    if (parts.Length == 0) {
-                        await RunBeforeAsync (null, context);
-                        var json = await c.Request.ReadAsJsonAsync ();
-                        // multiple create
-                        if (json is JsonArray) {
-                            var result = new JsonArray ();
-                            using (DB db = await DB.CreateAsync (dbUrl, true)) {
-                                foreach (var jsonItem in (JsonArray)json) {
-                                    var item = new T ();
-                                    item.FromJson ((JsonObject)jsonItem, null, c);
-                                    await item.EnsureRightAsync (c, Right.Create);
-                                    await item.SaveAsync (db, true);
-                                    await OnCreatedAsync (db, item);
-                                    result.Add (item);
-                                }
-                                db.Commit ();
-                            }
-                            c.Response.StatusCode = 200;
-                            c.Response.Content = result;
-                        } else if (json is JsonObject) {
-                            await RunBeforeAsync (null, context);
-                            var item = new T ();
-                            item.FromJson ((JsonObject)json, null, c);
-                            await item.EnsureRightAsync (c, Right.Create);
+									if ((item != null) && (item.Fields.ContainsKey(parts[1])))
+									{
+										await item.EnsureRightAsync(c, Right.Read, null);
+										c.Response.StatusCode = 200;
+										// filter the result
+										var modelListType = item.GetType().GetProperty(parts[1]).PropertyType;
+										var resultFiltered = modelListType.GetMethod(nameof(ModelList<T>.Filter), new Type[] { typeof(HttpContext) }).Invoke(item.Fields[parts[1]], new object[] { c });
+										c.Response.Content = (resultFiltered as IModelList).ToJson();
+									}
+								}
+							}
+						}
+						break;
+					case "POST":
+						if (parts.Length == 0)
+						{
+							await RunBeforeAsync(null, context);
+							var json = await c.Request.ReadAsJsonAsync();
+							// multiple create
+							if (json is JsonArray)
+							{
+								var result = new JsonArray();
+								using (DB db = await DB.CreateAsync(dbUrl, true))
+								{
+									foreach (var jsonItem in (JsonArray)json)
+									{
+										var item = new T();
+										item.FromJson((JsonObject)jsonItem, null, c);
+										await item.EnsureRightAsync(c, Right.Create, null);
+										await item.SaveAsync(db, true);
+										await OnCreatedAsync(db, item);
+										result.Add(item);
+									}
+									db.Commit();
+								}
+								c.Response.StatusCode = 200;
+								c.Response.Content = result;
+							}
+							else if (json is JsonObject)
+							{
+								await RunBeforeAsync(null, context);
+								var item = new T();
+								item.FromJson((JsonObject)json, null, c);
+								await item.EnsureRightAsync(c, Right.Create, null);
 
-                            using (DB db = await DB.CreateAsync (dbUrl, true)) {
-                                await item.SaveAsync (db, true);
-                                await OnCreatedAsync (db, item);
-                                db.Commit ();
-                            }
-                            c.Response.StatusCode = 200;
-                            c.Response.Content = item;
-                        }
-                    } else if ((parts.Length == 2) && expandFields.ContainsKey (parts [1])) {
-                        object id = null;
-                        try {
-                            id = Convert.ChangeType (parts [0], details.PrimaryKeyType);
-                        } catch (InvalidCastException) { } catch (FormatException) { }
-                        if (id != null) {
-                            await RunBeforeAsync (null, context);
-                            var json = await c.Request.ReadAsJsonAsync ();
-                            using (DB db = await DB.CreateAsync (dbUrl, true)) {
-                                if (json is JsonArray) {
-                                    foreach (var jsonItem in (JsonArray)json) {
-                                        if (!(jsonItem is JsonObject))
-                                            continue;
+								using (DB db = await DB.CreateAsync(dbUrl, true))
+								{
+									await item.SaveAsync(db, true);
+									await OnCreatedAsync(db, item);
+									db.Commit();
+								}
+								c.Response.StatusCode = 200;
+								c.Response.Content = item;
+							}
+						}
+						else if ((parts.Length == 2) && expandFields.ContainsKey(parts[1]))
+						{
+							object id = null;
+							try
+							{
+								id = Convert.ChangeType(parts[0], details.PrimaryKeyType);
+							}
+							catch (InvalidCastException) { }
+							catch (FormatException) { }
+							if (id != null)
+							{
+								await RunBeforeAsync(null, context);
+								var json = await c.Request.ReadAsJsonAsync();
+								JsonArray jsonArray;
+								if (json is JsonArray)
+									jsonArray = json as JsonArray;
+								else
+								{
+									jsonArray = new JsonArray();
+									jsonArray.Add(json);
+								}
 
-                                        var foreignItem = (Model)Activator.CreateInstance (expandFields [parts [1]].ForeignModel);
-                                        foreignItem.FromJson ((JsonObject)jsonItem, null, c);
-                                        foreignItem.Fields [expandFields [parts [1]].ForeignField] = id;
-                                        await foreignItem.SaveAsync (db, false);
-                                    }
-                                } else if (json is JsonObject) {
-                                    var foreignItem = (Model)Activator.CreateInstance (expandFields [parts [1]].ForeignModel);
-                                    foreignItem.FromJson ((JsonObject)json, null, c);
-                                    foreignItem.Fields [expandFields [parts [1]].ForeignField] = id;
-                                    await foreignItem.SaveAsync (db, false);
-                                }
+								// generate diff
+								var diffJson = new JsonObject
+								{
+									[parts[1]] = new JsonObject
+									{
+										["diff"] = new JsonObject
+										{
+											["add"] = jsonArray,
+											["change"] = new JsonArray(),
+											["remove"] = new JsonArray()
+										}
+									}
+								};
 
-                                // return the whole item
-                                T item = null;
-                                item = await db.SelectRowAsync<T> (id, true);
-                                await item.EnsureRightAsync (c, Right.Update);
-                                await OnChangedAsync (db, item);
-                                if (item != null) {
-                                    c.Response.StatusCode = 200;
-                                    c.Response.Content = item;
-                                }
-                                db.Commit ();
-                            }
-                        }
-                    }
-                    break;
-                case "PUT":
-                    // multiple modify
-                    if (parts.Length == 0) {
-                        await RunBeforeAsync (null, context);
-                        var json = await c.Request.ReadAsJsonAsync ();
-                        if (json is JsonArray) {
-                            var result = new JsonArray ();
-                            using (DB db = await DB.CreateAsync (dbUrl, true)) {
-                                foreach (var jsonItem in (JsonArray)json) {
-                                    var item = new T ();
-                                    item.FromJson ((JsonObject)jsonItem, null, c);
+								var itemDiff = new T();
+								itemDiff.FromJson(diffJson, null, c);
+								itemDiff.Fields[details.PrimaryKeyName] = id;
+
+								using (DB db = await DB.CreateAsync(dbUrl, true))
+								{
 									var oldItem = new T();
-									oldItem.Fields[details.PrimaryKeyName] = item.Fields[details.PrimaryKeyName];
+									oldItem.Fields[details.PrimaryKeyName] = id;
 									await oldItem.LoadAsync(db, true);
 									// need a loaded user to check the rights
-                                    await oldItem.EnsureRightAsync(c, Right.Update);
-                                    await item.UpdateAsync (db);
-                                    await item.LoadAsync (db, true);
-                                    await OnChangedAsync (db, item);
-                                    result.Add (item);
-                                }
-                                db.Commit ();
-                            }
-                            c.Response.StatusCode = 200;
-                            c.Response.Content = result;
-                        }
-                    }
-                    // item modify
-                    else if (parts.Length == 1) {
-                        await RunBeforeAsync (null, context);
-                        object id = null;
-                        try {
-                            id = Convert.ChangeType (parts [0], details.PrimaryKeyType);
-                        } catch (InvalidCastException) { } catch (FormatException) { }
+									await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
 
-                        if (id != null) {
-                            var json = await c.Request.ReadAsJsonAsync ();
-                            if (json is JsonObject) {
-                                var itemDiff = new T ();
-                                itemDiff.FromJson ((JsonObject)json, null, c);
-                                itemDiff.Fields [details.PrimaryKeyName] = id;
-
-                                using (DB db = await DB.CreateAsync (dbUrl, true)) {
-									var oldItem = new T();
-                                    oldItem.Fields[details.PrimaryKeyName] = id;
-                                    await oldItem.LoadAsync(db, true);
-									// need a loaded user to check the rights
-                                    await oldItem.EnsureRightAsync(c, Right.Update);
-
-                                    await itemDiff.UpdateAsync (db);
-                                    await itemDiff.LoadAsync (db, true);
-                                    await OnChangedAsync (db, itemDiff);
-                                    db.Commit ();
-                                }
-                                c.Response.StatusCode = 200;
-                                c.Response.Content = itemDiff;
-                            }
-                        }
-                    } else if ((parts.Length > 1) && expandFields.ContainsKey (parts [1])) {
-                        object id = null;
-                        try {
-                            id = Convert.ChangeType (parts [0], details.PrimaryKeyType);
-                        } catch (InvalidCastException) { } catch (FormatException) { }
-                        if (id != null) {
-                            if (parts.Length == 3) {
-                                object foreignId = null;
-                                try {
-                                    foreignId = Convert.ChangeType (parts [2], expandFields [parts [1]].ForeignDetails.PrimaryKeyType);
-                                } catch (InvalidCastException) { } catch (FormatException) { }
-
-                                if (foreignId != null) {
-                                    await RunBeforeAsync (null, context);
-                                    var json = await c.Request.ReadAsJsonAsync ();
-
-                                    await RunBeforeAsync (null, context);
-                                    Model foreignItem = null;
-                                    using (DB db = await DB.CreateAsync (dbUrl, true)) {
+									await itemDiff.UpdateAsync(db);
+									await itemDiff.LoadAsync(db, true);
+									await OnChangedAsync(db, itemDiff);
+									db.Commit();
+								}
+								c.Response.StatusCode = 200;
+								c.Response.Content = itemDiff;
+							}
+						}
+						break;
+					case "PUT":
+						// multiple modify
+						if (parts.Length == 0)
+						{
+							await RunBeforeAsync(null, context);
+							var json = await c.Request.ReadAsJsonAsync();
+							if (json is JsonArray)
+							{
+								var result = new JsonArray();
+								using (DB db = await DB.CreateAsync(dbUrl, true))
+								{
+									foreach (var jsonItem in (JsonArray)json)
+									{
+										var item = new T();
+										item.FromJson((JsonObject)jsonItem, null, c);
 										var oldItem = new T();
-                                        oldItem.Fields[details.PrimaryKeyName] = id;
-                                        await oldItem.LoadAsync(db, true);
-                                        // need a loaded user to check the rights
-                                        await oldItem.EnsureRightAsync(c, Right.Update);
+										oldItem.Fields[details.PrimaryKeyName] = item.Fields[details.PrimaryKeyName];
+										await oldItem.LoadAsync(db, true);
+										// need a loaded user to check the rights
+										await oldItem.EnsureRightAsync(c, Right.Update, item);
+										await item.UpdateAsync(db);
+										await item.LoadAsync(db, true);
+										await OnChangedAsync(db, item);
+										result.Add(item);
+									}
+									db.Commit();
+								}
+								c.Response.StatusCode = 200;
+								c.Response.Content = result;
+							}
+						}
+						// item modify
+						else if (parts.Length == 1)
+						{
+							await RunBeforeAsync(null, context);
+							object id = null;
+							try
+							{
+								id = Convert.ChangeType(parts[0], details.PrimaryKeyType);
+							}
+							catch (InvalidCastException) { }
+							catch (FormatException) { }
 
-                                        var task = typeof (DB).GetMethod (nameof (DB.SelectRowAsync)).MakeGenericMethod (expandFields [parts [1]].Attribute.ForeignModel).Invoke (db, new object [] { foreignId, false }) as Task;
-                                        await task;
-                                        var resultProperty = typeof (Task<>).MakeGenericType (expandFields [parts [1]].Attribute.ForeignModel).GetProperty ("Result");
-                                        foreignItem = resultProperty.GetValue (task) as Model;
+							if (id != null)
+							{
+								var json = await c.Request.ReadAsJsonAsync();
+								if (json is JsonObject)
+								{
+									var itemDiff = new T();
+									itemDiff.FromJson((JsonObject)json, null, c);
+									itemDiff.Fields[details.PrimaryKeyName] = id;
 
-                                        // check if it correspond to the current parent ID
-                                        if ((foreignItem != null) && (!id.Equals (foreignItem.Fields [expandFields [parts [1]].ForeignField])))
-                                            foreignItem = null;
+									using (DB db = await DB.CreateAsync(dbUrl, true))
+									{
+										var oldItem = new T();
+										oldItem.Fields[details.PrimaryKeyName] = id;
+										await oldItem.LoadAsync(db, true);
+										// need a loaded user to check the rights
+										await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
 
-                                        if (foreignItem != null) {
-                                            var foreignItemDiff = (Model)Activator.CreateInstance (expandFields [parts [1]].ForeignModel);
-                                            foreignItemDiff.FromJson ((JsonObject)json, null, c);
-                                            foreignItemDiff.Fields [expandFields [parts [1]].ForeignDetails.PrimaryKeyName] = foreignId;
-                                            await foreignItemDiff.UpdateAsync (db);
-                                        }
+										await itemDiff.UpdateAsync(db);
+										await itemDiff.LoadAsync(db, true);
+										await OnChangedAsync(db, itemDiff);
+										db.Commit();
+									}
+									c.Response.StatusCode = 200;
+									c.Response.Content = itemDiff;
+								}
+							}
+						}
+						else if ((parts.Length == 2 || parts.Length == 3) && expandFields.ContainsKey(parts[1]))
+						{
+							object id = null;
+							try
+							{
+								id = Convert.ChangeType(parts[0], details.PrimaryKeyType);
+							}
+							catch (InvalidCastException) { }
+							catch (FormatException) { }
+							if (id != null)
+							{
+								await RunBeforeAsync(null, context);
+								var jsonArray = new JsonArray();
 
-                                        // return the whole item
-                                        T item = null;
-                                        item = await db.SelectRowAsync<T> (id, true);
-                                        await OnChangedAsync (db, item);
-                                        if (item != null) {
-                                            c.Response.StatusCode = 200;
-                                            c.Response.Content = item;
-                                        }
-                                        db.Commit ();
-                                    }
-                                }
-                            }
-                            if (parts.Length == 2) {
-                                await RunBeforeAsync (null, context);
+								if (parts.Length == 3)
+								{
+									object foreignId = null;
+									try
+									{
+										foreignId = Convert.ChangeType(parts[2], expandFields[parts[1]].ForeignDetails.PrimaryKeyType);
+									}
+									catch (InvalidCastException) { }
+									catch (FormatException) { }
 
-                                JsonValue json = await context.Request.ReadAsJsonAsync ();
+									if (foreignId != null)
+									{
+										var json = await c.Request.ReadAsJsonAsync();
+										json[expandFields[parts[1]].ForeignDetails.PrimaryKeyName] = parts[2];
+										jsonArray.Add(json);
+									}
+								}
+								if (parts.Length == 2)
+								{
+									JsonValue json = await context.Request.ReadAsJsonAsync();
+									if (json is JsonArray)
+										jsonArray = json as JsonArray;
+								}
+								// generate diff
+								var diffJson = new JsonObject
+								{
+									[parts[1]] = new JsonObject
+									{
+										["diff"] = new JsonObject
+										{
+											["add"] = new JsonArray(),
+											["change"] = jsonArray,
+											["remove"] = new JsonArray()
+										}
+									}
+								};
 
-                                using (DB db = await DB.CreateAsync (dbUrl, true)) {
-                                    // multiple PUT
-                                    if (json is JsonArray) {
-                                        // TODO
-                                        throw new NotImplementedException ();
-                                    }
+								var itemDiff = new T();
+								itemDiff.FromJson(diffJson, null, c);
+								itemDiff.Fields[details.PrimaryKeyName] = id;
+
+								using (DB db = await DB.CreateAsync(dbUrl, true))
+								{
 									var oldItem = new T();
-                                    oldItem.Fields[details.PrimaryKeyName] = id;
-                                    await oldItem.LoadAsync(db, true);
-                                    // need a loaded user to check the rights
-                                    await oldItem.EnsureRightAsync(c, Right.Update);
+									oldItem.Fields[details.PrimaryKeyName] = id;
+									await oldItem.LoadAsync(db, true);
+									// need a loaded user to check the rights
+									await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
 
-                                    // return the whole item
-                                    T item = null;
-                                    item = await db.SelectRowAsync<T> (id, true);
-                                    await OnChangedAsync (db, item);
-                                    if (item != null) {
-                                        c.Response.StatusCode = 200;
-                                        c.Response.Content = item;
-                                    }
-                                    db.Commit ();
-                                }
-                            }
-                        }
-                    }
-                    break;
-                case "DELETE":
-                    // multiple delete
-                    if (parts.Length == 0) {
-                        await RunBeforeAsync (null, context);
-                        var json = await c.Request.ReadAsJsonAsync ();
-                        var jsonArray = json as JsonArray;
-                        if (jsonArray != null) {
-                            var ids = ((JsonArray)json).Select ((arg) => Convert.ChangeType (arg.Value, details.PrimaryKeyType));
-                            using (DB db = await DB.CreateAsync (dbUrl, true)) {
-                                foreach (var id in ids) {
-                                    var item = await db.SelectRowAsync<T> (id, true);
-                                    if (item != null) {
-                                        await item.EnsureRightAsync (c, Right.Delete);
-                                        await item.DeleteAsync (db);
-                                        await OnDeletedAsync (db, item);
-                                    }
-                                }
-                                c.Response.StatusCode = 200;
-                                db.Commit ();
-                            }
-                        }
-                    }
-                    // item delete
-                    else if (parts.Length == 1) {
-                        await RunBeforeAsync (null, context);
-                        object id = null;
-                        try {
-                            id = Convert.ChangeType (parts [0], details.PrimaryKeyType);
-                        } catch (InvalidCastException) { } catch (FormatException) { }
+									await itemDiff.UpdateAsync(db);
+									await itemDiff.LoadAsync(db, true);
+									await OnChangedAsync(db, itemDiff);
+									db.Commit();
+								}
+								c.Response.StatusCode = 200;
+								c.Response.Content = itemDiff;
+							}
+						}
+						break;
+					case "DELETE":
+						// multiple delete
+						if (parts.Length == 0)
+						{
+							await RunBeforeAsync(null, context);
+							var json = await c.Request.ReadAsJsonAsync();
+							var jsonArray = json as JsonArray;
+							if (jsonArray != null)
+							{
+								var ids = ((JsonArray)json).Select((arg) => Convert.ChangeType(arg.Value, details.PrimaryKeyType));
+								using (DB db = await DB.CreateAsync(dbUrl, true))
+								{
+									foreach (var id in ids)
+									{
+										var item = await db.SelectRowAsync<T>(id, true);
+										if (item != null)
+										{
+											await item.EnsureRightAsync(c, Right.Delete, null);
+											await item.DeleteAsync(db);
+											await OnDeletedAsync(db, item);
+										}
+									}
+									c.Response.StatusCode = 200;
+									db.Commit();
+								}
+							}
+						}
+						// item delete
+						else if (parts.Length == 1)
+						{
+							await RunBeforeAsync(null, context);
+							object id = null;
+							try
+							{
+								id = Convert.ChangeType(parts[0], details.PrimaryKeyType);
+							}
+							catch (InvalidCastException) { }
+							catch (FormatException) { }
 
-                        if (id != null) {
-                            T item = null;
-                            using (DB db = await DB.CreateAsync (dbUrl, true)) {
-                                item = await db.SelectRowAsync<T> (id, true);
-                                if (item != null) {
-                                    await item.EnsureRightAsync (c, Right.Delete);
-                                    await item.DeleteAsync (db);
-                                    await OnDeletedAsync (db, item);
-                                }
-                                db.Commit ();
-                            }
-                            if (item != null)
-                                c.Response.StatusCode = 200;
-                        }
-                    } else if ((parts.Length > 1) && expandFields.ContainsKey (parts [1])) {
-                        object id = null;
-                        try {
-                            id = Convert.ChangeType (parts [0], details.PrimaryKeyType);
-                        } catch (InvalidCastException) { } catch (FormatException) { }
-                        if (id != null) {
-                            if (parts.Length == 3) {
-                                object foreignId = null;
-                                try {
-                                    foreignId = Convert.ChangeType (parts [2], expandFields [parts [1]].ForeignDetails.PrimaryKeyType);
-                                } catch (InvalidCastException) { } catch (FormatException) { }
+							if (id != null)
+							{
+								T item = null;
+								using (DB db = await DB.CreateAsync(dbUrl, true))
+								{
+									item = await db.SelectRowAsync<T>(id, true);
+									if (item != null)
+									{
+										await item.EnsureRightAsync(c, Right.Delete, null);
+										await item.DeleteAsync(db);
+										await OnDeletedAsync(db, item);
+									}
+									db.Commit();
+								}
+								if (item != null)
+									c.Response.StatusCode = 200;
+							}
+						}
+						else if ((parts.Length == 2 || parts.Length == 3) && expandFields.ContainsKey(parts[1]))
+						{
+							object id = null;
+							try
+							{
+								id = Convert.ChangeType(parts[0], details.PrimaryKeyType);
+							}
+							catch (InvalidCastException) { }
+							catch (FormatException) { }
+							if (id != null)
+							{
+								await RunBeforeAsync(null, context);
+								var jsonArray = new JsonArray();
 
-                                if (foreignId != null) {
-                                    await RunBeforeAsync (null, context);
-                                    Model foreignItem = null;
-                                    using (DB db = await DB.CreateAsync (dbUrl, true)) {
-                                        var task = typeof (DB).GetMethod (nameof (DB.SelectRowAsync)).MakeGenericMethod (expandFields [parts [1]].Attribute.ForeignModel).Invoke (db, new object [] { foreignId, false }) as Task;
-                                        await task;
-                                        var resultProperty = typeof (Task<>).MakeGenericType (expandFields [parts [1]].Attribute.ForeignModel).GetProperty ("Result");
-                                        foreignItem = resultProperty.GetValue (task) as Model;
+								if (parts.Length == 3)
+								{
+									object foreignId = null;
+									try
+									{
+										foreignId = Convert.ChangeType(parts[2], expandFields[parts[1]].ForeignDetails.PrimaryKeyType);
+									}
+									catch (InvalidCastException) { }
+									catch (FormatException) { }
 
-                                        // check if it correspond to the current parent ID
-                                        if ((foreignItem != null) && (!id.Equals (foreignItem.Fields [expandFields [parts [1]].ForeignField])))
-                                            foreignItem = null;
+									if (foreignId != null)
+									{
+										jsonArray.Add(new JsonObject()
+										{
+											[expandFields[parts[1]].ForeignDetails.PrimaryKeyName] = parts[2]
+										});
+									}
+								}
+								if (parts.Length == 2)
+								{
+									JsonValue json = await context.Request.ReadAsJsonAsync();
+									if (json is JsonArray)
+									{
+										foreach (var itemId in json as JsonArray)
+											jsonArray.Add(new JsonObject { [expandFields[parts[1]].ForeignDetails.PrimaryKeyName] = itemId });
+									}
+								}
+								// generate diff
+								var diffJson = new JsonObject
+								{
+									[parts[1]] = new JsonObject
+									{
+										["diff"] = new JsonObject
+										{
+											["add"] = new JsonArray(),
+											["change"] = new JsonArray(),
+											["remove"] = jsonArray
+										}
+									}
+								};
 
-                                        if (foreignItem != null)
-                                            await foreignItem.DeleteAsync (db);
+								var itemDiff = new T();
+								itemDiff.FromJson(diffJson, null, c);
+								itemDiff.Fields[details.PrimaryKeyName] = id;
 
-                                        // return the whole item
-                                        T item = null;
-                                        item = await db.SelectRowAsync<T> (id, true);
-                                        await item.EnsureRightAsync (c, Right.Update);
-                                        await OnChangedAsync (db, item);
-                                        if (item != null) {
-                                            c.Response.StatusCode = 200;
-                                            c.Response.Content = item;
-                                        }
-                                        db.Commit ();
-                                    }
-                                }
-                            }
-                            if (parts.Length == 2) {
-                                await RunBeforeAsync (null, context);
+								using (DB db = await DB.CreateAsync(dbUrl, true))
+								{
+									var oldItem = new T();
+									oldItem.Fields[details.PrimaryKeyName] = id;
+									await oldItem.LoadAsync(db, true);
+									// need a loaded user to check the rights
+									await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
 
-                                JsonValue json = await context.Request.ReadAsJsonAsync ();
-
-                                using (DB db = await DB.CreateAsync (dbUrl, true)) {
-                                    // multiple DELETE
-                                    if (json is JsonArray) {
-                                        // WARNING: dont go thrown the model constraints
-                                        var ids = ((JsonArray)json).Select ((arg) => (Convert.ChangeType (arg.Value, expandFields [parts [1]].ForeignDetails.PrimaryKeyType)));
-                                        await db.DeleteAsync ($"DELETE FROM `{expandFields [parts [1]].ForeignDetails.TableName}` WHERE `{expandFields [parts [1]].ForeignField}`=? AND {DB.InFilter (expandFields [parts [1]].ForeignDetails.PrimaryKeyName, ids)}", id);
-                                    }
-
-                                    // return the whole item
-                                    T item = null;
-                                    item = await db.SelectRowAsync<T> (id, true);
-                                    await item.EnsureRightAsync (c, Right.Update);
-                                    await OnChangedAsync (db, item);
-                                    if (item != null) {
-                                        c.Response.StatusCode = 200;
-                                        c.Response.Content = item;
-                                    }
-                                    db.Commit ();
-                                }
-                            }
-                        }
-                    }
-                    break;
-                }
+									await itemDiff.UpdateAsync(db);
+									await itemDiff.LoadAsync(db, true);
+									await OnChangedAsync(db, itemDiff);
+									db.Commit();
+								}
+								c.Response.StatusCode = 200;
+								c.Response.Content = itemDiff;
+							}
+						}
+						break;
+				}
 			}
 		}
 

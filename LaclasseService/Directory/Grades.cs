@@ -45,7 +45,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string stat { get { return GetField<string>(nameof(stat), null); } set { SetField(nameof(stat), value); } }
         
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			if (right != Right.Read)
 				await context.EnsureIsSuperAdminAsync();

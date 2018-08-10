@@ -48,7 +48,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public bool contact { get { return GetField(nameof(contact), false); } set { SetField(nameof(contact), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			var parent = new User { id = parent_id };
 			var child = new User { id = child_id };

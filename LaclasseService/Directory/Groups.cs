@@ -98,7 +98,7 @@ namespace Laclasse.Directory
 			return new SqlFilter() { Where = $"{DB.InFilter("id", groupsIds)}" };
         }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			var user = await context.GetAuthenticatedUserAsync();
 			if (user == null)

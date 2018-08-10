@@ -45,7 +45,7 @@ namespace Laclasse.Directory
 		[ModelField(ForeignModel = typeof(User))]
 		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			var user = new User { id = user_id };
 			using (var db = await DB.CreateAsync(context.GetSetup().database.url))

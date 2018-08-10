@@ -110,7 +110,7 @@ namespace Laclasse.Directory
 			return new SqlFilter() { Where = DB.InFilter("id", structuresIds) };
         }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			if (right == Right.Create)
 				await context.EnsureIsSuperAdminAsync();

@@ -44,7 +44,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string password { get { return GetField<string>(nameof(password), null); } set { SetField(nameof(password), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			await context.EnsureIsSuperAdminAsync();
 		}

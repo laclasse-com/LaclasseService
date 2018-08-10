@@ -119,7 +119,7 @@ namespace Laclasse.Directory
         [ModelExpandField (Name = nameof (sso_clients), ForeignModel = typeof (SsoClient))]
         public ModelList<SsoClient> sso_clients { get { return GetField<ModelList<SsoClient>> (nameof (sso_clients), null); } set { SetField (nameof (sso_clients), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			if (right != Right.Read)
 				await context.EnsureIsSuperAdminAsync();

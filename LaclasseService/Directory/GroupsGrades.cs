@@ -41,7 +41,7 @@ namespace Laclasse.Directory
 		[ModelField(Required = true, ForeignModel = typeof(Grade))]
 		public string grade_id { get { return GetField<string>(nameof(grade_id), null); } set { SetField(nameof(grade_id), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			var group = new Group { id = group_id };
 			using (var db = await DB.CreateAsync(context.GetSetup().database.url))

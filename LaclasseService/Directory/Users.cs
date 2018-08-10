@@ -55,12 +55,14 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string login { get { return GetField<string>(nameof(login), null); } set { SetField(nameof(login), value); } }
 		[ModelField]
-		public string password {
+		public string password
+		{
 			get { return GetField<string>(nameof(password), null); }
-			set {
+			set
+			{
 				if (!value.StartsWith("bcrypt:", StringComparison.InvariantCulture) &&
-				    !value.StartsWith("clear:", StringComparison.InvariantCulture))
-				    value = "bcrypt:" + BCrypt.Net.BCrypt.HashPassword(value, 5);
+					!value.StartsWith("clear:", StringComparison.InvariantCulture))
+					value = "bcrypt:" + BCrypt.Net.BCrypt.HashPassword(value, 5);
 				SetField(nameof(password), value);
 			}
 		}
@@ -252,26 +254,27 @@ namespace Laclasse.Directory
 				password = json[nameof(password)];
 		}
 
-        public override SqlFilter FilterAuthUser (AuthenticatedUser user)
-        {
+		public override SqlFilter FilterAuthUser(AuthenticatedUser user)
+		{
 			if (user.IsSuperAdmin || user.IsApplication || !user.IsRestrictedUser)
 				return new SqlFilter();
-            var groupsIds = user.user.groups.Select ((arg) => arg.group_id);
+			var groupsIds = user.user.groups.Select((arg) => arg.group_id);
 			groupsIds = groupsIds.Concat(user.user.children_groups.Select((arg) => arg.group_id)).Distinct();
-            var structuresIds = user.user.profiles.Select ((arg) => arg.structure_id).Distinct ();
-            var childrenIds = user.user.children.Select ((arg) => arg.child_id).Distinct ();
-            var parentsIds = user.user.parents.Select ((arg) => arg.parent_id).Distinct ();
-            var allowIds = childrenIds.Concat (parentsIds);
+			var structuresIds = user.user.profiles.Select((arg) => arg.structure_id).Distinct();
+			var childrenIds = user.user.children.Select((arg) => arg.child_id).Distinct();
+			var parentsIds = user.user.parents.Select((arg) => arg.parent_id).Distinct();
+			var allowIds = childrenIds.Concat(parentsIds);
 			//            var filter = 
 			//                $"(`id` = '{DB.EscapeString(user.user.id)}' " +
 			//                $"OR `id` IN (SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)}) " +
 			//                $"OR `id` IN (SELECT DISTINCT(`user_id`) FROM `user_profile` WHERE {DB.InFilter ("structure_id", structuresIds)} AND `type` != 'ELV' AND `type` != 'TUT') " +
 			//				$"OR {DB.InFilter("id", allowIds)})";
-            
+
 
 			var filter = $"INNER JOIN(SELECT '{DB.EscapeString(user.user.id)}' AS `allow_id` ";
 
-			foreach (var structureId in structuresIds) {
+			foreach (var structureId in structuresIds)
+			{
 				if (user.HasRightsOnStructure(structureId, true, true, true))
 					filter += $"UNION SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE `structure_id`='{DB.EscapeString(structureId)}' ";
 				else
@@ -288,9 +291,9 @@ namespace Laclasse.Directory
 			filter += ") `allow` ON (`id` = `allow_id`)";
 
 			return new SqlFilter() { Inner = filter };
-        }
-
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		}
+              
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			// get the expanded user if we dont already have it. expanded fields like profiles
 			// are needed to check rights
@@ -312,7 +315,28 @@ namespace Laclasse.Directory
 				if ((authUser == null) || !authUser.HasRightsOnUser(expandUser, false, false, true))
 					Fields.Remove(nameof(password));
 			}
-			await context.EnsureHasRightsOnUserAsync(expandUser, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+
+			var onlyAddProfiles = false;
+			if (right == Right.Update)
+			{
+				onlyAddProfiles = true;
+				var userDiff = diff as User;
+				onlyAddProfiles &= (userDiff.Fields.Keys.Any((k) => k != nameof(User.id) || k != nameof(User.profiles)));
+				onlyAddProfiles &= (userDiff.Fields.Keys.Contains(nameof(User.profiles)));
+				onlyAddProfiles &= userDiff.profiles.diff != null;
+				onlyAddProfiles &= userDiff.profiles.diff.remove == null || userDiff.profiles.diff.remove.Count == 0;
+				onlyAddProfiles &= userDiff.profiles.diff.change == null || userDiff.profiles.diff.change.Count == 0;
+				onlyAddProfiles &= userDiff.profiles.diff.add != null && userDiff.profiles.diff.add.Count > 0;
+				if (onlyAddProfiles)
+				{
+					foreach (var profile in userDiff.profiles.diff.add)
+					{
+						await context.EnsureHasRightsOnStructureAsync(new Structure { id = profile.structure_id }, false, false, true);
+					}
+				}
+			}
+			if (!onlyAddProfiles)
+				await context.EnsureHasRightsOnUserAsync(expandUser, true, right == Right.Update, right == Right.Create || right == Right.Delete);
 		}
 	}
 
@@ -538,10 +562,6 @@ namespace Laclasse.Directory
 				"ABCDEFGHIJKLMNOPQRSTUVWXYZ"[((int)lastUidCounter / 10000) % 26],
 				ent.ent_digit,
 				lastUidCounter % 10000);
-//			# check if the uid is not already taken
-//			end while !User[id_ent: uid].nil ?
-//			uid
-//			end*/
 
 			return uid;
 		}

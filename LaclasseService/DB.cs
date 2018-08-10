@@ -1137,7 +1137,7 @@ namespace Laclasse
 			return resultProperty.GetValue(task);
 		}
 
-		public virtual async Task EnsureRightAsync(HttpContext context, Right right)
+		public virtual async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			await Task.FromResult(false);
 		}

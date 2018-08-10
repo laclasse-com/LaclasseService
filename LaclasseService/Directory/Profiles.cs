@@ -112,7 +112,7 @@ namespace Laclasse.Directory
 			return res;
 		}
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			var structure = new Structure { id = structure_id };
 			using (var db = await DB.CreateAsync(context.GetSetup().database.url))

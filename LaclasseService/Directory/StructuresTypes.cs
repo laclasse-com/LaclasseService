@@ -43,7 +43,7 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string aaf_type { get { return GetField<string>(nameof(aaf_type), null); } set { SetField(nameof(aaf_type), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			if (right != Right.Read)
 				await context.EnsureIsSuperAdminAsync();

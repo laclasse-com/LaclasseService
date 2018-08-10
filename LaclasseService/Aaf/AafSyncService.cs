@@ -41,7 +41,7 @@ namespace Laclasse.Aaf
 		[ModelExpandField(Name = nameof(structures), ForeignModel = typeof(AafSyncStructure))]
 		public ModelList<AafSyncStructure> structures { get { return GetField<ModelList<AafSyncStructure>>(nameof(structures), null); } set { SetField(nameof(structures), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right)
+		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			if (right == Right.Create)
 				throw new WebException(405, "Method not allowed");

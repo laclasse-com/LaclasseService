@@ -321,12 +321,12 @@ namespace Laclasse.Directory
 			{
 				onlyAddProfiles = true;
 				var userDiff = diff as User;
-				onlyAddProfiles &= (userDiff.Fields.Keys.Any((k) => k != nameof(User.id) || k != nameof(User.profiles)));
-				onlyAddProfiles &= (userDiff.Fields.Keys.Contains(nameof(User.profiles)));
-				onlyAddProfiles &= userDiff.profiles.diff != null;
-				onlyAddProfiles &= userDiff.profiles.diff.remove == null || userDiff.profiles.diff.remove.Count == 0;
-				onlyAddProfiles &= userDiff.profiles.diff.change == null || userDiff.profiles.diff.change.Count == 0;
-				onlyAddProfiles &= userDiff.profiles.diff.add != null && userDiff.profiles.diff.add.Count > 0;
+				onlyAddProfiles = onlyAddProfiles && (userDiff.Fields.Keys.Any((k) => k != nameof(User.id) || k != nameof(User.profiles)));
+				onlyAddProfiles = onlyAddProfiles && (userDiff.Fields.Keys.Contains(nameof(User.profiles)));
+				onlyAddProfiles = onlyAddProfiles && (userDiff.profiles.diff != null);
+				onlyAddProfiles = onlyAddProfiles && (userDiff.profiles.diff.remove == null || userDiff.profiles.diff.remove.Count == 0);
+				onlyAddProfiles = onlyAddProfiles && (userDiff.profiles.diff.change == null || userDiff.profiles.diff.change.Count == 0);
+				onlyAddProfiles = onlyAddProfiles && (userDiff.profiles.diff.add != null && userDiff.profiles.diff.add.Count > 0);
 				if (onlyAddProfiles)
 				{
 					foreach (var profile in userDiff.profiles.diff.add)

@@ -707,6 +707,12 @@ namespace Laclasse.Authentication
 			["DOC"] = "National_3"
 		};
 
+        // if needed remap attribute name to a different field name
+		static Dictionary<string, string> AttributeNameToField = new Dictionary<string, string>
+        {
+			["ENTPersonProfils [ENS|TUT|ELV]"] = "ENTPersonProfils"
+        };
+
 		async Task<Dictionary<string, object>> UserToSsoAttributesAsync(DB db, User user)
 		{
 			// TODO: add ENTEleveClasses
@@ -724,6 +730,7 @@ namespace Laclasse.Authentication
 			string ENTEleveClasses = null;
 			string ENTPersonStructRattachRNE = null;
 			string ENTPersonProfils = null;
+			string ENTPersonProfilsENSTUTELV = null;
 			string ENTEleveNivFormation = null;
 			string categories = null;
 			foreach (var p in user.profiles)
@@ -734,9 +741,16 @@ namespace Laclasse.Authentication
 					if (ProfilIdToSdet3.ContainsKey(p.type))
 						categories = ProfilIdToSdet3[p.type];
 					ENTPersonProfils = profilesTypes[p.type].code_national;
+					var profile = (p.type == "ELV" || p.type == "TUT") ? p.type : "ENS";
+                    ENTPersonProfilsENSTUTELV = profilesTypes[profile].code_national;
 				}
 				if (ENTPersonProfils == null)
 					ENTPersonProfils = profilesTypes[p.type].code_national;
+				if (ENTPersonProfilsENSTUTELV == null)
+				{
+					var profile = (p.type == "ELV" || p.type == "TUT") ? p.type : "ENS";
+					ENTPersonProfilsENSTUTELV = profilesTypes[profile].code_national;
+				}
 			}
 			if (ENTPersonStructRattachRNE == null && user.profiles.Count > 0)
 				ENTPersonStructRattachRNE = user.profiles[0].structure_id;
@@ -818,6 +832,7 @@ namespace Laclasse.Authentication
 				["dateNaissance"] = (user.birthdate == null) ? null : ((DateTime)user.birthdate).ToString("yyyy-MM-dd"),
 				["codePostal"] = user.zip_code,
 				["ENTPersonProfils"] = ENTPersonProfils,
+				["ENTPersonProfils [ENS|TUT|ELV]"] = ENTPersonProfilsENSTUTELV,
 				["ENTPersonStructRattach"] = ENTPersonStructRattachRNE,
 				["ENTPersonStructRattachRNE"] = ENTPersonStructRattachRNE,
 				["categories"] = categories,
@@ -1558,7 +1573,11 @@ namespace Laclasse.Authentication
 			foreach (var attr in client.attributes)
 			{
 				if (userAttributes.ContainsKey(attr))
-					attributes[attr] = userAttributes[attr];
+				{
+					// remap attribute name to the field name if different
+					var field = AttributeNameToField.ContainsKey(attr) ? AttributeNameToField[attr] : attr;
+					attributes[field] = userAttributes[attr];
+				}
 			}
 			return attributes;
 		}

@@ -62,49 +62,7 @@ namespace Laclasse.Directory
 					}
 				}
 			};
-
-			GetAsync["/sso_attributes/{login}"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-
-				var attributes = await GetUserSsoAttributesAsync((string)p["login"]);
-				if (attributes != null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = attributes;
-				}
-				else
-					c.Response.StatusCode = 404;
-			};
-
-			GetAsync["/sso_attributes_men/{login}"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-
-				var attributes = await GetUserSsoAttributesAsync((string)p["login"]);
-				if (attributes != null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = attributes;
-				}
-				else
-					c.Response.StatusCode = 404;
-			};
-
-			GetAsync["/pronote/{login}"] = async (p, c) =>
-			{
-				await c.EnsureIsAuthenticatedAsync();
-
-				var attributes = await GetUserSsoAttributesAsync((string)p["login"]);
-				if (attributes != null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Content = attributes;
-				}
-				else
-					c.Response.StatusCode = 404;
-			};
-
+         
 			GetAsync["/nginx"] = async (p, c) =>
 			{
 				// ensure super admin only
@@ -190,61 +148,5 @@ namespace Laclasse.Directory
 			["COL"] = "National_4",
 			["DOC"] = "National_3"
 		};
-
-		JsonValue UserToSsoAttributes(User user)
-		{
-			// TODO: add ENTEleveClasses and ENTEleveNivFormation
-
-			string ENTPersonStructRattachRNE = null;
-			string ENTPersonProfils = null;
-			string categories = null;
-			foreach (var p in user.profiles)
-			{
-				if (p.active)
-				{
-					ENTPersonStructRattachRNE = p.structure_id;
-					if (ProfilIdToSdet3.ContainsKey(p.type))
-						categories = ProfilIdToSdet3[p.type];
-					if (p.type == "ELV")
-					{
-					}
-				}
-
-				if (ENTPersonProfils == null)
-					ENTPersonProfils = "";
-				else
-					ENTPersonProfils += ",";
-				ENTPersonProfils += p.type + ":" + p.structure_id;
-			}
-
-			return new JsonObject
-			{
-				["uid"] = user.id,
-				["user"] = user.id,
-				["login"] = user.login,
-				["nom"] = user.lastname,
-				["prenom"] = user.firstname,
-				["dateNaissance"] = (user.birthdate == null) ? null : ((DateTime)user.birthdate).ToString("yyyy-MM-dd"),
-				["codePostal"] = user.zip_code,
-				["ENTPersonProfils"] = ENTPersonProfils,
-				["ENTPersonStructRattach"] = ENTPersonStructRattachRNE,
-				["ENTPersonStructRattachRNE"] = ENTPersonStructRattachRNE,
-				["categories"] = categories,
-				["LaclasseNom"] = user.lastname,
-				["LaclassePrenom"] = user.firstname
-			};
-		}
-
-		public async Task<JsonValue> GetUserSsoAttributesAsync(string login)
-		{
-			JsonValue attributes = null;
-			using (DB db = await DB.CreateAsync(dbUrl))
-			{
-				var item = (await db.SelectExpandAsync<User>("SELECT * FROM `user` WHERE `login`=?", new object[] { login })).SingleOrDefault();
-				if (item != null)
-					attributes = UserToSsoAttributes(item);
-			}
-			return attributes;
-		}
 	}
 }

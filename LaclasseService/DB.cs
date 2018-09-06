@@ -1367,7 +1367,50 @@ namespace Laclasse
 			return result;
 		}
 
+        public class PropertyDetail
+		{
+			public string Name;
+			public PropertyInfo Property;
+			public ModelFieldAttribute Attribute;
+			public Type NullableType;
+			public bool IsEnum;
+		}
+		public static Dictionary<Type,Dictionary<string,PropertyDetail>> DBToTypeInfo = new Dictionary<Type,Dictionary<string,PropertyDetail>>();
+
 		void DBToFields<T>(System.Data.Common.DbDataReader reader, T result) where T : Model
+        {
+			var details = DBToTypeInfo[typeof(T)];
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+				var name = reader.GetName(i);
+				if (!details.ContainsKey(name))
+					continue;
+
+				PropertyDetail detail = details[name];
+				var fieldValue = reader.GetValue(i);            
+                
+				if (detail.NullableType == null)
+                {
+                    if (reader.IsDBNull(i))
+                        result.Fields[detail.Name] = null;
+                    else if (detail.IsEnum && fieldValue is string)
+                        result.Fields[detail.Name] = Enum.Parse(detail.Property.PropertyType, (string)fieldValue);
+                    else
+						result.Fields[detail.Name] = Convert.ChangeType(fieldValue, detail.Property.PropertyType);
+                }
+                else
+                {
+                    if (reader.IsDBNull(i))
+						result.Fields[detail.Name] = null;
+                    else if (detail.NullableType.IsEnum && fieldValue is string)
+						result.Fields[detail.Name] = Enum.Parse(detail.NullableType, (string)fieldValue);
+                    else
+						result.Fields[detail.Name] = Convert.ChangeType(fieldValue, detail.NullableType);
+                }
+            }
+        }
+
+		void DBToFieldsOld<T>(System.Data.Common.DbDataReader reader, T result) where T : Model
 		{
 			for (int i = 0; i < reader.FieldCount; i++)
 			{
@@ -1827,7 +1870,10 @@ namespace Laclasse
 			foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
 			{
 				if (type.IsSubclassOf(typeof(Model)))
+				{
 					valid &= CheckDBModel(dbsUrl, type);
+					GenerateDBToTypeInfo(type);
+				}
 			}
 			return valid;
 		}
@@ -1956,6 +2002,26 @@ namespace Laclasse
 					Console.WriteLine($"WARN in model '{model.Name}', row '{key}' of table '{tableName}' NOT PRESENT in the model");
 			}
 			return valid;
+		}
+
+		public static void GenerateDBToTypeInfo(Type type)
+		{
+			var details = new Dictionary<string,PropertyDetail>();
+			foreach (var property in type.GetProperties())
+			{
+				var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
+                if (fieldAttribute == null)
+                    continue;
+				var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
+				details[property.Name] = new PropertyDetail {
+					Name = property.Name,
+					Property = property,
+					Attribute = fieldAttribute,
+					NullableType = nullableType,
+					IsEnum = property.PropertyType.IsEnum
+				};
+			}         
+			DBToTypeInfo[type] = details;
 		}
 	}
 }

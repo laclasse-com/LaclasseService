@@ -263,7 +263,7 @@ namespace Laclasse
 
 			server.Stop();
 
-			dayScheduler.Dispose();
+			dayScheduler.Dispose();            
 		}
 	}
 }

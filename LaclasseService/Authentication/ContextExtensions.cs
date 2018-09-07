@@ -78,6 +78,11 @@ namespace Laclasse.Authentication
 				return !user.profiles.Exists((obj) => (obj.type != "ELV") && (obj.type != "TUT"));
 			}
 		}      
+              
+		bool IsProfPrincipal(User user)
+		{
+			return this.user.groups.Any((g) => g.type == "PRI" && user.groups.Any((ug) => ug.group_id == g.group_id && ug.type == "ELV"));
+		}
 
 		public bool HasRightsOnUser(User user, bool read, bool write, bool admin)
 		{
@@ -88,10 +93,10 @@ namespace Laclasse.Authentication
 				return false;
 			// admins in structure the user is have admin right
 			if (admin)
-				return user.profiles.Exists((obj) => HasRightsOnStructure(new Structure { id = obj.structure_id }, false, false, true));
+				return user.profiles.Exists((obj) => HasRightsOnStructure(new Structure { id = obj.structure_id }, false, false, true)) || IsProfPrincipal(user);
 			// user himself and admins in structure the user is have write right
 			if (write)
-				return (this.user.id == user.id) || user.profiles.Exists((obj) => HasRightsOnStructure(new Structure { id = obj.structure_id }, false, false, true));
+				return (this.user.id == user.id) || user.profiles.Exists((obj) => HasRightsOnStructure(new Structure { id = obj.structure_id }, false, false, true)) || IsProfPrincipal(user);
 			if (this.user.id == user.id)
 				return true;
 			// all users except parents and students and user without any profiles have read access on other users

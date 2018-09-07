@@ -76,7 +76,7 @@ namespace Laclasse.Sms
 			this.smsSetup = smsSetup;
 
             // API only available to admin users
-			BeforeAsync = async (p, c) => await c.EnsureIsStructureAdminAsync();
+			BeforeAsync = async (p, c) => await c.EnsureIsNotRestrictedUserAsync();
 
 			PostAsync["/"] = async (p, c) =>
 			{

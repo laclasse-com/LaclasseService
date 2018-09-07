@@ -172,6 +172,14 @@ namespace Laclasse.Authentication
 			return user;
 		}
 
+		public async static Task<AuthenticatedUser> EnsureIsNotRestrictedUserAsync(this HttpContext context)
+        {
+            var user = await EnsureIsAuthenticatedAsync(context);
+			if (user.IsRestrictedUser)
+                throw new WebException(403, "Insufficient authorization");
+            return user;
+        }
+
 		// Ensure we have at least admin right on a structure
 		public async static Task<AuthenticatedUser> EnsureIsStructureAdminAsync(this HttpContext context)
 		{

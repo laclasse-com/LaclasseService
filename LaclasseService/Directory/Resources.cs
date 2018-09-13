@@ -248,20 +248,6 @@ namespace Laclasse.Directory
                             process.Dispose();
 
                             c.Response.StatusCode = 200;
-/*                            var userDiff = new User { id = uid, avatar = name };
-                            using (DB db = await DB.CreateAsync(dbUrl))
-                            {
-                                await userDiff.UpdateAsync(db);
-                                await userDiff.LoadAsync(db, true);
-                            }
-                            c.Response.Content = userDiff;
-
-                            if ((oldUser.avatar != null) && (oldUser.avatar != "empty"))
-                            {
-                                var oldFile = Path.Combine(avatarDir, uid[0].ToString(), uid[1].ToString(), uid[2].ToString(), Path.GetFileName(oldUser.avatar));
-                                if (File.Exists(oldFile))
-                                    File.Delete(oldFile);
-                            }*/
                         }
                     }
                 }

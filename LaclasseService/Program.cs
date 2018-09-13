@@ -150,7 +150,7 @@ namespace Laclasse
 			mapper.Add("/api/groups_users", new GroupsUsers(dbUrl));
 			mapper.Add("/api/groups_grades", new GroupsGrades(dbUrl));
 			mapper.Add("/api/structures_types", new StructuresTypes(dbUrl));
-			mapper.Add("/api/structures", new Structures(dbUrl));
+			mapper.Add("/api/structures", new Structures(dbUrl, setup.server.storage));
 			mapper.Add("/api/user_links", new UserLinks(dbUrl));
 			var users = new Users(dbUrl, setup.server.storage, setup.authentication.masterPassword);
 			mapper.Add("/api/users", users);

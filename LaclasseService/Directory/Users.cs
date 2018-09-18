@@ -524,7 +524,7 @@ namespace Laclasse.Directory
 			DB db, Dictionary<string, List<string>> queryFields, int offset = 0, int count = -1,
 			string orderBy = null, SortDirection sortDirection = SortDirection.Ascending)
 		{
-			return await Model.SearchAsync<User>(db, queryFields, orderBy, sortDirection, true, offset, count);
+			return await Model.SearchAsync<User>(db, queryFields, new string[] { orderBy }, new SortDirection[] { sortDirection }, true, offset, count);
 		}
 
 		public async Task<User> GetUserByLoginAsync(string login)

@@ -708,8 +708,8 @@ namespace Laclasse
 			bool expand = true;
 			int offset = 0;
 			int count = -1;
-			string orderBy = null;
-			SortDirection orderDir = SortDirection.Ascending;
+			string[] orderBy = null;
+			SortDirection[] orderDir = null;
 			var query = "";
 			if (c.Request.QueryString.ContainsKey("query"))
 				query = c.Request.QueryString["query"];
@@ -720,9 +720,22 @@ namespace Laclasse
 					offset = Math.Max(0, (int.Parse(c.Request.QueryString["page"]) - 1) * count);
 			}
 			if (c.Request.QueryString.ContainsKey("sort_col"))
-				orderBy = c.Request.QueryString["sort_col"];
+				orderBy = new string[] { c.Request.QueryString["sort_col"] };
+			if (c.Request.QueryStringArray.ContainsKey("sort_col"))
+				orderBy = c.Request.QueryStringArray["sort_col"].ToArray();
 			if (c.Request.QueryString.ContainsKey("sort_dir") && (c.Request.QueryString["sort_dir"] == "desc"))
-				orderDir = SortDirection.Descending;
+				orderDir = new SortDirection[] { SortDirection.Descending };
+			if (c.Request.QueryStringArray.ContainsKey("sort_dir"))
+			{
+				orderDir = new SortDirection[c.Request.QueryStringArray["sort_dir"].Count];
+				for (var i = 0; i < c.Request.QueryStringArray["sort_dir"].Count; i++)
+				{
+					if (c.Request.QueryStringArray["sort_dir"][i] == "desc")
+						orderDir[i] = SortDirection.Descending;
+					else
+						orderDir[i] = SortDirection.Ascending;
+				}
+			}
 			if (c.Request.QueryString.ContainsKey("expand"))
 				expand = Convert.ToBoolean(c.Request.QueryString["expand"]);
 
@@ -753,15 +766,17 @@ namespace Laclasse
 		}
 
 		public static async Task<SearchResult<T>> SearchAsync<T>(
-			DB db, Dictionary<string, List<string>> queryFields, string orderBy = null,
-			SortDirection sortDir = SortDirection.Ascending, bool expand = true, int offset = 0, int count = -1, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
+			DB db, Dictionary<string, List<string>> queryFields, string[] orderBy = null,
+			SortDirection[] sortDir = null, bool expand = true, int offset = 0, int count = -1, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
 		{
 			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
 			string modelTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : typeof(T).Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 
 			if (orderBy == null)
-				orderBy = primaryKey;
+				orderBy = new string[] { primaryKey };
+			if (sortDir == null)
+				sortDir = new SortDirection[] { SortDirection.Ascending };
 
 			var result = new SearchResult<T>();
 			string filter = "";
@@ -1037,10 +1052,20 @@ namespace Laclasse
 			if (sqlFilter.Where != null)
 				sqlWhereFilter = " AND " + sqlFilter.Where;
 			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `{modelTableName}` {sqlInnerFilter} WHERE {filter} {sqlWhereFilter} " +
-				$"ORDER BY `{orderBy}` " + ((sortDir == SortDirection.Ascending) ? "ASC" : "DESC");
+				$"ORDER BY ";
+			for (var i = 0; i < orderBy.Length; i++) {
+				var key = orderBy[i];
+				if (i > 0)
+					sql += ", ";
+				var direction = "ASC";
+				if (i < sortDir.Length)
+					direction = (sortDir[i] == SortDirection.Ascending) ? "ASC" : "DESC";
+				sql += $"`{DB.EscapeString(key)}` {direction}";
+			}
+
 			// if the order is not the primary key add a second order criteria to ensure a predictible order
 			// else paging might be useless
-			if (orderBy != primaryKey)
+			if (orderBy.Length != 1 || orderBy[0] != primaryKey)
 				sql += $", `{primaryKey}` ASC";
 			sql += $" {limit}";
 			//Console.WriteLine(sql);

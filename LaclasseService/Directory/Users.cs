@@ -498,7 +498,7 @@ namespace Laclasse.Directory
 		}
 
 		public async Task<SearchResult<User>> SearchUserAsync(
-			string query, int offset = 0, int count = -1, string orderBy = null,
+			string query, int offset = 0, int count = -1, string orderBy = "id",
 			SortDirection sortDirection = SortDirection.Ascending)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
@@ -514,7 +514,7 @@ namespace Laclasse.Directory
 
 		public async Task<SearchResult<User>> SearchUserAsync(
 			Dictionary<string, List<string>> queryFields, int offset = 0, int count = -1,
-			string orderBy = null, SortDirection sortDirection = SortDirection.Ascending)
+			string orderBy = "id", SortDirection sortDirection = SortDirection.Ascending)
 		{
 			using (DB db = await DB.CreateAsync(dbUrl))
 				return await SearchUserAsync(db, queryFields, offset, count, orderBy, sortDirection);
@@ -522,7 +522,7 @@ namespace Laclasse.Directory
 
 		public async Task<SearchResult<User>> SearchUserAsync(
 			DB db, Dictionary<string, List<string>> queryFields, int offset = 0, int count = -1,
-			string orderBy = null, SortDirection sortDirection = SortDirection.Ascending)
+			string orderBy = "id", SortDirection sortDirection = SortDirection.Ascending)
 		{
 			return await Model.SearchAsync<User>(db, queryFields, new string[] { orderBy }, new SortDirection[] { sortDirection }, true, offset, count);
 		}

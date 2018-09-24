@@ -3,7 +3,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017-2018 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,12 +24,20 @@
 // THE SOFTWARE.
 //
 
+using System;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
+    public enum TileNewStatus
+	{
+		NONE,
+		DISPLAY,
+		AUTO
+	}
+
 	[Model(Table = "tile", PrimaryKey = nameof(id))]
 	public class Tile : Model
 	{
@@ -58,10 +66,14 @@ namespace Laclasse.Directory
 		[ModelField]
 		public string color { get { return GetField<string>(nameof(color), null); } set { SetField(nameof(color), value); } }
 		[ModelField]
-		public string icon { get { return GetField<string>(nameof(icon), null); } set { SetField(nameof(icon), value); } }
+        public string icon { get { return GetField<string>(nameof(icon), null); } set { SetField(nameof(icon), value); } }
+		[ModelField]
+		public TileNewStatus new_status { get { return GetField(nameof(new_status), TileNewStatus.NONE); } set { SetField(nameof(new_status), value); } }
+		[ModelField]
+        public DateTime ctime { get { return GetField<DateTime>(nameof(ctime), DateTime.Now); } set { SetField(nameof(ctime), value); } }
 		[ModelExpandField(Name = nameof(rights), ForeignModel = typeof(TileRight))]
 		public ModelList<TileRight> rights { get { return GetField<ModelList<TileRight>>(nameof(rights), null); } set { SetField(nameof(rights), value); } }
-
+      
 		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
 			if (structure_id != null)

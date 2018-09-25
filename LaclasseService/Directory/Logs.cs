@@ -138,7 +138,7 @@ namespace Laclasse.Directory
 				}
                 else
 				{
-					for (var i = 0; i < ((mode == "6MONTH") ? 6 : 12); i++) {
+					for (var i = 0; i < ( (mode == "1MONTH") ? 1 : ((mode == "6MONTH") ? 6 : 12)); i++) {
 						var month = start.AddMonths(i);
 						var m = month.Year.ToString("0000") + "-" + month.Month.ToString("00");
 						users[m] = new HashSet<string>();

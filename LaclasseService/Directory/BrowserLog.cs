@@ -26,6 +26,7 @@
 
 using System;
 using System.Net;
+using System.Linq;
 using System.Threading.Tasks;
 using Erasme.Http;
 using Erasme.Json;
@@ -41,7 +42,11 @@ namespace Laclasse.Directory
         [ModelField(Required = true)]
         public string ip { get { return GetField<string>(nameof(ip), null); } set { SetField(nameof(ip), value); } }
         [ModelField(Required = true, ForeignModel = typeof(User))]
-        public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
+        public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }      
+		[ModelField(ForeignModel = typeof(Structure))]
+        public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
+        [ModelField]
+        public string profil_id { get { return GetField<string>(nameof(profil_id), null); } set { SetField(nameof(profil_id), value); } }
 		[ModelField]
 		public string user_agent { get { return GetField<string>(nameof(user_agent), null); } set { SetField(nameof(user_agent), value); } }
 		[ModelField]
@@ -70,6 +75,19 @@ namespace Laclasse.Directory
                 ip = contextIp;
             }
         }
+
+		public override SqlFilter FilterAuthUser(AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+                return new SqlFilter();
+
+            // Limit logs to the structures where the logged user has an admin profile
+            var structuresIds = user.user.profiles.Where((arg) => arg.type == "ADM" || arg.type == "DIR").Select((arg) => arg.structure_id).Distinct();
+            if (structuresIds.Count() == 0)
+                return new SqlFilter() { Where = "FALSE" };
+            else
+                return new SqlFilter() { Where = $"{DB.InFilter("structure_id", structuresIds)}" };
+        }
     }
 
 	public class BrowserLogs : ModelService<BrowserLog>
@@ -80,7 +98,7 @@ namespace Laclasse.Directory
 			BeforeAsync = async (p, c) =>
 			{
 				await c.EnsureIsAuthenticatedAsync();
-				if (c.Request.Method != "POST")
+				if (c.Request.Method != "POST" && c.Request.Method != "GET")
 					await c.EnsureIsSuperAdminAsync();
 			};
 

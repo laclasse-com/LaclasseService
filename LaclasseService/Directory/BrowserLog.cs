@@ -27,7 +27,9 @@
 using System;
 using System.Net;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Authentication;
@@ -133,9 +135,109 @@ namespace Laclasse.Directory
 
 			GetAsync["/stats"] = async (p, c) =>
 			{
-				await Task<int>.FromResult(0);
+				var mode = "4WEEK";
+                if (c.Request.QueryString.ContainsKey("mode"))
+                    mode = c.Request.QueryString["mode"];
+                var start = DateTime.Parse(c.Request.QueryString["timestamp>"]);
+                var end = DateTime.Parse(c.Request.QueryString["timestamp<"]);
+                var authUser = await c.GetAuthenticatedUserAsync();    
+                var filterAuth = (new BrowserLog()).FilterAuthUser(authUser);
+                SearchResult<BrowserLog> result;
+                using (DB db = await DB.CreateAsync(dbUrl))
+                {
+                    result = await Model.SearchAsync<BrowserLog>(db, c, filterAuth);
+                }
+                
 				c.Response.StatusCode = 200;
-				c.Response.Content = "TODO";
+
+				// calcul stats
+                var totalCount = 0;
+				var osTypes = new Dictionary<string,long>();
+                var browsers = new Dictionary<string,long>();
+                var mainBrowsers = new Dictionary<string,long>();
+                
+				foreach (var log in result.Data)
+                {
+                    totalCount++;
+                    
+					var userAgent = log.user_agent;
+					var os = "Autre";
+					if (Regex.IsMatch(userAgent, "Android", RegexOptions.IgnoreCase))
+						os = "Android";
+					else if (Regex.IsMatch(userAgent, "Windows", RegexOptions.IgnoreCase))
+						os = "Windows";
+					else if (Regex.IsMatch(userAgent, "Macintosh", RegexOptions.IgnoreCase))
+						os = "Mac OS";
+					else if (Regex.IsMatch(userAgent, "iPhone", RegexOptions.IgnoreCase) || Regex.IsMatch(userAgent, "iPad", RegexOptions.IgnoreCase))
+						os = "iOS";
+					else if (Regex.IsMatch(userAgent, "Linux", RegexOptions.IgnoreCase))
+						os = "Linux";
+					if (!osTypes.ContainsKey(os))
+						osTypes[os] = 1;
+					else
+						osTypes[os] += 1;
+
+					var browser = "Autre";
+					if (Regex.IsMatch(userAgent, "MSIE") || (Regex.IsMatch(userAgent, @"Trident\/", RegexOptions.IgnoreCase) && Regex.IsMatch(userAgent, @"rv:11\.", RegexOptions.IgnoreCase)))
+						browser = "IE";
+					else if (Regex.IsMatch(userAgent, @"Edge\/", RegexOptions.IgnoreCase))
+						browser = "Edge";
+					else if (Regex.IsMatch(userAgent, @" Chrome\/"))
+						browser = "Chrome";
+					else if (Regex.IsMatch(userAgent, @" Firefox\/"))
+						browser = "Firefox";
+					else if (os == "iOS" || Regex.IsMatch(userAgent, @" Safari\/"))
+						browser = "Safari";
+					if (!browsers.ContainsKey(browser))
+						browsers[browser] = 1;
+					else
+						browsers[browser] += 1;
+
+					var mainBrowser = "Autre";
+					if (browser == "Chrome" && os == "Android")
+						mainBrowser = "Chrome Android";
+					else if (os == "iOS")
+						mainBrowser = "Safari iOS";
+					else if (browser == "Safari" && os == "Mac OS")
+						mainBrowser = "Safari Mac OS";
+					else if (browser == "Edge")
+						mainBrowser = "Edge";
+					else if (Regex.IsMatch(userAgent, @"MSIE 7\.", RegexOptions.IgnoreCase))
+						mainBrowser = "IE 7";
+					else if (Regex.IsMatch(userAgent, @"MSIE 8\.", RegexOptions.IgnoreCase))
+						mainBrowser = "IE 8";
+					else if (Regex.IsMatch(userAgent, @"MSIE 10\.", RegexOptions.IgnoreCase))
+						mainBrowser = "IE 10";
+					else if (Regex.IsMatch(userAgent, @"Trident\/", RegexOptions.IgnoreCase) && Regex.IsMatch(userAgent, @"rv:11\.", RegexOptions.IgnoreCase))
+						mainBrowser = "IE 11";
+					else if (browser == "Chrome" && os != "Android")
+						mainBrowser = "Chrome Desktop";
+					else if (browser == "Firefox" && os != "Android")
+						mainBrowser = "Firefox Desktop";
+					else if (browser == "Firefox" && os == "Android")
+						mainBrowser = "Firefox Android";
+					if (!mainBrowsers.ContainsKey(mainBrowser))
+						mainBrowsers[mainBrowser] = 1;
+					else
+						mainBrowsers[mainBrowser] += 1;
+				}    
+                
+				c.Response.Content = new JsonObject
+                {
+                    ["count"] = totalCount,
+					["os"] = new JsonArray(osTypes.Select((arg) => new JsonObject {
+                        ["name"] = arg.Key,
+                        ["value"] = arg.Value
+					}).OrderByDescending((arg) => (int)arg["value"])),
+					["browsers"] = new JsonArray(browsers.Select((arg) => new JsonObject {
+                        ["name"] = arg.Key,
+                        ["value"] = arg.Value
+					}).OrderByDescending((arg) => (int)arg["value"])),
+					["mainBrowsers"] = new JsonArray(mainBrowsers.Select((arg) => new JsonObject {
+                        ["name"] = arg.Key,
+                        ["value"] = arg.Value
+					}).OrderByDescending((arg) => (int)arg["value"]))
+				};
 			};
         }
     }

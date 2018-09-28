@@ -132,9 +132,9 @@ namespace Laclasse.Sms
 					JsonArray limitedPhones = new JsonArray();
 					for (var i = 0; i < 5 && (pos < phones.Count); i++, pos++)
 						limitedPhones.Add(phones[pos]);
-					SendSmsMax5(phones, message);
+					SendSmsMax5(limitedPhones, message);
 				}
-			}         
+			}
 		}
 
         void SendSmsMax5(JsonArray phones, string message)

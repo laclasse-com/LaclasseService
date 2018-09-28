@@ -309,7 +309,7 @@ namespace Laclasse.Directory
 						["logs"] = new JsonArray(usersLogs.Select((arg) => new JsonObject {
                             ["name"] = arg.Key,
                             ["value"] = arg.Value
-                        }).OrderByDescending((arg) => (int)arg["value"])),
+						})),
 						["users"] = new JsonArray(usersUsers.Select((arg) => new JsonObject {
 							["name"] = arg.Key,
 							["value"] = arg.Value.Count

@@ -118,12 +118,18 @@ namespace Laclasse.Directory
             
                 // calcul stats
 				var totalCount = 0;
-				var ssoProfiles = new Dictionary<string,long>();
-				var ssoTypes = new Dictionary<string,long>();
-				var netTypes = new Dictionary<string, long>();
-				var resources = new Dictionary<int, HashSet<string>>();
-				var structures = new Dictionary<string, HashSet<string>>();
-				var users = new Dictionary<string, HashSet<string>>();
+				var ssoProfilesLogs = new Dictionary<string,long>();
+				var ssoProfilesUsers = new Dictionary<string, HashSet<string>>();
+				var ssoTypesLogs = new Dictionary<string,long>();
+				var ssoTypesUsers = new Dictionary<string, HashSet<string>>();
+				var netTypesLogs = new Dictionary<string, long>();
+				var netTypesUsers = new Dictionary<string, HashSet<string>>();
+				var resourcesLogs = new Dictionary<int,long>();
+				var resourcesUsers = new Dictionary<int, HashSet<string>>();
+				var structuresLogs = new Dictionary<string, long>();
+				var structuresUsers = new Dictionary<string, HashSet<string>>();
+				var usersLogs = new Dictionary<string, long>();
+				var usersUsers = new Dictionary<string, HashSet<string>>();
                 
 				var startHour = new DateTime(start.Year, start.Month, start.Day, start.Hour, 0, 0);
 				int[] hours = new int[(int)Math.Floor((end-startHour).TotalHours) + 1];
@@ -133,7 +139,8 @@ namespace Laclasse.Directory
 					for (var i = 0; i < 4; i++) {
 						var weekNb = WeekOfYear(new DateTime(start.Ticks + (3600L * 24L * 7L * 10000000L * i) + (3600L * 24L * 3L * 10000000L)));
 						var k = weekNb.Year.ToString("0000") + "-" + weekNb.Week.ToString("00");
-						users[k] = new HashSet<string>();
+						usersUsers[k] = new HashSet<string>();
+						usersLogs[k] = 0;
 					}
 				}
                 else
@@ -141,7 +148,8 @@ namespace Laclasse.Directory
 					for (var i = 0; i < ( (mode == "1MONTH") ? 1 : ((mode == "6MONTH") ? 6 : 12)); i++) {
 						var month = start.AddMonths(i);
 						var m = month.Year.ToString("0000") + "-" + month.Month.ToString("00");
-						users[m] = new HashSet<string>();
+						usersUsers[m] = new HashSet<string>();
+						usersLogs[m] = 0;
 					}
 				}
                 
@@ -160,54 +168,77 @@ namespace Laclasse.Directory
 						}
 						if (ph.ContainsKey("idp"))
 						{
-							if (!ssoTypes.ContainsKey(ph["idp"]))
-								ssoTypes[ph["idp"]] = 1;
+							if (!ssoTypesLogs.ContainsKey(ph["idp"]))
+								ssoTypesLogs[ph["idp"]] = 1;
 							else
-								ssoTypes[ph["idp"]] += 1;
+								ssoTypesLogs[ph["idp"]] += 1;
+
+							if (!ssoTypesUsers.ContainsKey(ph["idp"]))
+								ssoTypesUsers[ph["idp"]] = new HashSet<string>();
+							ssoTypesUsers[ph["idp"]].Add(log.user_id);
 						}
 						if (log.profil_id != null)
 						{
-							if (!ssoProfiles.ContainsKey(log.profil_id))
-								ssoProfiles[log.profil_id] = 1;
+							if (!ssoProfilesLogs.ContainsKey(log.profil_id))
+								ssoProfilesLogs[log.profil_id] = 1;
 							else
-								ssoProfiles[log.profil_id] += 1;
+								ssoProfilesLogs[log.profil_id] += 1;
+
+							if (!ssoProfilesUsers.ContainsKey(log.profil_id))
+								ssoProfilesUsers[log.profil_id] = new HashSet<string>();
+							ssoProfilesUsers[log.profil_id].Add(log.user_id);
 						}
 						if (log.ip != null)
 						{
 							var intern = log.ip.StartsWith("193.51.226.", StringComparison.InvariantCulture);
 							var key = intern ? "Interne collège" : "Internet";
-							if (!netTypes.ContainsKey(key))
-								netTypes[key] = 1;
+							if (!netTypesLogs.ContainsKey(key))
+								netTypesLogs[key] = 1;
 							else
-								netTypes[key] += 1;
+								netTypesLogs[key] += 1;
+							if (!netTypesUsers.ContainsKey(key))
+								netTypesUsers[key] = new HashSet<string>();
+							netTypesUsers[key].Add(log.user_id);                     
 						}
 					}
 					if (log.resource_id != null) 
 					{
-						if (!resources.ContainsKey((int)log.resource_id))
-							resources[(int)log.resource_id] = new HashSet<string>();
-						resources[(int)log.resource_id].Add(log.user_id);
+						if (!resourcesLogs.ContainsKey((int)log.resource_id))
+                            resourcesLogs[(int)log.resource_id] = 1;
+						else
+							resourcesLogs[(int)log.resource_id] += 1;
+						if (!resourcesUsers.ContainsKey((int)log.resource_id))
+							resourcesUsers[(int)log.resource_id] = new HashSet<string>();
+						resourcesUsers[(int)log.resource_id].Add(log.user_id);
 					}
 					if (log.structure_id != null) 
                     {
-						if (!structures.ContainsKey(log.structure_id))
-							structures[log.structure_id] = new HashSet<string>();
-						structures[log.structure_id].Add(log.user_id);
+						if (!structuresLogs.ContainsKey(log.structure_id))
+							structuresLogs[log.structure_id] = 1;
+                        else
+							structuresLogs[log.structure_id] += 1;
+						if (!structuresUsers.ContainsKey(log.structure_id))
+							structuresUsers[log.structure_id] = new HashSet<string>();
+						structuresUsers[log.structure_id].Add(log.user_id);
                     }
 					if (mode == "4WEEK")
 					{
 						var time = log.timestamp;
                         var weekNb = WeekOfYear(time);
 						var k = weekNb.Year.ToString("0000") + "-" + weekNb.Week.ToString("00");
-						if (users.ContainsKey(k))
-							users[k].Add(log.user_id);
+						if (usersUsers.ContainsKey(k))
+							usersUsers[k].Add(log.user_id);
+						if (usersLogs.ContainsKey(k))
+                            usersLogs[k] += 1;
 					}
 					else
 					{
 						var time = log.timestamp;
 						var m = time.Year.ToString("0000") + "-" + time.Month.ToString("00");
-						if (users.ContainsKey(m))
-							users[m].Add(log.user_id);
+						if (usersUsers.ContainsKey(m))
+							usersUsers[m].Add(log.user_id);
+						if (usersLogs.ContainsKey(m))
+                            usersLogs[m] += 1;
 					}
                     // handle nb logs per hours
 					hours[Math.Max(0, (int)Math.Floor((log.timestamp - start).TotalHours))]++;
@@ -224,30 +255,66 @@ namespace Laclasse.Directory
 				c.Response.Content = new JsonObject
 				{
 					["count"] = totalCount,
-					["connections"] = new JsonArray(ssoTypes.Select((arg) => new JsonObject {
-						["name"] = ssoNames.ContainsKey(arg.Key) ? ssoNames[arg.Key] : arg.Key,
-						["value"] = arg.Value
-					})),
-					["networks"] = new JsonArray(netTypes.Select((arg) => new JsonObject {
-						["name"] = arg.Key,
-                        ["value"] = arg.Value
-					})),
-					["profiles"] = new JsonArray(ssoProfiles.Select((arg) => new JsonObject {
-                        ["name"] = arg.Key,
-                        ["value"] = arg.Value
-                    })),
-					["resources"] = new JsonArray(resources.Select((arg) => new JsonObject {
-						["name"] = arg.Key,
-						["value"] = arg.Value.Count
-					}).OrderByDescending((arg) => (int)arg["value"])),
-					["structures"] = new JsonArray(structures.Select((arg) => new JsonObject {
-                        ["name"] = arg.Key,
-                        ["value"] = arg.Value.Count
-					}).OrderByDescending((arg) => (int)arg["value"])),
-					["users"] = new JsonArray(users.Select((arg) => new JsonObject {
-                        ["name"] = arg.Key,
-                        ["value"] = arg.Value.Count
-                    })),
+					["connections"] = new JsonObject {
+						["logs"] = new JsonArray(ssoTypesLogs.Select((arg) => new JsonObject {
+							["name"] = ssoNames.ContainsKey(arg.Key) ? ssoNames[arg.Key] : arg.Key,
+							["value"] = arg.Value
+						})),
+						["users"] = new JsonArray(ssoTypesUsers.Select((arg) => new JsonObject {
+                            ["name"] = arg.Key,
+                            ["value"] = arg.Value.Count
+                        }).OrderByDescending((arg) => (int)arg["value"]))
+					},
+					["networks"] = new JsonObject {
+						["logs"] = new JsonArray(netTypesLogs.Select((arg) => new JsonObject {
+							["name"] = arg.Key,
+							["value"] = arg.Value
+						}).OrderByDescending((arg) => (int)arg["value"])),
+						["users"] = new JsonArray(netTypesUsers.Select((arg) => new JsonObject {
+                            ["name"] = arg.Key,
+                            ["value"] = arg.Value.Count
+                        }).OrderByDescending((arg) => (int)arg["value"]))
+					},
+					["profiles"] = new JsonObject {
+                        ["logs"] = 	new JsonArray(ssoProfilesLogs.Select((arg) => new JsonObject {
+							["name"] = arg.Key,
+							["value"] = arg.Value
+						}).OrderByDescending((arg) => (int)arg["value"])),
+						["users"] = new JsonArray(ssoProfilesUsers.Select((arg) => new JsonObject {
+                            ["name"] = arg.Key,
+                            ["value"] = arg.Value.Count
+                        }).OrderByDescending((arg) => (int)arg["value"]))
+					},
+					["resources"] = new JsonObject {
+						["logs"] = new JsonArray(resourcesLogs.Select((arg) => new JsonObject {
+                            ["name"] = arg.Key,
+                            ["value"] = arg.Value
+                        }).OrderByDescending((arg) => (int)arg["value"])),
+                        ["users"] = new JsonArray(resourcesUsers.Select((arg) => new JsonObject {
+							["name"] = arg.Key,
+							["value"] = arg.Value.Count
+						}).OrderByDescending((arg) => (int)arg["value"]))
+					},
+					["structures"] = new JsonObject {
+						["logs"] = new JsonArray(structuresLogs.Select((arg) => new JsonObject {
+                            ["name"] = arg.Key,
+                            ["value"] = arg.Value
+                        }).OrderByDescending((arg) => (int)arg["value"])),
+						["users"] = new JsonArray(structuresUsers.Select((arg) => new JsonObject {
+							["name"] = arg.Key,
+							["value"] = arg.Value.Count
+						}).OrderByDescending((arg) => (int)arg["value"]))
+					},
+					["users"] = new JsonObject {
+						["logs"] = new JsonArray(usersLogs.Select((arg) => new JsonObject {
+                            ["name"] = arg.Key,
+                            ["value"] = arg.Value
+                        }).OrderByDescending((arg) => (int)arg["value"])),
+						["users"] = new JsonArray(usersUsers.Select((arg) => new JsonObject {
+							["name"] = arg.Key,
+							["value"] = arg.Value.Count
+						}))
+					},
 					["activity"] = new JsonObject {
 						["maxY"] = hours.Max(),
 						["start"] = startHour,

@@ -63,14 +63,14 @@ namespace Laclasse.Directory
 		public ModelService(string dbUrl)
 		{
 			this.dbUrl = dbUrl;
-
+            
 			details = GetModelDetails(typeof(T));
 
 			expandFields = new Dictionary<string, ModelExpandDetails>();
 			var properties = typeof(T).GetProperties();
 			foreach (var prop in properties)
 			{
-				var expandFieldAttribute = (ModelExpandFieldAttribute)prop.GetCustomAttribute(typeof(ModelExpandFieldAttribute));
+				var expandFieldAttribute = (ModelExpandFieldAttribute)prop.GetCustomAttribute(typeof(ModelExpandFieldAttribute), true);
 				if (expandFieldAttribute != null)
 				{
 					// find the foreign property name
@@ -88,7 +88,7 @@ namespace Laclasse.Directory
 						foreignProperties = expandFieldAttribute.ForeignModel.GetProperties();
 					foreach (var foreignProp in foreignProperties)
 					{
-						var propAttrs = foreignProp.GetCustomAttributes(typeof(ModelFieldAttribute), false);
+						var propAttrs = foreignProp.GetCustomAttributes(typeof(ModelFieldAttribute), true);
 						foreach (var a in propAttrs)
 						{
 							var propAttr = (ModelFieldAttribute)a;
@@ -101,7 +101,7 @@ namespace Laclasse.Directory
 						if (foreignProperty != null)
 							break;
 					}
-
+                                        
 					var foreignDetails = new ModelExpandDetails
 					{
 						Attribute = expandFieldAttribute,

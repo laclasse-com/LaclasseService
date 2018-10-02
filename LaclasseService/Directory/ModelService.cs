@@ -213,7 +213,7 @@ namespace Laclasse.Directory
 											if ((item != null) && (!id.Equals(item.Fields[expandFields[parts[1]].ForeignField])))
 												item = null;
 
-											db.Commit();
+											await db.CommitAsync();
 										}
 										if (item == null)
 											c.Response.StatusCode = 404;
@@ -268,7 +268,7 @@ namespace Laclasse.Directory
 										await OnCreatedAsync(db, item);
 										result.Add(item);
 									}
-									db.Commit();
+									await db.CommitAsync();
 								}
 								c.Response.StatusCode = 200;
 								c.Response.Content = result;
@@ -284,7 +284,7 @@ namespace Laclasse.Directory
 								{
 									await item.SaveAsync(db, true);
 									await OnCreatedAsync(db, item);
-									db.Commit();
+									await db.CommitAsync();
 								}
 								c.Response.StatusCode = 200;
 								c.Response.Content = item;
@@ -341,7 +341,7 @@ namespace Laclasse.Directory
 									await itemDiff.UpdateAsync(db);
 									await itemDiff.LoadAsync(db, true);
 									await OnChangedAsync(db, itemDiff);
-									db.Commit();
+									await db.CommitAsync();
 								}
 								c.Response.StatusCode = 200;
 								c.Response.Content = itemDiff;
@@ -373,7 +373,7 @@ namespace Laclasse.Directory
 										await OnChangedAsync(db, item);
 										result.Add(item);
 									}
-									db.Commit();
+									await db.CommitAsync();
 								}
 								c.Response.StatusCode = 200;
 								c.Response.Content = result;
@@ -411,7 +411,7 @@ namespace Laclasse.Directory
 										await itemDiff.UpdateAsync(db);
 										await itemDiff.LoadAsync(db, true);
 										await OnChangedAsync(db, itemDiff);
-										db.Commit();
+										await db.CommitAsync();
 									}
 									c.Response.StatusCode = 200;
 									c.Response.Content = itemDiff;
@@ -484,7 +484,7 @@ namespace Laclasse.Directory
 									await itemDiff.UpdateAsync(db);
 									await itemDiff.LoadAsync(db, true);
 									await OnChangedAsync(db, itemDiff);
-									db.Commit();
+									await db.CommitAsync();
 								}
 								c.Response.StatusCode = 200;
 								c.Response.Content = itemDiff;
@@ -514,7 +514,7 @@ namespace Laclasse.Directory
 										}
 									}
 									c.Response.StatusCode = 200;
-									db.Commit();
+									await db.CommitAsync();
 								}
 							}
 						}
@@ -542,7 +542,7 @@ namespace Laclasse.Directory
 										await item.DeleteAsync(db);
 										await OnDeletedAsync(db, item);
 									}
-									db.Commit();
+									await db.CommitAsync();
 								}
 								if (item != null)
 									c.Response.StatusCode = 200;
@@ -618,7 +618,7 @@ namespace Laclasse.Directory
 									await itemDiff.UpdateAsync(db);
 									await itemDiff.LoadAsync(db, true);
 									await OnChangedAsync(db, itemDiff);
-									db.Commit();
+									await db.CommitAsync();
 								}
 								c.Response.StatusCode = 200;
 								c.Response.Content = itemDiff;

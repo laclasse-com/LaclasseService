@@ -321,7 +321,7 @@ namespace Laclasse.Aaf
 			{
 				res = await SynchronizeAsync(
 					db, subject, grade, structure, persEducNat, eleve, persRelEleve, apply);
-				db.Commit();
+				await db.CommitAsync();
 			}
 			return res;
 		}
@@ -2334,7 +2334,7 @@ namespace Laclasse.Aaf
 					await SynchronizeFileAsync(logger, nearestFile, zipFilesFolder, logFilesFolder,
 					                           db, dbUrl, SyncFileMode.Automatic);
 				}
-				db.Commit();
+				await db.CommitAsync();
 			}
 		}
 
@@ -2352,7 +2352,7 @@ namespace Laclasse.Aaf
 					aafSync = await SynchronizeFileAsync(
 						logger, file, zipFilesFolder, logFilesFolder, db, dbUrl,
 						SyncFileMode.Manual, structuresIds);
-					db.Commit();
+					await db.CommitAsync();
 				}
 			}
 			return aafSync;

@@ -1842,21 +1842,21 @@ namespace Laclasse
 			return filter;
 		}
 
-		public void Commit()
+		public async Task CommitAsync()
 		{
 			if (transaction != null)
 			{
-				transaction.Commit();
+				await transaction.CommitAsync();
 				transaction.Dispose();
 				transaction = null;
 			}
 		}
 
-		public void Rollback()
+		public async Task RollbackAsync()
 		{
 			if (transaction != null)
 			{
-				transaction.Rollback();
+				await transaction.RollbackAsync();
 				transaction.Dispose();
 				transaction = null;
 			}

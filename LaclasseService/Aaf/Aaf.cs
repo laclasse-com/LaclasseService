@@ -197,7 +197,7 @@ namespace Laclasse.Aaf
 					{
 						var synchronizer = new Synchronizer(dbUrl, file);
 						c.Response.Content = (await synchronizer.GetAafStudentsAsync(db)).Filter(c);
-						db.Commit();
+						await db.CommitAsync();
 					}
 				}
 			};

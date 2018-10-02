@@ -113,7 +113,7 @@ namespace Laclasse.Sms
 					SendSms(phones, sms.content);
 
                     // commit
-					db.Commit();
+					await db.CommitAsync();
                 }
 				c.Response.StatusCode = 200;
 				c.Response.Content = sms;

@@ -1648,7 +1648,7 @@ namespace Laclasse.Authentication
 
 					rescueUsers = await db.SelectAsync<User>("SELECT * FROM `user` WHERE " + DB.InFilter("id", userIds));
 				}
-				db.Commit();
+				await db.CommitAsync();
 			}
 
 			if ((rescueUsers != null) && formFields.ContainsKey("user"))

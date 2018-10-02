@@ -105,12 +105,12 @@ namespace Laclasse
 			}
 
 			string dbUrl = setup.database.url;
-
+            
 			// quick check to validate the currents models.
 			// If not compatible with the DB Schema. STOP HERE
 			if (!DB.CheckDBModels(new Dictionary<string, string>() { ["DEFAULT"] = dbUrl, ["DOCS"] = setup.doc.url }))
 				return;
-			
+
 			// if only check DB is asked, stop here
 			if (checkDB)
 				return;
@@ -154,6 +154,7 @@ namespace Laclasse
 			mapper.Add("/api/user_links", new UserLinks(dbUrl));
 			var users = new Users(dbUrl, setup.server.storage, setup.authentication.masterPassword);
 			mapper.Add("/api/users", users);
+			mapper.Add("/api/users_extended", new UsersExtended(dbUrl));
 			mapper.Add("/api/sso", new Sso(dbUrl, users));
 			mapper.Add("/api/tiles", new Tiles(dbUrl));
 			mapper.Add("/api/flux", new PortailFlux(dbUrl));
@@ -207,7 +208,7 @@ namespace Laclasse
 			contextInjector.Inject("applications", applications);
 			contextInjector.Inject("publicUrl", setup.server.publicUrl);
 			contextInjector.Inject("setup", setup);
-			
+            
 			// start a day scheduler to run the AAF sync task
 			var dayScheduler = new Scheduler.DayScheduler(logger);
 			foreach (var dayRun in setup.aaf.runs)

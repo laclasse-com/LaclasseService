@@ -1,8 +1,0 @@
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/obj/x86/Release/.NETFramework,Version=v4.5.AssemblyAttribute.cs
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/obj/x86/Release/Laclasse.laclasse.conf
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Release/LaclasseService.exe.config
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Release/LaclasseService.exe
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/obj/x86/Release/LaclasseService.exe
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Release/MySql.Data.dll
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Release/Erasme.Http.dll
-/home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/bin/Release/BCrypt.Net.dll

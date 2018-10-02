@@ -40,6 +40,7 @@ using Erasme.Json;
 using Erasme.Http;
 using Laclasse.Authentication;
 using System.Reflection;
+using System.Data;
 
 namespace Laclasse
 {
@@ -1397,79 +1398,34 @@ namespace Laclasse
 			public string Name;
 			public PropertyInfo Property;
 			public ModelFieldAttribute Attribute;
-			public Type NullableType;
+			public Type PropertyType;
+			public bool IsNullable;
 			public bool IsEnum;
+			public bool IsDirectMapping;
 		}
 		public static Dictionary<Type,Dictionary<string,PropertyDetail>> DBToTypeInfo = new Dictionary<Type,Dictionary<string,PropertyDetail>>();
 
-		void DBToFields<T>(System.Data.Common.DbDataReader reader, T result) where T : Model
+		void DBToFields<T>(PropertyDetail[] propertiesDetails, object[] values, T result) where T : Model
         {
-			var details = DBToTypeInfo[typeof(T)];
-            for (int i = 0; i < reader.FieldCount; i++)
+			for (int i = 0; i < propertiesDetails.Length; i++)
             {
-				var name = reader.GetName(i);
-				if (!details.ContainsKey(name))
+				PropertyDetail detail = propertiesDetails[i];
+				if (detail == null)
 					continue;
-
-				PropertyDetail detail = details[name];
-				var fieldValue = reader.GetValue(i);            
+				var name = detail.Name;
+				object value = values[i];
                 
-				if (detail.NullableType == null)
-                {
-                    if (reader.IsDBNull(i))
-                        result.Fields[detail.Name] = null;
-                    else if (detail.IsEnum && fieldValue is string)
-                        result.Fields[detail.Name] = Enum.Parse(detail.Property.PropertyType, (string)fieldValue);
-                    else
-						result.Fields[detail.Name] = Convert.ChangeType(fieldValue, detail.Property.PropertyType);
-                }
-                else
-                {
-                    if (reader.IsDBNull(i))
-						result.Fields[detail.Name] = null;
-                    else if (detail.NullableType.IsEnum && fieldValue is string)
-						result.Fields[detail.Name] = Enum.Parse(detail.NullableType, (string)fieldValue);
-                    else
-						result.Fields[detail.Name] = Convert.ChangeType(fieldValue, detail.NullableType);
-                }
+				if (value == DBNull.Value)
+					result.Fields[name] = null;
+				else if (value.GetType() == detail.PropertyType)
+					result.Fields[name] = value;
+				else if (detail.IsEnum)
+					result.Fields[name] = Enum.Parse(detail.PropertyType, (string)value);
+				else
+					result.Fields[name] = Convert.ChangeType(value, detail.PropertyType);
             }
         }
-
-		void DBToFieldsOld<T>(System.Data.Common.DbDataReader reader, T result) where T : Model
-		{
-			for (int i = 0; i < reader.FieldCount; i++)
-			{
-				var fieldValue = reader.GetValue(i);
-
-				var property = typeof(T).GetProperty(reader.GetName(i));
-				if (property == null)
-					continue;
-				var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
-				if (fieldAttribute == null)
-					continue;
-
-				var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
-				if (nullableType == null)
-				{
-					if (reader.IsDBNull(i))
-						result.Fields[property.Name] = null;
-					else if (property.PropertyType.IsEnum && fieldValue is string)
-						result.Fields[property.Name] = Enum.Parse(property.PropertyType, (string)fieldValue);
-					else
-						result.Fields[property.Name] = Convert.ChangeType(fieldValue, property.PropertyType);
-				}
-				else
-				{
-					if (reader.IsDBNull(i))
-						result.Fields[property.Name] = null;
-					else if (nullableType.IsEnum && fieldValue is string)
-						result.Fields[property.Name] = Enum.Parse(nullableType, (string)fieldValue);
-					else
-						result.Fields[property.Name] = Convert.ChangeType(fieldValue, nullableType);
-				}
-			}
-		}
-
+        
 		public async Task<ModelList<T>> SelectAsync<T>(string query, params object[] args) where T : Model, new()
 		{
 			var result = new ModelList<T>();
@@ -1477,15 +1433,34 @@ namespace Laclasse
 			if (transaction != null)
 				cmd.Transaction = transaction;
 			args.ForEach(arg => cmd.Parameters.Add(new MySqlParameter(string.Empty, arg)));
+            
 			using (var reader = await cmd.ExecuteReaderAsync())
-			{
-				while (await reader.ReadAsync())
-				{
-					var item = new T();
-					DBToFields(reader, item);
-					result.Add(item);
+            {
+				string[] names = new string[reader.FieldCount];
+				object[] values = new object[reader.FieldCount];
+
+				for (var i = 0; i < reader.FieldCount; i++) {
+					names[i] = reader.GetName(i);
 				}
-			}
+
+				PropertyDetail[] propertiesDetails = new PropertyDetail[reader.FieldCount];
+				var details = DBToTypeInfo[typeof(T)];
+                for (int i = 0; i < names.Length; i++)
+                {
+                    var name = names[i];
+                    if (!details.ContainsKey(name))
+                        continue;
+					propertiesDetails[i] = details[name];
+				}
+                            
+                while (await reader.ReadAsync())
+                {
+                    var item = new T();
+					reader.GetValues(values);               
+					DBToFields(propertiesDetails, values, item);
+                    result.Add(item);
+                }
+            }
 			return result;
 		}
 
@@ -1504,12 +1479,30 @@ namespace Laclasse
 			args.ForEach(arg => cmd.Parameters.Add(new MySqlParameter(string.Empty, arg)));
 			using (var reader = await cmd.ExecuteReaderAsync())
 			{
+				string[] names = new string[reader.FieldCount];
+				object[] values = new object[reader.FieldCount];
+
+				for (var i = 0; i < reader.FieldCount; i++) {
+					names[i] = reader.GetName(i);
+				}
+
+				PropertyDetail[] propertiesDetails = new PropertyDetail[reader.FieldCount];
+				var details = DBToTypeInfo[typeof(T)];
+				for (int i = 0; i < names.Length; i++)
+				{
+					var name = names[i];
+					if (!details.ContainsKey(name))
+						continue;
+					propertiesDetails[i] = details[name];
+				}
+
 				while (await reader.ReadAsync())
 				{
 					var item = new T();
-					DBToFields(reader, item);
+					reader.GetValues(values);               
+					DBToFields(propertiesDetails, values, item);
 					if (item.Fields.ContainsKey(primaryKey))
-						ids.Add(item.Fields[primaryKey]);
+                        ids.Add(item.Fields[primaryKey]);
 					result.Add(item);
 				}
 			}
@@ -1565,15 +1558,30 @@ namespace Laclasse
 			object id = null;
 			using (var reader = await cmd.ExecuteReaderAsync())
 			{
+				string[] names = new string[reader.FieldCount];
+                object[] values = new object[reader.FieldCount];
+
+                for (var i = 0; i < reader.FieldCount; i++) {
+                    names[i] = reader.GetName(i);
+                }
+
+                PropertyDetail[] propertiesDetails = new PropertyDetail[reader.FieldCount];
+                var details = DBToTypeInfo[typeof(T)];
+                for (int i = 0; i < names.Length; i++)
+                {
+                    var name = names[i];
+                    if (!details.ContainsKey(name))
+                        continue;
+                    propertiesDetails[i] = details[name];
+                }
+
 				while (await reader.ReadAsync() && (result == null))
 				{
+					reader.GetValues(values);
 					result = new T();
-					for (int i = 0; i < reader.FieldCount; i++)
-					{
-						DBToFields(reader, result);
-						if (expand && (reader.GetName(i) == primaryKey))
-							id = result.Fields[reader.GetName(i)];
-					}
+					DBToFields(propertiesDetails, values, result);
+					if (expand && result.Fields.ContainsKey(primaryKey))
+						id = result.Fields[primaryKey];
 				}
 			}
 			if (expand && (id != null))
@@ -1869,7 +1877,7 @@ namespace Laclasse
 			string colDef;
 			using (var connection = new MySqlConnection(dbUrl))
 			{
-				using (var command = new MySqlCommand($"SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='{table}' AND COLUMN_NAME='{col}'", connection))
+				using (var command = new MySqlCommand($"SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='{table}' AND COLUMN_NAME='{col}'", connection))
 				{
 					connection.Open();
 					colDef = command.ExecuteScalar() as string;
@@ -1889,6 +1897,52 @@ namespace Laclasse
 			return values;
 		}
 
+		static Dictionary<string,Type> DBTypesMapping = new Dictionary<string, Type> {
+			["varchar"] = typeof(string),
+			["char"] = typeof(string),
+			["text"] = typeof(string),
+			["mediumtext"] = typeof(string),
+			["longtext"] = typeof(string),
+			["tinyint"] = typeof(bool),
+			["smallint"] = typeof(short),
+			["int"] = typeof(int),
+			["bigint"] = typeof(long),
+			["decimal"] = typeof(double),
+			["double"] = typeof(double),
+			["datetime"] = typeof(DateTime),
+			["timestamp"] = typeof(DateTime),
+			["date"] = typeof(DateTime),
+			["enum"] = typeof(string),
+			["blob"] = typeof(byte[]),
+		};
+
+		static List<DataColumn> DBGetTableColumns(string dbUrl, string table)
+        {
+			List<DataColumn> rows = new List<DataColumn>();
+            using (var connection = new MySqlConnection(dbUrl))
+            {
+				using (var command = new MySqlCommand($"SELECT COLUMN_NAME,IS_NULLABLE, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='{table}' AND TABLE_SCHEMA=DATABASE()", connection))
+                {
+                    connection.Open();
+					using(var reader = command.ExecuteReader())
+					{
+						object[] values = new object[reader.FieldCount];
+						while(reader.Read()) {
+							reader.GetValues(values);
+							if (!DBTypesMapping.ContainsKey((string)values[2]))
+								throw new Exception($"Unknown type mapping for MySQL {(string)values[2]}");
+							rows.Add(new DataColumn {
+								ColumnName = (string)values[0],
+								AllowDBNull = (string)values[1] == "YES",
+								DataType = DBTypesMapping[(string)values[2]]
+							});
+						}
+					}
+                }
+            }
+            return rows;
+		}
+
 		public static bool CheckDBModels(Dictionary<string,string> dbsUrl)
 		{
 			bool valid = true;
@@ -1902,12 +1956,12 @@ namespace Laclasse
 			}
 			return valid;
 		}
-
+        
 		public static bool CheckDBModel(Dictionary<string, string> dbsUrl, Type model)
 		{
 			if (!model.IsSubclassOf(typeof(Model)))
 				return false;
-
+            
 			bool valid = true;
 
 			var attrs = model.GetCustomAttributes(typeof(ModelAttribute), false);
@@ -1931,34 +1985,13 @@ namespace Laclasse
 				if (fieldAttr.Length > 0 && ((ModelFieldAttribute)fieldAttr[0]).DB)
 					fieldsProperties[property.Name] = property;
 			}
-
+            
 			var colsTypes = new Dictionary<string, System.Data.DataColumn>();
 
-			System.Data.DataTable schema = null;
-			using (var connection = new MySqlConnection(dbUrl))
-			{
-				using (var schemaCommand = new MySqlCommand($"SELECT * FROM `{tableName}`", connection))
-				{
-					connection.Open();
+			foreach (var col in DBGetTableColumns(dbUrl, tableName))
+				colsTypes[col.ColumnName] = col;
 
-					using (var reader = schemaCommand.ExecuteReader(System.Data.CommandBehavior.SchemaOnly))
-					{
-						schema = reader.GetSchemaTable();
-						foreach (System.Data.DataRow col in schema.Rows)
-						{
-							var colName = (string)col["ColumnName"];
-							colsTypes[colName] = new System.Data.DataColumn
-							{
-								ColumnName = colName,
-								DataType = (Type)col["DataType"],
-								AllowDBNull = (bool)col["AllowDBNull"]
-							};
-						}
-					}
-				}
-			}
-
-			if (!colsTypes.ContainsKey(primaryKey))
+			if (primaryKey != null && !colsTypes.ContainsKey(primaryKey))
 			{
 				Console.WriteLine($"ERROR in model '{model.Name}', PRIMARY KEY '{primaryKey}' NOT PRESENT in table '{tableName}'");
 				valid = false;
@@ -2038,12 +2071,20 @@ namespace Laclasse
                 if (fieldAttribute == null)
                     continue;
 				var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
+				var propertyType = nullableType != null ? nullableType : property.PropertyType;
+                var isDirectMapping = 
+					(propertyType == typeof(string)) ||
+                    (propertyType == typeof(int)) ||
+                    (propertyType == typeof(long)) ||
+					(propertyType == typeof(DateTime));
 				details[property.Name] = new PropertyDetail {
 					Name = property.Name,
 					Property = property,
 					Attribute = fieldAttribute,
-					NullableType = nullableType,
-					IsEnum = property.PropertyType.IsEnum
+					PropertyType = propertyType,               
+					IsNullable = nullableType != null,
+					IsEnum = propertyType.IsEnum,
+					IsDirectMapping = isDirectMapping
 				};
 			}         
 			DBToTypeInfo[type] = details;

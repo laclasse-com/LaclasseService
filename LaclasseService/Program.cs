@@ -105,7 +105,7 @@ namespace Laclasse
 			}
 
 			string dbUrl = setup.database.url;
-            
+
 			// quick check to validate the currents models.
 			// If not compatible with the DB Schema. STOP HERE
 			if (!DB.CheckDBModels(new Dictionary<string, string>() { ["DEFAULT"] = dbUrl, ["DOCS"] = setup.doc.url }))
@@ -116,7 +116,7 @@ namespace Laclasse
 				return;
 
 			if (!System.IO.Directory.Exists(setup.server.temporaryDirectory))
-				System.IO.Directory.CreateDirectory(setup.server.temporaryDirectory);         
+				System.IO.Directory.CreateDirectory(setup.server.temporaryDirectory);
 
 			var logger = new Logger(setup.log, setup.mail);
 
@@ -193,9 +193,9 @@ namespace Laclasse
 			//mapper.Add("/api/icons", new Icons(dbUrl));
 			mapper.Add("/api/icons", new StaticIcons(setup.server.publicIcons, setup.http.defaultCacheDuration));
 
-            mapper.Add ("/api/sso_clients", new SsoClients (dbUrl));
-            mapper.Add ("/api/sso_clients_urls", new SsoClientsUrls (dbUrl));
-            mapper.Add ("/api/sso_clients_attributes", new SsoClientsAttributes (dbUrl));
+			mapper.Add("/api/sso_clients", new SsoClients(dbUrl));
+			mapper.Add("/api/sso_clients_urls", new SsoClientsUrls(dbUrl));
+			mapper.Add("/api/sso_clients_attributes", new SsoClientsAttributes(dbUrl));
 
 			mapper.Add("/api/sms", new Sms.SmsService(dbUrl, setup.sms));
 
@@ -208,7 +208,7 @@ namespace Laclasse
 			contextInjector.Inject("applications", applications);
 			contextInjector.Inject("publicUrl", setup.server.publicUrl);
 			contextInjector.Inject("setup", setup);
-            
+
 			// start a day scheduler to run the AAF sync task
 			var dayScheduler = new Scheduler.DayScheduler(logger);
 			foreach (var dayRun in setup.aaf.runs)
@@ -264,7 +264,7 @@ namespace Laclasse
 
 			server.Stop();
 
-			dayScheduler.Dispose();            
+			dayScheduler.Dispose();
 		}
 	}
 }

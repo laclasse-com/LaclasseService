@@ -32,6 +32,7 @@ using System.Linq;
 using System.Globalization;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Erasme.Json;
 using Erasme.Http;
 
@@ -42,7 +43,7 @@ namespace Laclasse
 		JsonValue ToJson(HttpContext context);
 	}
 
-	public class SearchResult<T>: IJsonable where T : Model
+	public class SearchResult<T> : IJsonable where T : Model
 	{
 		public ModelList<T> Data;
 		public int Limit;
@@ -238,8 +239,8 @@ namespace Laclasse
 			if (publicUrl[publicUrl.Length - 1] == '/')
 				publicUrl = publicUrl.Substring(0, publicUrl.Length - 1);
 			if (context.Request.Headers.ContainsKey("x-forwarded-proto") &&
-			    context.Request.Headers.ContainsKey("x-forwarded-host"))
-				publicUrl = context.Request.Headers["x-forwarded-proto"] + "://" +  context.Request.Headers["x-forwarded-host"];
+				context.Request.Headers.ContainsKey("x-forwarded-host"))
+				publicUrl = context.Request.Headers["x-forwarded-proto"] + "://" + context.Request.Headers["x-forwarded-host"];
 			return publicUrl + context.Request.AbsolutePath;
 		}
 	}
@@ -321,8 +322,8 @@ namespace Laclasse
 				sb.Append(obj.ToString());
 			else if (obj is JsonPrimitive)
 			{
-				if((obj as JsonPrimitive).JsonType == JsonType.String)
-					sb.Append("\""+(obj as JsonPrimitive).Value+"\"");
+				if ((obj as JsonPrimitive).JsonType == JsonType.String)
+					sb.Append("\"" + (obj as JsonPrimitive).Value + "\"");
 				else
 					sb.Append((obj as JsonPrimitive).Value.ToString());
 			}
@@ -412,7 +413,7 @@ namespace Laclasse
 			{
 				if (json.ContainsKey(field))
 				{
-					if(json[field] == null)
+					if (json[field] == null)
 						res.Add(field, null);
 					else
 						res.Add(field, json[field].Value);
@@ -525,6 +526,34 @@ namespace Laclasse
 					words.Add(fieldValue);
 			}
 			return queryFields;
+		}
+	}
+
+	public interface IEnumeratorAsync<T>
+	{
+		T Current { get; }
+		Task<bool> MoveNextAsync();
+	}
+
+	public interface IEnumerableAsync<T>
+	{
+		Task<IEnumeratorAsync<T>> GetEnumeratorAsync();
+	}
+
+	public static class IEnumerableAsyncExtension
+	{
+		public static async Task ForEachAsync<T>(this IEnumerableAsync<T> list, Action<T> func)
+		{
+			var enumerator = await list.GetEnumeratorAsync();
+			while (await enumerator.MoveNextAsync())
+				func(enumerator.Current);
+		}
+
+		public static async Task ForEachAsync<T>(this IEnumerableAsync<T> list, Func<T, Task> func)
+		{
+			var enumerator = await list.GetEnumeratorAsync();
+			while (await enumerator.MoveNextAsync())
+				await func(enumerator.Current);
 		}
 	}
 }

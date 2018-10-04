@@ -97,10 +97,10 @@ namespace Laclasse
 	}
 
 	public struct SqlFilter
-    {
-        public string Where;
+	{
+		public string Where;
 		public string Inner;
-    }
+	}
 
 	public class Model
 	{
@@ -699,18 +699,28 @@ namespace Laclasse
 			return res;
 		}
 
-		public static Task<SearchResult<T>> SearchAsync<T>(DB db, HttpContext c, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
+		public static async Task<SearchResult<T>> SearchAsync<T>(DB db, HttpContext c, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
 		{
-            return SearchWithHttpContextAsync<T>(db, c, sqlFilter);
+			Dictionary<string, List<string>> parsedQuery;
+			string[] orderBy;
+			SortDirection[] orderDir;
+			bool expand;
+			int offset;
+			int count;
+			ParseSearch<T>(c, out parsedQuery, out orderBy, out orderDir, out expand, out offset, out count);
+			return await SearchAsync<T>(db, parsedQuery, orderBy, orderDir, expand, offset, count, sqlFilter);
 		}
 
-		public static async Task<SearchResult<T>> SearchWithHttpContextAsync<T>(DB db, HttpContext c, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
+		public static void ParseSearch<T>(
+			HttpContext c,
+			out Dictionary<string, List<string>> parsedQuery, out string[] orderBy,
+			out SortDirection[] orderDir, out bool expand, out int offset, out int count) where T : Model, new()
 		{
-			bool expand = true;
-			int offset = 0;
-			int count = -1;
-			string[] orderBy = null;
-			SortDirection[] orderDir = null;
+			expand = true;
+			offset = 0;
+			count = -1;
+			orderBy = null;
+			orderDir = null;
 			var query = "";
 			if (c.Request.QueryString.ContainsKey("query"))
 				query = c.Request.QueryString["query"];
@@ -740,14 +750,13 @@ namespace Laclasse
 			if (c.Request.QueryString.ContainsKey("expand"))
 				expand = Convert.ToBoolean(c.Request.QueryString["expand"]);
 
-			var parsedQuery = query.QueryParser();
+			parsedQuery = query.QueryParser();
 			foreach (var key in c.Request.QueryString.Keys)
 				if (!parsedQuery.ContainsKey(key))
 					parsedQuery[key] = new List<string> { c.Request.QueryString[key] };
 			foreach (var key in c.Request.QueryStringArray.Keys)
 				if (!parsedQuery.ContainsKey(key))
 					parsedQuery[key] = c.Request.QueryStringArray[key];
-			return await SearchAsync<T>(db, parsedQuery, orderBy, orderDir, expand, offset, count, sqlFilter);
 		}
 
 		static string CompareOperatorToSql(CompareOperator op)
@@ -766,9 +775,9 @@ namespace Laclasse
 			return opStr;
 		}
 
-		public static async Task<SearchResult<T>> SearchAsync<T>(
-			DB db, Dictionary<string, List<string>> queryFields, string[] orderBy = null,
-			SortDirection[] sortDir = null, bool expand = true, int offset = 0, int count = -1, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
+		public static string SearchToSql<T>(
+			Dictionary<string, List<string>> queryFields, string[] orderBy = null,
+			SortDirection[] sortDir = null, int offset = 0, int count = -1, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
 		{
 			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
 			string modelTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : typeof(T).Name;
@@ -901,7 +910,7 @@ namespace Laclasse
 							}
 							else
 								filter += "`" + key + "`" + CompareOperatorToSql(op) + "'" + DB.EscapeString(words[0]) + "'";
-						}                  
+						}
 					}
 					else if (words.Count > 1)
 					{
@@ -1054,7 +1063,8 @@ namespace Laclasse
 				sqlWhereFilter = " AND " + sqlFilter.Where;
 			var sql = $"SELECT SQL_CALC_FOUND_ROWS * FROM `{modelTableName}` {sqlInnerFilter} WHERE {filter} {sqlWhereFilter} " +
 				$"ORDER BY ";
-			for (var i = 0; i < orderBy.Length; i++) {
+			for (var i = 0; i < orderBy.Length; i++)
+			{
 				var key = orderBy[i];
 				if (i > 0)
 					sql += ", ";
@@ -1069,7 +1079,16 @@ namespace Laclasse
 			if (orderBy.Length != 1 || orderBy[0] != primaryKey)
 				sql += $", `{primaryKey}` ASC";
 			sql += $" {limit}";
-			//Console.WriteLine(sql);
+			return sql;
+		}
+
+		public static async Task<SearchResult<T>> SearchAsync<T>(
+			DB db, Dictionary<string, List<string>> queryFields, string[] orderBy = null,
+			SortDirection[] sortDir = null, bool expand = true, int offset = 0, int count = -1, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
+		{
+			var result = new SearchResult<T>();
+			var sql = SearchToSql<T>(queryFields, orderBy, sortDir, offset, count, sqlFilter);
+
 			result.Limit = count;
 			result.Offset = offset;
 			if (expand)
@@ -1085,6 +1104,7 @@ namespace Laclasse
 			}
 			return result;
 		}
+
 
 		public delegate bool MatchFunc<T>(T src, T dst);
 		public delegate T DiffFunc<T>(T src, T dst);
@@ -1168,10 +1188,10 @@ namespace Laclasse
 			await Task.FromResult(false);
 		}
 
-		public virtual SqlFilter FilterAuthUser (AuthenticatedUser user)
-        {
+		public virtual SqlFilter FilterAuthUser(AuthenticatedUser user)
+		{
 			return new SqlFilter() { Where = null, Inner = null };
-        }
+		}
 	}
 
 	public interface IModelList : IList
@@ -1393,7 +1413,7 @@ namespace Laclasse
 			return result;
 		}
 
-        public class PropertyDetail
+		public class PropertyDetail
 		{
 			public string Name;
 			public PropertyInfo Property;
@@ -1403,18 +1423,18 @@ namespace Laclasse
 			public bool IsEnum;
 			public bool IsDirectMapping;
 		}
-		public static Dictionary<Type,Dictionary<string,PropertyDetail>> DBToTypeInfo = new Dictionary<Type,Dictionary<string,PropertyDetail>>();
+		public static Dictionary<Type, Dictionary<string, PropertyDetail>> DBToTypeInfo = new Dictionary<Type, Dictionary<string, PropertyDetail>>();
 
-		void DBToFields<T>(PropertyDetail[] propertiesDetails, object[] values, T result) where T : Model
-        {
+		public static void DBToFields<T>(PropertyDetail[] propertiesDetails, object[] values, T result) where T : Model
+		{
 			for (int i = 0; i < propertiesDetails.Length; i++)
-            {
+			{
 				PropertyDetail detail = propertiesDetails[i];
 				if (detail == null)
 					continue;
 				var name = detail.Name;
 				object value = values[i];
-                
+
 				if (value == DBNull.Value)
 					result.Fields[name] = null;
 				else if (value.GetType() == detail.PropertyType)
@@ -1423,44 +1443,51 @@ namespace Laclasse
 					result.Fields[name] = Enum.Parse(detail.PropertyType, (string)value);
 				else
 					result.Fields[name] = Convert.ChangeType(value, detail.PropertyType);
-            }
-        }
-        
+			}
+		}
+
+		public IEnumerableAsync<T> SelectEnumerable<T>(string query, params object[] args) where T : Model, new()
+		{
+			return new RequestEnumerable<T>(this, query, args);
+		}
+
 		public async Task<ModelList<T>> SelectAsync<T>(string query, params object[] args) where T : Model, new()
 		{
 			var result = new ModelList<T>();
+
 			var cmd = new MySqlCommand(query, connection);
 			if (transaction != null)
 				cmd.Transaction = transaction;
 			args.ForEach(arg => cmd.Parameters.Add(new MySqlParameter(string.Empty, arg)));
-            
+
 			using (var reader = await cmd.ExecuteReaderAsync())
-            {
+			{
 				string[] names = new string[reader.FieldCount];
 				object[] values = new object[reader.FieldCount];
 
-				for (var i = 0; i < reader.FieldCount; i++) {
+				for (var i = 0; i < reader.FieldCount; i++)
+				{
 					names[i] = reader.GetName(i);
 				}
 
 				PropertyDetail[] propertiesDetails = new PropertyDetail[reader.FieldCount];
 				var details = DBToTypeInfo[typeof(T)];
-                for (int i = 0; i < names.Length; i++)
-                {
-                    var name = names[i];
-                    if (!details.ContainsKey(name))
-                        continue;
+				for (int i = 0; i < names.Length; i++)
+				{
+					var name = names[i];
+					if (!details.ContainsKey(name))
+						continue;
 					propertiesDetails[i] = details[name];
 				}
-                            
-                while (await reader.ReadAsync())
-                {
-                    var item = new T();
-					reader.GetValues(values);               
+
+				while (await reader.ReadAsync())
+				{
+					var item = new T();
+					reader.GetValues(values);
 					DBToFields(propertiesDetails, values, item);
-                    result.Add(item);
-                }
-            }
+					result.Add(item);
+				}
+			}
 			return result;
 		}
 
@@ -1482,7 +1509,8 @@ namespace Laclasse
 				string[] names = new string[reader.FieldCount];
 				object[] values = new object[reader.FieldCount];
 
-				for (var i = 0; i < reader.FieldCount; i++) {
+				for (var i = 0; i < reader.FieldCount; i++)
+				{
 					names[i] = reader.GetName(i);
 				}
 
@@ -1499,10 +1527,10 @@ namespace Laclasse
 				while (await reader.ReadAsync())
 				{
 					var item = new T();
-					reader.GetValues(values);               
+					reader.GetValues(values);
 					DBToFields(propertiesDetails, values, item);
 					if (item.Fields.ContainsKey(primaryKey))
-                        ids.Add(item.Fields[primaryKey]);
+						ids.Add(item.Fields[primaryKey]);
 					result.Add(item);
 				}
 			}
@@ -1559,21 +1587,22 @@ namespace Laclasse
 			using (var reader = await cmd.ExecuteReaderAsync())
 			{
 				string[] names = new string[reader.FieldCount];
-                object[] values = new object[reader.FieldCount];
+				object[] values = new object[reader.FieldCount];
 
-                for (var i = 0; i < reader.FieldCount; i++) {
-                    names[i] = reader.GetName(i);
-                }
+				for (var i = 0; i < reader.FieldCount; i++)
+				{
+					names[i] = reader.GetName(i);
+				}
 
-                PropertyDetail[] propertiesDetails = new PropertyDetail[reader.FieldCount];
-                var details = DBToTypeInfo[typeof(T)];
-                for (int i = 0; i < names.Length; i++)
-                {
-                    var name = names[i];
-                    if (!details.ContainsKey(name))
-                        continue;
-                    propertiesDetails[i] = details[name];
-                }
+				PropertyDetail[] propertiesDetails = new PropertyDetail[reader.FieldCount];
+				var details = DBToTypeInfo[typeof(T)];
+				for (int i = 0; i < names.Length; i++)
+				{
+					var name = names[i];
+					if (!details.ContainsKey(name))
+						continue;
+					propertiesDetails[i] = details[name];
+				}
 
 				while (await reader.ReadAsync() && (result == null))
 				{
@@ -1772,7 +1801,7 @@ namespace Laclasse
 				{
 					if ((filterFields != null) && !filterFields.Contains(strKey))
 						continue;
-					
+
 					if (values[strKey] != null && values[strKey].GetType().IsEnum)
 						cmd.Parameters.Add(new MySqlParameter(strKey, Enum.GetName(values[strKey].GetType(), values[strKey])));
 					else
@@ -1897,7 +1926,8 @@ namespace Laclasse
 			return values;
 		}
 
-		static Dictionary<string,Type> DBTypesMapping = new Dictionary<string, Type> {
+		static Dictionary<string, Type> DBTypesMapping = new Dictionary<string, Type>
+		{
 			["varchar"] = typeof(string),
 			["char"] = typeof(string),
 			["text"] = typeof(string),
@@ -1917,33 +1947,35 @@ namespace Laclasse
 		};
 
 		static List<DataColumn> DBGetTableColumns(string dbUrl, string table)
-        {
+		{
 			List<DataColumn> rows = new List<DataColumn>();
-            using (var connection = new MySqlConnection(dbUrl))
-            {
+			using (var connection = new MySqlConnection(dbUrl))
+			{
 				using (var command = new MySqlCommand($"SELECT COLUMN_NAME,IS_NULLABLE, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='{table}' AND TABLE_SCHEMA=DATABASE()", connection))
-                {
-                    connection.Open();
-					using(var reader = command.ExecuteReader())
+				{
+					connection.Open();
+					using (var reader = command.ExecuteReader())
 					{
 						object[] values = new object[reader.FieldCount];
-						while(reader.Read()) {
+						while (reader.Read())
+						{
 							reader.GetValues(values);
 							if (!DBTypesMapping.ContainsKey((string)values[2]))
 								throw new Exception($"Unknown type mapping for MySQL {(string)values[2]}");
-							rows.Add(new DataColumn {
+							rows.Add(new DataColumn
+							{
 								ColumnName = (string)values[0],
 								AllowDBNull = (string)values[1] == "YES",
 								DataType = DBTypesMapping[(string)values[2]]
 							});
 						}
 					}
-                }
-            }
-            return rows;
+				}
+			}
+			return rows;
 		}
 
-		public static bool CheckDBModels(Dictionary<string,string> dbsUrl)
+		public static bool CheckDBModels(Dictionary<string, string> dbsUrl)
 		{
 			bool valid = true;
 			foreach (var type in Assembly.GetExecutingAssembly().GetTypes())
@@ -1956,12 +1988,12 @@ namespace Laclasse
 			}
 			return valid;
 		}
-        
+
 		public static bool CheckDBModel(Dictionary<string, string> dbsUrl, Type model)
 		{
 			if (!model.IsSubclassOf(typeof(Model)))
 				return false;
-            
+
 			bool valid = true;
 
 			var attrs = model.GetCustomAttributes(typeof(ModelAttribute), false);
@@ -1985,7 +2017,7 @@ namespace Laclasse
 				if (fieldAttr.Length > 0 && ((ModelFieldAttribute)fieldAttr[0]).DB)
 					fieldsProperties[property.Name] = property;
 			}
-            
+
 			var colsTypes = new Dictionary<string, System.Data.DataColumn>();
 
 			foreach (var col in DBGetTableColumns(dbUrl, tableName))
@@ -2004,7 +2036,7 @@ namespace Laclasse
 					Console.WriteLine($"ERROR in model '{model.Name}', field '{key}' NOT PRESENT in table '{tableName}'");
 					valid = false;
 				}
-				else 
+				else
 				{
 					var propType = fieldsProperties[key].PropertyType;
 					if (fieldsProperties[key].PropertyType.IsValueType)
@@ -2064,30 +2096,119 @@ namespace Laclasse
 
 		public static void GenerateDBToTypeInfo(Type type)
 		{
-			var details = new Dictionary<string,PropertyDetail>();
+			var details = new Dictionary<string, PropertyDetail>();
 			foreach (var property in type.GetProperties())
 			{
 				var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
-                if (fieldAttribute == null)
-                    continue;
+				if (fieldAttribute == null)
+					continue;
 				var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
 				var propertyType = nullableType != null ? nullableType : property.PropertyType;
-                var isDirectMapping = 
+				var isDirectMapping =
 					(propertyType == typeof(string)) ||
-                    (propertyType == typeof(int)) ||
-                    (propertyType == typeof(long)) ||
+					(propertyType == typeof(int)) ||
+					(propertyType == typeof(long)) ||
 					(propertyType == typeof(DateTime));
-				details[property.Name] = new PropertyDetail {
+				details[property.Name] = new PropertyDetail
+				{
 					Name = property.Name,
 					Property = property,
 					Attribute = fieldAttribute,
-					PropertyType = propertyType,               
+					PropertyType = propertyType,
 					IsNullable = nullableType != null,
 					IsEnum = propertyType.IsEnum,
 					IsDirectMapping = isDirectMapping
 				};
-			}         
+			}
 			DBToTypeInfo[type] = details;
+		}
+	}
+
+	public class RequestEnumerator<T> : IEnumeratorAsync<T>, IDisposable where T : Model, new()
+	{
+		readonly System.Data.Common.DbDataReader reader;
+		DB.PropertyDetail[] propertiesDetails;
+		object[] values;
+		T current;
+
+		public RequestEnumerator(System.Data.Common.DbDataReader reader, DB.PropertyDetail[] propertiesDetails, object[] values)
+		{
+			this.reader = reader;
+			this.propertiesDetails = propertiesDetails;
+			this.values = values;
+		}
+
+		public T Current
+		{
+			get
+			{
+				return current;
+			}
+		}
+
+		public async Task<bool> MoveNextAsync()
+		{
+			var res = await reader.ReadAsync();
+			if (res)
+			{
+				reader.GetValues(values);
+				var item = new T();
+				DB.DBToFields(propertiesDetails, values, item);
+				current = item;
+			}
+			else
+				current = null;
+			return res;
+		}
+
+		public void Dispose()
+		{
+			if (reader is IDisposable)
+				reader.Dispose();
+		}
+	}
+
+	public class RequestEnumerable<T> : IEnumerableAsync<T> where T : Model, new()
+	{
+		DB db;
+		string sql;
+		object[] args;
+
+		public RequestEnumerable(DB db, string sql, object[] args)
+		{
+			this.db = db;
+			this.sql = sql;
+			this.args = args;
+		}
+
+		public async Task<IEnumeratorAsync<T>> GetEnumeratorAsync()
+		{
+			var cmd = new MySqlCommand(sql, db.connection);
+			if (db.transaction != null)
+				cmd.Transaction = db.transaction;
+			args.ForEach(arg => cmd.Parameters.Add(new MySqlParameter(string.Empty, arg)));
+
+			var reader = await cmd.ExecuteReaderAsync();
+
+			string[] names = new string[reader.FieldCount];
+			object[] values = new object[reader.FieldCount];
+
+			for (var i = 0; i < reader.FieldCount; i++)
+			{
+				names[i] = reader.GetName(i);
+			}
+
+			DB.PropertyDetail[] propertiesDetails = new DB.PropertyDetail[reader.FieldCount];
+			var details = DB.DBToTypeInfo[typeof(T)];
+			for (int i = 0; i < names.Length; i++)
+			{
+				var name = names[i];
+				if (!details.ContainsKey(name))
+					continue;
+				propertiesDetails[i] = details[name];
+			}
+
+			return new RequestEnumerator<T>(reader, propertiesDetails, values);
 		}
 	}
 }

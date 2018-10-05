@@ -1486,7 +1486,6 @@ namespace Laclasse.Authentication
 					foreach (var child in user.children)
 					{
 						var childJson = await users.GetUserAsync(child.child_id);
-
 						if (childJson.aaf_struct_rattach_id == int.Parse(aaf_struct_rattach_id))
 							return user;
 					}
@@ -1495,13 +1494,20 @@ namespace Laclasse.Authentication
 			// if student
 			else
 			{
-				// seach find the corresponding user
+				// search find the corresponding user with the given AAFStructRattachId
 				var queryFields = new Dictionary<string, List<string>>();
 				queryFields["aaf_struct_rattach_id"] = new List<string>(new string[] { aaf_struct_rattach_id });
 				var usersResult = (await users.SearchUserAsync(queryFields)).Data;
 				if (usersResult.Count == 1)
 					return usersResult[0];
+                // if multiple result, try to find the one with a profile in the given structure
+				var usersWithProfiles = usersResult.FindAll((u) => u.profiles.Any((p) => p.structure_id == uai && p.type == "ELV"));
+				if (usersWithProfiles.Count == 1)
+					return usersWithProfiles[0];
 
+                // still not found or too many result, search by name, structure and profile
+				// WARNING: since at least 2018, the firstname and lastname are no more present
+				// in FrEduVecteur for student. So this as few chance to work
 				queryFields = new Dictionary<string, List<string>>();
 				queryFields["lastname"] = new List<string>(new string[] { lastname });
 				queryFields["firstname"] = new List<string>(new string[] { firstname });

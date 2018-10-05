@@ -38,7 +38,6 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/SharpZipLib.dll.mdb
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/Erasme.Http.dll.mdb
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/Erasme.Cloud.dll.mdb
-/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csprojResolveAssemblyReference.cache
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CoreCompileInputs.cache
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.pdb
@@ -53,3 +52,17 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Memory.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Threading.Tasks.Extensions.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MySqlConnector.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Data.Common.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Diagnostics.StackTrace.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Diagnostics.Tracing.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Globalization.Extensions.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.IO.Compression.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Net.Http.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Net.Sockets.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Runtime.Serialization.Primitives.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Security.Cryptography.Algorithms.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Security.SecureString.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Threading.Overlapped.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Xml.XPath.XDocument.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csprojAssemblyReference.cache
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CopyComplete

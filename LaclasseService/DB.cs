@@ -1495,7 +1495,7 @@ namespace Laclasse
 
 		public async Task<ModelList<T>> SelectExpandAsync<T>(string query, object[] args, SimpleActionAsync beforeExpand = null) where T : Model, new()
 		{
-			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), true);
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 
 			var result = new ModelList<T>();
@@ -1541,15 +1541,15 @@ namespace Laclasse
 				var properties = typeof(T).GetProperties();
 				foreach (var property in properties)
 				{
-					var fieldAttr = property.GetCustomAttributes(typeof(ModelExpandFieldAttribute), false);
+					var fieldAttr = property.GetCustomAttributes(typeof(ModelExpandFieldAttribute), true);
 					if (fieldAttr.Length > 0)
 					{
 						var attr = (ModelExpandFieldAttribute)fieldAttr[0];
 						if (attr.Visible)
-						{
+						{                     
 							// because the ForeignModel type is not statically known, use reflexion
 							// get a base Task result for the same reason
-							var task = GetType().GetMethod(nameof(SelectForeignsRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { typeof(T), attr.ForeignField, ids }) as Task;
+							var task = GetType().GetMethod(nameof(SelectForeignsRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { property.DeclaringType, attr.ForeignField, ids }) as Task;
 							await task;
 
 							var modelListType = (typeof(ModelList<>)).MakeGenericType(attr.ForeignModel);

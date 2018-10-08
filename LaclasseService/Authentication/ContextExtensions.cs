@@ -221,6 +221,11 @@ namespace Laclasse.Authentication
 			return authUser;
 		}
 
+		public static AuthenticatedUser GetAuthenticatedUser(this HttpContext context)
+		{
+			return (context.Data.ContainsKey(AuthUserKey)) ? context.Data[AuthUserKey] as AuthenticatedUser : null;         
+		}
+
 		public async static Task<AuthenticatedUser> GetAuthenticatedUserAsync(this HttpContext context)
 		{
 			if (context.Data.ContainsKey(AuthUserKey))

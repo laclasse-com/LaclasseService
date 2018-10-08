@@ -28,6 +28,7 @@
 
 using System.Threading.Tasks;
 using System;
+using System.Linq;
 using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Authentication;
@@ -65,6 +66,33 @@ namespace Laclasse.Sms
         public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 		[ModelExpandField(Name = nameof(targets), ForeignModel = typeof(SmsUser))]
 		public ModelList<SmsUser> targets { get { return GetField<ModelList<SmsUser>>(nameof(targets), null); } set { SetField(nameof(targets), value); } }
+
+		public override void FromJson(JsonObject json, string[] filterFields = null, HttpContext context = null)
+        {
+            base.FromJson(json, filterFields, context);
+            // if create from an HTTP context, auto fill the user_id
+            if (context != null)
+            {
+				var authUser =  context.GetAuthenticatedUser();
+				if ((authUser != null) && (user_id == null || !authUser.IsSuperAdmin))
+					user_id = authUser.user.id;
+            }
+        }
+
+		public override SqlFilter FilterAuthUser(AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+                return new SqlFilter();
+            var structuresIds = user.user.profiles.Select((arg) => arg.structure_id).Distinct();
+			var filter = $"INNER JOIN(SELECT '{DB.EscapeString(user.user.id)}' AS `allow_id` ";         
+            foreach (var structureId in structuresIds)
+            {
+                if (user.HasRightsOnStructure(structureId, true, true, true))
+                    filter += $"UNION SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE `structure_id`='{DB.EscapeString(structureId)}' ";
+            }
+            filter += ") `allow` ON (`user_id` = `allow_id`)";         
+            return new SqlFilter() { Inner = filter };
+        }
     }
 
 	public class SmsService : ModelService<Sms>

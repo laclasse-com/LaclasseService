@@ -222,7 +222,7 @@ namespace Laclasse
 
 		public T DiffWithId<T>(T b) where T : Model, new()
 		{
-			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), true);
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 			var diff = Diff(b);
 			diff.Fields[primaryKey] = Fields[primaryKey];
@@ -459,7 +459,7 @@ namespace Laclasse
 
 		public async virtual Task<bool> LoadAsync(DB db, bool expand = false)
 		{
-			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), true);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 
@@ -539,7 +539,7 @@ namespace Laclasse
 			PropertyInfo foreignfieldProperty = null;
 			foreach (var property in properties)
 			{
-				var fieldAttr = property.GetCustomAttributes(typeof(ModelFieldAttribute), false);
+				var fieldAttr = property.GetCustomAttributes(typeof(ModelFieldAttribute), true);
 				if (fieldAttr.Length > 0)
 				{
 					var attr = (ModelFieldAttribute)fieldAttr[0];
@@ -559,7 +559,7 @@ namespace Laclasse
 			var properties = model.GetProperties();
 			foreach (var prop in properties)
 			{
-				var propAttrs = prop.GetCustomAttributes(typeof(ModelFieldAttribute), false);
+				var propAttrs = prop.GetCustomAttributes(typeof(ModelFieldAttribute), true);
 				foreach (var a in propAttrs)
 				{
 					var propAttr = (ModelFieldAttribute)a;
@@ -571,7 +571,7 @@ namespace Laclasse
 				}
 				if (expand)
 				{
-					var expandPropAttrs = prop.GetCustomAttributes(typeof(ModelExpandFieldAttribute), false);
+					var expandPropAttrs = prop.GetCustomAttributes(typeof(ModelExpandFieldAttribute), true);
 					foreach (var a in expandPropAttrs)
 					{
 						var propAttr = (ModelExpandFieldAttribute)a;
@@ -601,7 +601,7 @@ namespace Laclasse
 			var res = await InsertAsync(db);
 			if (res)
 			{
-				var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+				var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), true);
 				string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 				if (!IsSet(primaryKey))
 					Fields[primaryKey] = Convert.ChangeType(await db.LastInsertIdAsync(), GetType().GetProperty(primaryKey).PropertyType);
@@ -633,7 +633,7 @@ namespace Laclasse
 
 		public virtual async Task<bool> InsertAsync(DB db)
 		{
-			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), true);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
 
 			var filterFields = new List<string>();
@@ -661,7 +661,7 @@ namespace Laclasse
 				if (fieldAttribute != null && fieldAttribute.DB)
 					filterFields.Add(property.Name);
 			}
-			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), true);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 			var done = (await db.UpdateRowAsync(tableName, primaryKey, Fields[primaryKey], Fields, filterFields)) == 1;
@@ -692,7 +692,7 @@ namespace Laclasse
 
 		public virtual async Task<bool> DeleteAsync(DB db)
 		{
-			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), true);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 			var res = (await db.DeleteAsync($"DELETE FROM `{tableName}` WHERE `{primaryKey}`=?", Fields[primaryKey])) == 1;
@@ -779,7 +779,7 @@ namespace Laclasse
 			Dictionary<string, List<string>> queryFields, string[] orderBy = null,
 			SortDirection[] sortDir = null, int offset = 0, int count = -1, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
 		{
-			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), true);
 			string modelTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : typeof(T).Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 
@@ -878,7 +878,7 @@ namespace Laclasse
 									properties = expandFieldAttr.ForeignModel.GetProperties();
 								foreach (var prop in properties)
 								{
-									var propAttrs = prop.GetCustomAttributes(typeof(ModelFieldAttribute), false);
+									var propAttrs = prop.GetCustomAttributes(typeof(ModelFieldAttribute), true);
 									foreach (var a in propAttrs)
 									{
 										var propAttr = (ModelFieldAttribute)a;
@@ -968,20 +968,18 @@ namespace Laclasse
 					filter += ")";
 				}
 			}
-
 			foreach (string tableName in tables.Keys)
 			{
 				var property = typeof(T).GetProperty(tableName);
 				if (property == null)
 					continue;
-				var fieldAttr = property.GetCustomAttributes(typeof(ModelExpandFieldAttribute), false);
+				var fieldAttr = property.GetCustomAttributes(typeof(ModelExpandFieldAttribute), true);
 				if (fieldAttr.Length == 0)
 					continue;
 				var attr = (ModelExpandFieldAttribute)fieldAttr[0];
 				if (!attr.Search)
 					continue;
-
-				var foreignAttrs = attr.ForeignModel.GetCustomAttributes(typeof(ModelAttribute), false);
+				var foreignAttrs = attr.ForeignModel.GetCustomAttributes(typeof(ModelAttribute), true);
 				string foreignTableName = (foreignAttrs.Length > 0) ? ((ModelAttribute)foreignAttrs[0]).Table : attr.ForeignModel.Name;
 				PropertyInfo foreignProperty = null;
 				ModelFieldAttribute foreignFieldAttr = null;
@@ -999,11 +997,11 @@ namespace Laclasse
 					properties = attr.ForeignModel.GetProperties();
 				foreach (var prop in properties)
 				{
-					var propAttrs = prop.GetCustomAttributes(typeof(ModelFieldAttribute), false);
+					var propAttrs = prop.GetCustomAttributes(typeof(ModelFieldAttribute), true);
 					foreach (var a in propAttrs)
 					{
 						var propAttr = (ModelFieldAttribute)a;
-						if (propAttr.ForeignModel == typeof(T))
+						if (propAttr.ForeignModel == property.DeclaringType)
 						{
 							foreignFieldAttr = propAttr;
 							foreignProperty = prop;
@@ -1018,7 +1016,6 @@ namespace Laclasse
 					continue;
 				if (!foreignFieldAttr.Search)
 					continue;
-
 				if (filter != "")
 					filter += " AND ";
 				filter += $"`{primaryKey}` IN (SELECT `{foreignProperty.Name}` FROM `{foreignTableName}` WHERE ";
@@ -1162,7 +1159,7 @@ namespace Laclasse
 		{
 			if (!IsSet(fieldName))
 			{
-				var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), false);
+				var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), true);
 				string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 				Fields[fieldName] = await LoadExpandFieldAsync(GetType(), db, fieldName, Fields[primaryKey]);
 			}
@@ -1575,7 +1572,7 @@ namespace Laclasse
 		public async Task<T> SelectRowAsync<T>(object idValue, bool expand = false) where T : Model, new()
 		{
 			T result = null;
-			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), true);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : typeof(T).Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 
@@ -1640,7 +1637,7 @@ namespace Laclasse
 			ModelList<T> result;
 
 			Type foreignModel = typeof(T);
-			var attrs = foreignModel.GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = foreignModel.GetCustomAttributes(typeof(ModelAttribute), true);
 			string destTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : foreignModel.Name;
 
 			var foreignFieldProperty = Model.FindForeignProperty(sourceModel, foreignModel, foreignField);
@@ -1662,7 +1659,7 @@ namespace Laclasse
 			var result = new Dictionary<object, ModelList<T>>();
 
 			Type foreignModel = typeof(T);
-			var attrs = foreignModel.GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = foreignModel.GetCustomAttributes(typeof(ModelAttribute), true);
 			string destTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : foreignModel.Name;
 
 			var foreignFieldProperty = Model.FindForeignProperty(sourceModel, foreignModel, foreignField);
@@ -1996,7 +1993,7 @@ namespace Laclasse
 
 			bool valid = true;
 
-			var attrs = model.GetCustomAttributes(typeof(ModelAttribute), false);
+			var attrs = model.GetCustomAttributes(typeof(ModelAttribute), true);
 			if (attrs.Length == 0)
 				return true;
 

@@ -229,7 +229,7 @@ namespace Laclasse.Authentication
 			GetAsync["/logout"] = async (p, c) =>
 			{
 				string destination = c.Request.QueryString.ContainsKey("destination") ?
-									  c.Request.QueryString["destination"] : "login";
+									  c.Request.QueryString["destination"] : "/";
 
 				if (c.Request.QueryString.ContainsKey("service"))
 					destination += "?service=" + HttpUtility.UrlEncode(c.Request.QueryString["service"]);

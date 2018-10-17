@@ -156,6 +156,11 @@ namespace Laclasse.Authentication
 	{
 		static readonly object AuthUserKey = new object();
 
+		public async static Task<Session> GetSessionAsync(this HttpContext context)
+        {
+			return await ((Sessions)context.Data["sessions"]).GetCurrentSessionAsync(context);
+        }
+
 		public async static Task<AuthenticatedUser> EnsureIsAuthenticatedAsync(this HttpContext context)
 		{
 			var user = await context.GetAuthenticatedUserAsync();

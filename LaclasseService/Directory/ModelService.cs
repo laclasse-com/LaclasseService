@@ -55,6 +55,7 @@ namespace Laclasse.Directory
 		{
 			public ModelExpandFieldAttribute Attribute;
 			public Type ForeignModel;
+			public string LocalField;
 			public string ForeignField;
 			public ModelDetails ForeignDetails;
 			public IEnumerable<string> ForeignSearchAllowedFields;
@@ -69,7 +70,7 @@ namespace Laclasse.Directory
 			expandFields = new Dictionary<string, ModelExpandDetails>();
 			var properties = typeof(T).GetProperties();
 			foreach (var prop in properties)
-			{
+			{            
 				var expandFieldAttribute = (ModelExpandFieldAttribute)prop.GetCustomAttribute(typeof(ModelExpandFieldAttribute), true);
 				if (expandFieldAttribute != null)
 				{
@@ -101,12 +102,17 @@ namespace Laclasse.Directory
 						if (foreignProperty != null)
 							break;
 					}
-                                        
+                    
+					PropertyInfo localProperty = null;
+					if (prop.PropertyType.IsSubclassOf(typeof(Model)))
+						localProperty = Model.FindForeignProperty(expandFieldAttribute.ForeignModel, typeof(T), expandFieldAttribute.ForeignField);
+
 					var foreignDetails = new ModelExpandDetails
 					{
-						Attribute = expandFieldAttribute,
+						Attribute = expandFieldAttribute,                  
 						ForeignModel = expandFieldAttribute.ForeignModel,
-						ForeignField = foreignProperty.Name,
+						LocalField = localProperty != null ? localProperty.Name : null,
+						ForeignField = foreignProperty != null ? foreignProperty.Name : null,
 						ForeignDetails = GetModelDetails(expandFieldAttribute.ForeignModel),
 						ForeignSearchAllowedFields = Model.GetSearchAllowedFieldsFromModel(expandFieldAttribute.ForeignModel, false)
 					};

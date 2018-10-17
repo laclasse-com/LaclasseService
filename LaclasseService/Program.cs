@@ -36,6 +36,7 @@ using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Directory;
 using Laclasse.Authentication;
+using Laclasse.Doc;
 
 using Laclasse.Aaf;
 
@@ -174,7 +175,8 @@ namespace Laclasse
 			mapper.Add("/sso", new Cas(
 				dbUrl, sessions, users, setup.authentication.session.cookie,
 				setup.authentication.cas.ticketTimeout, setup.authentication.aafSso,
-				setup.authentication.cutSso, setup.mail, setup.sms, setup.authentication.cas.rescueTicketTimeout));
+				setup.authentication.cutSso, setup.authentication.grandLyonApi,
+				setup.mail, setup.sms, setup.authentication.cas.rescueTicketTimeout));
 
 			//mapper.Add("/sso/oidc", new OidcSso(setup.authentication.oidcSso, users, cas));
 
@@ -188,7 +190,9 @@ namespace Laclasse
 
 			mapper.Add("/api/users", new Mail.ImapCheck(dbUrl));
 
-			mapper.Add("/api/docs", new Docs.Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory));
+			var blobs = new Blobs(setup.doc.url, Path.Combine(setup.server.storage, "blobs"), setup.server.temporaryDirectory);
+			mapper.Add("/api/blobs", blobs);
+			mapper.Add("/api/docs", new Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory, blobs, setup.http.defaultCacheDuration));
 
 			//mapper.Add("/api/icons", new Icons(dbUrl));
 			mapper.Add("/api/icons", new StaticIcons(setup.server.publicIcons, setup.http.defaultCacheDuration));
@@ -198,7 +202,7 @@ namespace Laclasse
 			mapper.Add("/api/sso_clients_attributes", new SsoClientsAttributes(dbUrl));
 
 			mapper.Add("/api/sms", new Sms.SmsService(dbUrl, setup.sms));
-
+            
 			// if the request is not already handled, try static files
 			server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));
 

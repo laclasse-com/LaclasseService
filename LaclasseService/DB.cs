@@ -460,67 +460,8 @@ namespace Laclasse
 		public async virtual Task<bool> LoadAsync(DB db, bool expand = false)
 		{
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), true);
-			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : GetType().Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
-
-			bool done = false;
-			var cmd = new MySqlCommand($"SELECT * FROM `{tableName}` WHERE `{primaryKey}`=?", db.connection);
-			if (db.transaction != null)
-				cmd.Transaction = db.transaction;
-			cmd.Parameters.Add(new MySqlParameter(primaryKey, Fields[primaryKey]));
-			using (var reader = await cmd.ExecuteReaderAsync())
-			{
-				if (await reader.ReadAsync())
-				{
-					for (int i = 0; i < reader.FieldCount; i++)
-					{
-						var name = reader.GetName(i);
-						var property = GetType().GetProperty(name);
-						if (property == null)
-							continue;
-						var fieldAttribute = (ModelFieldAttribute)property.GetCustomAttribute(typeof(ModelFieldAttribute));
-						if (fieldAttribute == null)
-							continue;
-						object value = reader.IsDBNull(i) ? null : reader.GetValue(i);
-						if (value == null)
-							Fields[name] = null;
-						else
-						{
-							var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
-							if (nullableType == null)
-							{
-								if (property.PropertyType.IsEnum)
-									Fields[name] = Enum.Parse(property.PropertyType, (string)value);
-								else
-									Fields[name] = Convert.ChangeType(value, property.PropertyType);
-							}
-							else
-							{
-								if (nullableType.IsEnum)
-									Fields[name] = Enum.Parse(nullableType, (string)value);
-								else
-									Fields[name] = Convert.ChangeType(value, nullableType);
-							}
-						}
-					}
-					done = true;
-				}
-			}
-			if (expand)
-			{
-				foreach (var property in GetType().GetProperties())
-				{
-					var attr = (ModelExpandFieldAttribute)property.GetCustomAttribute(typeof(ModelExpandFieldAttribute));
-					if ((attr != null) && attr.Visible)
-					{
-						var task = typeof(DB).GetMethod(nameof(DB.SelectForeignRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(db, new object[] { GetType(), attr.ForeignField, Fields[primaryKey] }) as Task;
-						await task;
-						var resultProperty = typeof(Task<>).MakeGenericType((typeof(ModelList<>)).MakeGenericType(attr.ForeignModel)).GetProperty("Result");
-						Fields[attr.Name] = resultProperty.GetValue(task);
-					}
-				}
-			}
-			return done;
+			return await db.LoadRowAsync(GetType(), Fields[primaryKey], expand, this);
 		}
 
 		internal static PropertyInfo FindForeignProperty(Type sourceModel, Type foreignModel, string foreignField)
@@ -1352,10 +1293,18 @@ namespace Laclasse
 	{
 		internal readonly MySqlConnection connection;
 		internal MySqlTransaction transaction;
+		Queue<Action> commitActions = null;
 
 		DB(string connectionUrl)
 		{
 			connection = new MySqlConnection(connectionUrl);
+		}
+
+		public void AddCommitAction(Action action)
+		{
+			if (commitActions == null)
+				commitActions = new Queue<Action>();
+			commitActions.Enqueue(action);
 		}
 
 		public static string EscapeString(string value)
@@ -1491,7 +1440,7 @@ namespace Laclasse
 		public delegate Task SimpleActionAsync();
 
 		public async Task<ModelList<T>> SelectExpandAsync<T>(string query, object[] args, SimpleActionAsync beforeExpand = null) where T : Model, new()
-		{
+		{            
 			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), true);
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 
@@ -1543,24 +1492,52 @@ namespace Laclasse
 					{
 						var attr = (ModelExpandFieldAttribute)fieldAttr[0];
 						if (attr.Visible)
-						{                     
-							// because the ForeignModel type is not statically known, use reflexion
-							// get a base Task result for the same reason
-							var task = GetType().GetMethod(nameof(SelectForeignsRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { property.DeclaringType, attr.ForeignField, ids }) as Task;
-							await task;
+						{
+							if (property.PropertyType.IsSubclassOf(typeof(Model)))
+                            {
+                                var foreignFieldProperty = Model.FindForeignProperty(attr.ForeignModel, typeof(T), attr.ForeignField);                        
+								if (foreignFieldProperty != null)
+                                {
+									List<object> fieldIds = new List<object>();
+									result.ForEach((item) => {
+										if (item.Fields.ContainsKey(foreignFieldProperty.Name) && item.Fields[foreignFieldProperty.Name] != null)
+											fieldIds.Add(item.Fields[foreignFieldProperty.Name]);
+									});                                                               
+									var task = GetType().GetMethod(nameof(SelectLocalsRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { fieldIds }) as Task;
+                                    await task;
+                                    
+									var resultProperty = typeof(Task<>).MakeGenericType(typeof(Dictionary<,>).MakeGenericType(typeof(object), attr.ForeignModel)).GetProperty("Result");
+									var items = resultProperty.GetValue(task) as IDictionary;
+                                    
+									result.ForEach((item) => {                              
+                                        if (item.Fields.ContainsKey(foreignFieldProperty.Name))
+										{
+											var key = item.Fields[foreignFieldProperty.Name];
+											item.Fields[property.Name] = key != null && items.Contains(key) ? items[key] : null;
+										}
+                                    });
+                                }
+                            }
+                            else
+							{                        
+								// because the ForeignModel type is not statically known, use reflexion
+								// get a base Task result for the same reason
+								var task = GetType().GetMethod(nameof(SelectForeignsRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { property.DeclaringType, attr.ForeignField, ids }) as Task;
+								await task;
 
-							var modelListType = (typeof(ModelList<>)).MakeGenericType(attr.ForeignModel);
-							var dictModelType = (typeof(Dictionary<,>)).MakeGenericType(typeof(object), modelListType);
-							var resultProperty = typeof(Task<>).MakeGenericType(dictModelType).GetProperty("Result");
-							var foreignsRows = resultProperty.GetValue(task) as IDictionary;
+								var modelListType = (typeof(ModelList<>)).MakeGenericType(attr.ForeignModel);
+								var dictModelType = (typeof(Dictionary<,>)).MakeGenericType(typeof(object), modelListType);
+								var resultProperty = typeof(Task<>).MakeGenericType(dictModelType).GetProperty("Result");
+								var foreignsRows = resultProperty.GetValue(task) as IDictionary;
 
-							foreach (var item in result)
-							{
-								var itemKey = item.Fields[primaryKey];
-								if (foreignsRows.Contains(itemKey))
-									item.Fields[property.Name] = foreignsRows[itemKey];
-								else
-									item.Fields[property.Name] = Activator.CreateInstance(modelListType);
+								foreach (var item in result)
+								{
+									var itemKey = item.Fields[primaryKey];
+									if (foreignsRows.Contains(itemKey))
+										item.Fields[property.Name] = foreignsRows[itemKey];
+									else
+										item.Fields[property.Name] = Activator.CreateInstance(modelListType);
+								}
 							}
 						}
 					}
@@ -1571,9 +1548,15 @@ namespace Laclasse
 
 		public async Task<T> SelectRowAsync<T>(object idValue, bool expand = false) where T : Model, new()
 		{
-			T result = null;
-			var attrs = typeof(T).GetCustomAttributes(typeof(ModelAttribute), true);
-			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : typeof(T).Name;
+			T result = new T();
+			return await LoadRowAsync(typeof(T), idValue, expand, result) ? result : null;
+		}
+
+		internal async Task<bool> LoadRowAsync(Type modelType, object idValue, bool expand, Model result)
+		{
+			bool found = false;
+			var attrs = modelType.GetCustomAttributes(typeof(ModelAttribute), true);
+			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : modelType.Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 
 			var cmd = new MySqlCommand($"SELECT * FROM `{tableName}` WHERE `{primaryKey}`=?", connection);
@@ -1592,7 +1575,7 @@ namespace Laclasse
 				}
 
 				PropertyDetail[] propertiesDetails = new PropertyDetail[reader.FieldCount];
-				var details = DBToTypeInfo[typeof(T)];
+				var details = DBToTypeInfo[modelType];
 				for (int i = 0; i < names.Length; i++)
 				{
 					var name = names[i];
@@ -1601,10 +1584,10 @@ namespace Laclasse
 					propertiesDetails[i] = details[name];
 				}
 
-				while (await reader.ReadAsync() && (result == null))
+				while (await reader.ReadAsync() && !found)
 				{
 					reader.GetValues(values);
-					result = new T();
+					found = true;
 					DBToFields(propertiesDetails, values, result);
 					if (expand && result.Fields.ContainsKey(primaryKey))
 						id = result.Fields[primaryKey];
@@ -1612,7 +1595,7 @@ namespace Laclasse
 			}
 			if (expand && (id != null))
 			{
-				var properties = typeof(T).GetProperties();
+				var properties = modelType.GetProperties();
 				foreach (var property in properties)
 				{
 					var fieldAttr = property.GetCustomAttributes(typeof(ModelExpandFieldAttribute), false);
@@ -1621,15 +1604,29 @@ namespace Laclasse
 						var attr = (ModelExpandFieldAttribute)fieldAttr[0];
 						if (attr.Visible)
 						{
-							var task = GetType().GetMethod(nameof(SelectForeignRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { typeof(T), attr.ForeignField, id }) as Task;
-							await task;
-							var resultProperty = typeof(Task<>).MakeGenericType((typeof(ModelList<>)).MakeGenericType(attr.ForeignModel)).GetProperty("Result");
-							result.Fields[attr.Name] = resultProperty.GetValue(task);
+							if (property.PropertyType.IsSubclassOf(typeof(Model)))
+							{                        
+								var foreignFieldProperty = Model.FindForeignProperty(attr.ForeignModel, modelType, attr.ForeignField);
+								if (foreignFieldProperty != null && result.Fields.ContainsKey(foreignFieldProperty.Name))
+								{                           
+									var task = GetType().GetMethod(nameof(SelectRowAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { result.Fields[foreignFieldProperty.Name], false }) as Task;
+									await task;
+									var resultProperty = typeof(Task<>).MakeGenericType(attr.ForeignModel).GetProperty("Result");
+									result.Fields[attr.Name] = resultProperty.GetValue(task);
+								}                        
+							}
+                            else
+							{                        
+								var task = GetType().GetMethod(nameof(SelectForeignRowsAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { modelType, attr.ForeignField, id }) as Task;
+								await task;
+								var resultProperty = typeof(Task<>).MakeGenericType((typeof(ModelList<>)).MakeGenericType(attr.ForeignModel)).GetProperty("Result");
+								result.Fields[attr.Name] = resultProperty.GetValue(task);
+							}
 						}
 					}
 				}
 			}
-			return result;
+			return found;
 		}
 
 		public async Task<ModelList<T>> SelectForeignRowsAsync<T>(Type sourceModel, string foreignField, object sourceId) where T : Model, new()
@@ -1705,6 +1702,46 @@ namespace Laclasse
 			return result;
 		}
 
+		public async Task<Dictionary<object, T>> SelectLocalsRowsAsync<T>(List<object> ids) where T : Model, new()
+        {
+            var result = new Dictionary<object, T>();
+            
+            Type foreignModel = typeof(T);
+            var attrs = foreignModel.GetCustomAttributes(typeof(ModelAttribute), true);
+            string destTableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : foreignModel.Name;
+
+			string primaryKey = ((ModelAttribute)attrs[0]).PrimaryKey;
+			primaryKey = (primaryKey == null) ? "id" : primaryKey;
+            
+            // if found, generate the needed SQL
+			var tmpIds = new List<object>();
+			var idsCount = 0;
+            
+			Func<Task> loadForeign = async delegate
+			{
+				var sql = $"SELECT * FROM `{destTableName}` WHERE {InFilter(primaryKey, tmpIds)} ORDER BY `{primaryKey}`";
+				foreach (var item in await SelectAsync<T>(sql))
+					result[item.Fields[primaryKey]] = item;
+			};
+
+			// batch request by a group of 200 because it is too slowest for bigger id group
+			foreach (var id in ids)
+			{
+				tmpIds.Add(id);
+				idsCount++;
+				if (idsCount > 200)
+				{
+					await loadForeign();
+					tmpIds.Clear();
+					idsCount = 0;
+				}
+			}
+			if (idsCount > 0)
+				await loadForeign();
+
+			return result;
+        }
+              
 		async Task<int> NonQueryAsync(string query, object[] args)
 		{
 			var cmd = new MySqlCommand(query, connection);
@@ -1875,6 +1912,12 @@ namespace Laclasse
 				await transaction.CommitAsync();
 				transaction.Dispose();
 				transaction = null;
+				if (commitActions != null)
+				{
+					while(commitActions.Count > 0)
+						commitActions.Dequeue()();
+					commitActions = null;
+				}
 			}
 		}
 
@@ -1894,6 +1937,12 @@ namespace Laclasse
 			{
 				transaction.Rollback();
 				transaction.Dispose();
+			}
+			else if (commitActions != null)
+			{
+				while(commitActions.Count > 0)
+                    commitActions.Dequeue()();
+				commitActions = null;
 			}
 			connection.Close();
 		}
@@ -1941,6 +1990,7 @@ namespace Laclasse
 			["date"] = typeof(DateTime),
 			["enum"] = typeof(string),
 			["blob"] = typeof(byte[]),
+			["json"] = typeof(string)
 		};
 
 		static List<DataColumn> DBGetTableColumns(string dbUrl, string table)

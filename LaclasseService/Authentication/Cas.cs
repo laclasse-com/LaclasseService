@@ -81,9 +81,11 @@ namespace Laclasse.Authentication
 		readonly string cookieName;
 		readonly MailSetup mailSetup;
 		readonly SmsSetup smsSetup;
+		readonly GrandLyonApiSetup grandLyonApiSetup;
 
 		public Cas(string dbUrl, Sessions sessions, Users users,
-				   string cookieName, double ticketTimeout, AafSsoSetup aafSsoSetup, CUTSsoSetup cutSsoSetup,
+				   string cookieName, double ticketTimeout, AafSsoSetup aafSsoSetup,
+		           CUTSsoSetup cutSsoSetup, GrandLyonApiSetup grandLyonApiSetup,
 				   MailSetup mailSetup, SmsSetup smsSetup, int rescueTicketTimeout)
 		{
 			this.dbUrl = dbUrl;
@@ -92,6 +94,7 @@ namespace Laclasse.Authentication
 			this.cookieName = cookieName;
 			this.mailSetup = mailSetup;
 			this.smsSetup = smsSetup;
+			this.grandLyonApiSetup = grandLyonApiSetup;
 			tickets = new Tickets(dbUrl, ticketTimeout);
 			rescueTickets = new RescueTickets(dbUrl, rescueTicketTimeout);
 			preTickets = new PreTickets(ticketTimeout);
@@ -205,7 +208,18 @@ namespace Laclasse.Authentication
 					if (formFields.ContainsKey("ticket"))
 						preTicket.wantTicket = Convert.ToBoolean(formFields["ticket"]);
 
-					var uid = await users.CheckPasswordAsync(formFields["username"], formFields["password"]);
+					string uid = null;
+					if (formFields["username"].EndsWith("@grandlyon.com", true, System.Globalization.CultureInfo.InvariantCulture))
+					{
+						var user = await CheckGrandLyonPasswordAsync(formFields["username"], formFields["password"]);
+						if (user != null)
+						{
+							preTicket.idp = Idp.GRANDLYON;
+							uid = user.id;
+						}
+					}
+                    else
+						uid = await users.CheckPasswordAsync(formFields["username"], formFields["password"]);
 					if (uid == null)
 					{
 						c.Response.StatusCode = 200;
@@ -1843,6 +1857,60 @@ namespace Laclasse.Authentication
 			c.Response.StatusCode = 200;
 			c.Response.Headers["content-type"] = "text/xml; charset=\"UTF-8\"";
 			c.Response.Content = ServiceResponseSuccess(attributes, userAttributes[client.identity_attribute] as string, client.cas_attributes);
+		}
+
+		public async Task<User> CheckGrandLyonPasswordAsync(string login, string password)
+		{         
+			Console.WriteLine($"CheckGrandLyonPasswordAsync({login}, {password})");
+			JsonValue jsonToken = null;
+			var uri = new Uri(grandLyonApiSetup.tokenUrl);
+            using (HttpClient client = await HttpClient.CreateAsync(uri))
+            {
+                HttpClientRequest request = new HttpClientRequest();
+                request.Method = "POST";
+                request.Path = uri.PathAndQuery;
+				request.Headers["authorization"] = $"Basic {grandLyonApiSetup.authorization}";
+				request.Headers["content-type"] = "application/x-www-form-urlencoded; charset=utf-8";
+                request.Content = HttpUtility.QueryStringToString(new Dictionary<string, string> {
+					["scope"] = "openid",
+                    ["grant_type"] = "password",
+                    ["username"] = login,
+                    ["password"] = password
+				});
+				await client.SendRequestAsync(request);
+                HttpClientResponse response = await client.GetResponseAsync();
+				if (response.StatusCode == 200)
+					jsonToken = await response.ReadAsJsonAsync();
+			}
+			if (jsonToken == null || !jsonToken.ContainsKey("access_token"))
+				return null;
+
+			JsonValue jsonUserInfo = null;
+			uri = new Uri(grandLyonApiSetup.userInfoUrl);
+            using (HttpClient client = await HttpClient.CreateAsync(uri))
+            {
+                HttpClientRequest request = new HttpClientRequest();
+                request.Method = "GET";            
+                request.Path = uri.PathAndQuery;
+				request.Headers["authorization"] = $"Bearer {(string)jsonToken["access_token"]}";
+                await client.SendRequestAsync(request);
+                HttpClientResponse response = await client.GetResponseAsync();
+                if (response.StatusCode == 200)
+				{
+                    jsonUserInfo = await response.ReadAsJsonAsync();
+					Console.WriteLine(jsonUserInfo.Dump());
+				}
+            }
+
+			if (jsonUserInfo == null || !jsonUserInfo.ContainsKey("email"))
+				return null;
+
+			var email = (string)jsonUserInfo["email"];
+
+			var queryFields = new Dictionary<string, List<string>>();
+            queryFields["emails.type"] = new List<string>(new string[] { "Autre" });
+            queryFields["emails.address"] = new List<string>(new string[] { email });
+            return (await users.SearchUserAsync(queryFields)).Data.SingleOrDefault();
 		}
 	}
 }

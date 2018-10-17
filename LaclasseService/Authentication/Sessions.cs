@@ -43,7 +43,8 @@ namespace Laclasse.Authentication
 		AAF,
 		EMAIL,
 		SMS,
-		CUT
+		CUT,
+		GRANDLYON
 	}
 
 	[Model(Table = "session", PrimaryKey = nameof(id))]
@@ -199,8 +200,9 @@ namespace Laclasse.Authentication
 
 		public async Task<Session> GetCurrentSessionAsync(HttpContext context)
 		{
-			return (context.Request.Cookies.ContainsKey(cookieName)) ?
-				await GetSessionAsync(context.Request.Cookies[cookieName]) : null;
+			string session = (context.Request.Cookies.ContainsKey(cookieName)) ?
+				context.Request.Cookies[cookieName] : (context.Request.QueryString.ContainsKey("session") ? context.Request.QueryString["session"] : null);         
+			return session != null ? await GetSessionAsync(session) : null;
 		}
 
 		public async Task<string> GetAuthenticatedUserAsync(HttpContext context)

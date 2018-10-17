@@ -85,6 +85,13 @@ namespace Laclasse
 		public string token = "the token here";
 	}
 
+	public class GrandLyonApiSetup
+	{
+		public string tokenUrl = "http://gdapi.laclasse.local/token";
+		public string userInfoUrl = "http://glapi.laclasse.local/userinfo";
+		public string authorization = "the token here";
+	}
+
 	public class AafSsoEndPointSetup
 	{
 		public string url;
@@ -138,6 +145,7 @@ namespace Laclasse
 		public CasSetup cas = new CasSetup();
 		public SessionSetup session = new SessionSetup();
 		public CUTSsoSetup cutSso = new CUTSsoSetup();
+		public GrandLyonApiSetup grandLyonApi = new GrandLyonApiSetup();
 	}
 
 	public class Setup

@@ -112,7 +112,7 @@ namespace Laclasse.Doc
 		[ModelField]
 		public string owner_firstname { get { return GetField<string>(nameof(owner_firstname), null); } set { SetField(nameof(owner_firstname), value); } }
 		[ModelField]
-		public string owner_lastname { get { return GetField<string>(nameof(owner_lastname), null); } set { SetField(nameof(owner_firstname), value); } }
+		public string owner_lastname { get { return GetField<string>(nameof(owner_lastname), null); } set { SetField(nameof(owner_lastname), value); } }
 		[ModelField]
 		public string cartable_uid { get { return GetField<string>(nameof(cartable_uid), null); } set { SetField(nameof(cartable_uid), value); } }
 		[ModelField]

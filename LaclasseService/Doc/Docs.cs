@@ -39,12 +39,21 @@ using ICSharpCode.SharpZipLib.Zip;
 
 namespace Laclasse.Doc
 {
+	public enum OnlyOfficeMode
+	{
+		Desktop,
+		Mobile
+	}
+
 	public partial class OnlyOfficeView
-    {
+	{
+		public OnlyOfficeMode mode = OnlyOfficeMode.Desktop;
 		public Node node = null;
 		public Session session = null;
 		public Directory.User user = null;
-    }
+		public string downloadUrl = null;
+		public string callbackUrl = null;
+	}
 
 	public enum RightProfile
 	{
@@ -54,19 +63,19 @@ namespace Laclasse.Doc
 	}
 
 	[Model(Table = "right", PrimaryKey = nameof(id), DB = "DOCS")]
-    public class Right : Model
-    {
-        [ModelField]
-        public long id { get { return GetField(nameof(id), 0L); } set { SetField(nameof(id), value); } }
-        [ModelField(Required = true, ForeignModel = typeof(Node))]
+	public class Right : Model
+	{
+		[ModelField]
+		public long id { get { return GetField(nameof(id), 0L); } set { SetField(nameof(id), value); } }
+		[ModelField(Required = true, ForeignModel = typeof(Node))]
 		public long? node_id { get { return GetField<long?>(nameof(node_id), null); } set { SetField(nameof(node_id), value); } }
-        [ModelField]
+		[ModelField]
 		public RightProfile profile { get { return GetField<RightProfile>(nameof(profile), RightProfile.ELV); } set { SetField(nameof(profile), value); } }
 		[ModelField]
-        public bool read { get { return GetField(nameof(read), true); } set { SetField(nameof(read), value); } }
-        [ModelField]
-        public bool write { get { return GetField(nameof(write), true); } set { SetField(nameof(write), value); } }        
-    }
+		public bool read { get { return GetField(nameof(read), true); } set { SetField(nameof(read), value); } }
+		[ModelField]
+		public bool write { get { return GetField(nameof(write), true); } set { SetField(nameof(write), value); } }
+	}
 
 
 	[Model(Table = "node", PrimaryKey = nameof(id), DB = "DOCS")]
@@ -85,7 +94,7 @@ namespace Laclasse.Doc
 		[ModelField]
 		public long mtime { get { return GetField(nameof(mtime), 0L); } set { SetField(nameof(mtime), value); } }
 		[ModelField]
-		public string mime { get { return GetField<string>(nameof(mime),  null); } set { SetField(nameof(mime), value); } }
+		public string mime { get { return GetField<string>(nameof(mime), null); } set { SetField(nameof(mime), value); } }
 		[ModelField]
 		public bool read { get { return GetField(nameof(read), true); } set { SetField(nameof(read), value); } }
 		[ModelField]
@@ -115,7 +124,7 @@ namespace Laclasse.Doc
 		[ModelField]
 		public int? groupe_libre_id { get { return GetField<int?>(nameof(groupe_libre_id), null); } set { SetField(nameof(groupe_libre_id), value); } }
 		[ModelField]
-		public DateTime? return_date { get { return GetField<DateTime?>(nameof(return_date), null); } set { SetField(nameof(return_date), value); } }      
+		public DateTime? return_date { get { return GetField<DateTime?>(nameof(return_date), null); } set { SetField(nameof(return_date), value); } }
 		[ModelField]
 		public int rev { get { return GetField(nameof(rev), 0); } set { SetField(nameof(rev), value); } }
 		[ModelField(ForeignModel = typeof(Blob))]
@@ -203,7 +212,7 @@ namespace Laclasse.Doc
 		{
 			if (length - position <= 0)
 				return -1;
-			
+
 			position++;
 			return stream.ReadByte();
 		}
@@ -279,9 +288,9 @@ namespace Laclasse.Doc
 		string dbUrl;
 		string path;
 		string tempDir;
-		Blobs blobs;      
-		Dictionary<string,List<IFilePlugin>> mimePlugins = new Dictionary<string,List<IFilePlugin>>();
-        List<IFilePlugin> allPlugins = new List<IFilePlugin>();
+		Blobs blobs;
+		Dictionary<string, List<IFilePlugin>> mimePlugins = new Dictionary<string, List<IFilePlugin>>();
+		List<IFilePlugin> allPlugins = new List<IFilePlugin>();
 
 		public Docs(string dbUrl, string path, string tempDir, Blobs blobs, int cacheDuration)
 		{
@@ -289,115 +298,129 @@ namespace Laclasse.Doc
 			this.path = path;
 			this.tempDir = tempDir;
 			this.blobs = blobs;
-            
+
 			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
 			GetAsync["/"] = async (p, c) =>
 			{
 				var authUser = await c.GetAuthenticatedUserAsync();
 				var filterAuth = (new Node()).FilterAuthUser(authUser);
-                using (DB db = await DB.CreateAsync(dbUrl))
-                {
-                    var result = await Model.SearchAsync<Node>(db, c, filterAuth);
-                    foreach (var item in result.Data)
-                        await item.EnsureRightAsync(c, Laclasse.Right.Read, null);
-                    c.Response.Content = result.ToJson(c);
-                }
-                c.Response.StatusCode = 200;
+				using (DB db = await DB.CreateAsync(dbUrl))
+				{
+					var result = await Model.SearchAsync<Node>(db, c, filterAuth);
+					foreach (var item in result.Data)
+						await item.EnsureRightAsync(c, Laclasse.Right.Read, null);
+					c.Response.Content = result.ToJson(c);
+				}
+				c.Response.StatusCode = 200;
 			};
 
 			GetAsync["/{id:int}"] = async (p, c) =>
 			{
 				bool expand = true;
-                if (c.Request.QueryString.ContainsKey("expand"))
-                    expand = Convert.ToBoolean(c.Request.QueryString["expand"]);
+				if (c.Request.QueryString.ContainsKey("expand"))
+					expand = Convert.ToBoolean(c.Request.QueryString["expand"]);
 				Node item = new Node { id = (int)p["id"] };
-                using (DB db = await DB.CreateAsync(dbUrl))
+				using (DB db = await DB.CreateAsync(dbUrl))
 					if (!await item.LoadAsync(db, expand))
 						item = null;
-                if (item != null)
-                {
-                    await item.EnsureRightAsync(c, Laclasse.Right.Read, null);
-                    c.Response.StatusCode = 200;
-                    c.Response.Content = item;
-                }
+				if (item != null)
+				{
+					await item.EnsureRightAsync(c, Laclasse.Right.Read, null);
+					c.Response.StatusCode = 200;
+					c.Response.Content = item;
+				}
 			};
 
 			GetAsync["/{id:int}/onlyoffice"] = async (p, c) =>
-            {
-                Node item = new Node { id = (int)p["id"] };
-                using (DB db = await DB.CreateAsync(dbUrl))
-                    if (!await item.LoadAsync(db, true))
-                        item = null;
-                if (item != null)
-                {
-                    await item.EnsureRightAsync(c, Laclasse.Right.Read, null);
+			{
+				Node item = new Node { id = (int)p["id"] };
+				using (DB db = await DB.CreateAsync(dbUrl))
+					if (!await item.LoadAsync(db, true))
+						item = null;
+				if (item != null)
+				{
+					var mode = OnlyOfficeMode.Desktop;
+					if (c.Request.Headers.ContainsKey("user-agent") && Regex.IsMatch(c.Request.Headers["user-agent"], "(Android|iPhone|iPad)"))
+						mode = OnlyOfficeMode.Mobile;
+
+					await item.EnsureRightAsync(c, Laclasse.Right.Read, null);
 					var session = await c.GetSessionAsync();
 					var authUser = await c.GetAuthenticatedUserAsync();
-                    c.Response.StatusCode = 200;
+					c.Response.StatusCode = 200;
 					c.Response.Headers["content-type"] = "text/html; charset=utf-8";
-					c.Response.Content = new OnlyOfficeView { node = item, session = session, user = authUser.user }.TransformText();
-                }
-            };
+					c.Response.Content = new OnlyOfficeView
+					{
+						mode = mode,
+						node = item,
+						session = session,
+						user = authUser.user,
+						downloadUrl = $"{Regex.Replace(c.SelfURL(), "onlyoffice$", "content")}?rev={item.rev}&session={session.id}",
+						callbackUrl = $"{c.SelfURL()}?session={session.id}"
+					}.TransformText();
+				}
+			};
 
 			PostAsync["/{id:int}/onlyoffice"] = async (p, c) =>
 			{
 				var json = await c.Request.ReadAsJsonAsync();
+				Console.WriteLine(json.ToString());
 				if (json.ContainsKey("status") && json.ContainsKey("url") && json["status"] == 2)
 				{
 					Console.WriteLine("SAVE NEEDED");
 
 					var uri = new Uri(json["url"]);
 					using (HttpClient client = await HttpClient.CreateAsync(uri))
-                    {
-                        HttpClientRequest request = new HttpClientRequest();
-                        request.Method = "GET";
+					{
+						HttpClientRequest request = new HttpClientRequest();
+						request.Method = "GET";
 						request.Path = uri.PathAndQuery;
-                        client.SendRequest(request);
-                        HttpClientResponse response = await client.GetResponseAsync();
+						client.SendRequest(request);
+						HttpClientResponse response = await client.GetResponseAsync();
 						if (response.StatusCode == 200)
-						{                     
-							var fileDefinition = new FileDefinition {
-                                Name = "content",
+						{
+							var fileDefinition = new FileDefinition
+							{
+								Name = "content",
 								Mimetype = response.Headers["content-type"],
 								Stream = response.InputStream
 							};
 
-                            Blob blob; string tempFile;
-                            (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
+							Blob blob; string tempFile;
+							(blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
 
 							string thumbnailTempFile = null;
-                            Blob thumbnailBlob = null;
+							Blob thumbnailBlob = null;
 
-                            if (tempFile != null)
-                                BuildThumbnail(tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
+							if (tempFile != null)
+								BuildThumbnail(tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
 
-                            using (var db = await DB.CreateAsync(dbUrl, true))
-                            {
-                                var node = new Node { id = (int)p["id"] };
-                                if (await node.LoadAsync(db))
-                                {
-                                    var oldBlobId = node.blob_id;
-                                    blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
-                                    node.blob_id = blob.id;
-                                    node.rev++;
-                                    await node.UpdateAsync(db);
+							using (var db = await DB.CreateAsync(dbUrl, true))
+							{
+								var node = new Node { id = (int)p["id"] };
+								if (await node.LoadAsync(db))
+								{
+									var oldBlobId = node.blob_id;
+									blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
+									node.blob_id = blob.id;
+									node.rev++;
+									await node.UpdateAsync(db);
 
-                                    if (thumbnailTempFile != null)
-                                    {
-                                        thumbnailBlob.parent_id = blob.id;
-                                        thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
-                                        node.has_tmb = true;
-                                    }
+									if (thumbnailTempFile != null)
+									{
+										thumbnailBlob.parent_id = blob.id;
+										thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
+										node.has_tmb = true;
+									}
 
-                                    // delete old blob if any
-                                    if (oldBlobId != null)
-                                        await blobs.DeleteBlobAsync(db, oldBlobId);
-                                }
-                                await db.CommitAsync();
-                            }
+									// delete old blob if any
+									if (oldBlobId != null)
+										await blobs.DeleteBlobAsync(db, oldBlobId);
+								}
+								await db.CommitAsync();
+							}
 						}
-                    }
+					}
 				}
 
 				c.Response.StatusCode = 200;
@@ -409,19 +432,19 @@ namespace Laclasse.Doc
 				var expand = c.Request.QueryString.ContainsKey("expand") ? bool.Parse(c.Request.QueryString["expand"]) : true;
 				var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
 				Blob blob; string tempFile;
-                (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
+				(blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
 
 				Node node = fileDefinition.Define;
-                if (node == null)
-                    node = new Node();
-                if (node.name == null)
-                    node.name = blob.name;
-                if (node.mime == null)
-                    node.mime = blob.mimetype;            
+				if (node == null)
+					node = new Node();
+				if (node.name == null)
+					node.name = blob.name;
+				if (node.mime == null)
+					node.mime = blob.mimetype;
 				node.size = blob.size;
 				node.rev = 0;
 				node.mtime = (long)(DateTime.Now - DateTime.Parse("1970-01-01T00:00:00Z")).TotalSeconds;
-                
+
 				var authUser = c.GetAuthenticatedUser();
 				if (authUser.IsUser)
 				{
@@ -435,9 +458,9 @@ namespace Laclasse.Doc
 
 				if (tempFile != null)
 					BuildThumbnail(tempFile, node.mime, out thumbnailTempFile, out thumbnailBlob);
-            
+
 				using (var db = await DB.CreateAsync(dbUrl))
-                {
+				{
 					if (tempFile != null)
 					{
 						blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
@@ -451,28 +474,28 @@ namespace Laclasse.Doc
 					}
 					await node.SaveAsync(db, expand);
 					await db.CommitAsync();
-                }
+				}
 
 				c.Response.StatusCode = 200;
 				c.Response.Content = node;
 			};
 
 			PutAsync["/{id:int}"] = async (p, c) =>
-            {
+			{
 				var expand = c.Request.QueryString.ContainsKey("expand") ? bool.Parse(c.Request.QueryString["expand"]) : true;
 				var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
-            
+
 				Blob blob; string tempFile;
 				(blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
 
 				string thumbnailTempFile = null;
-                Blob thumbnailBlob = null;
+				Blob thumbnailBlob = null;
 
-                if (tempFile != null)
-                    BuildThumbnail(tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
-            
+				if (tempFile != null)
+					BuildThumbnail(tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
+
 				using (var db = await DB.CreateAsync(dbUrl, true))
-                {
+				{
 					var node = new Node { id = (int)p["id"] };
 					if (await node.LoadAsync(db))
 					{
@@ -484,11 +507,11 @@ namespace Laclasse.Doc
 						await node.LoadAsync(db, expand);
 
 						if (thumbnailTempFile != null)
-                        {
-                            thumbnailBlob.parent_id = blob.id;
-                            thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
+						{
+							thumbnailBlob.parent_id = blob.id;
+							thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
 							node.has_tmb = true;
-                        }
+						}
 
 						// delete old blob if any
 						if (oldBlobId != null)
@@ -499,42 +522,42 @@ namespace Laclasse.Doc
 					}
 					await db.CommitAsync();
 				}
-            };
+			};
 
 			DeleteAsync["/{id:int}"] = async (p, c) =>
 			{
 				var node = new Node { id = (int)p["id"] };
 				using (var db = await DB.CreateAsync(dbUrl, true))
-                {
+				{
 					if (await node.LoadAsync(db))
 					{
 						await node.DeleteAsync(db);
 						if (node.blob_id != null)
-							await blobs.DeleteBlobAsync(db, node.blob_id);                  
+							await blobs.DeleteBlobAsync(db, node.blob_id);
 					}
 					await db.CommitAsync();
-				}            
+				}
 				c.Response.StatusCode = 200;
 				c.Response.Content = "";
 			};
 
 			GetAsync["/{id:int}/content"] = async (p, c) =>
-            {
+			{
 				long argRev = -1;
-                if(c.Request.QueryString.ContainsKey("rev"))
-                    argRev = Convert.ToInt64(c.Request.QueryString["rev"]);
+				if (c.Request.QueryString.ContainsKey("rev"))
+					argRev = Convert.ToInt64(c.Request.QueryString["rev"]);
 
 				var node = new Node { id = (int)p["id"] };
-                using (var db = await DB.CreateAsync(dbUrl))
-                {               
+				using (var db = await DB.CreateAsync(dbUrl))
+				{
 					if (await node.LoadAsync(db, true))
-                    {
+					{
 						if (node.rev != argRev)
 						{
 							c.Response.StatusCode = 307;
 							c.Response.Headers["location"] = $"content?rev={node.rev}";
 						}
-                        else if (node.content != null)
+						else if (node.content != null)
 						{
 							var fullPath = Path.GetFullPath(ContentToPath(path, node.content));
 							// check if full path is in the base directory
@@ -547,50 +570,50 @@ namespace Laclasse.Doc
 							if (File.Exists(fullPath))
 							{
 								c.Response.SupportRanges = true;
-								if(!c.Request.QueryString.ContainsKey("nocache"))
-                                    c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
+								if (!c.Request.QueryString.ContainsKey("nocache"))
+									c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
 								c.Response.Content = new FileContent(fullPath);
 							}
 						}
 						else if (node.blob_id != null)
 						{
-                            c.Response.Headers["content-type"] = node.mime;
-                            c.Response.StatusCode = 200;
-                            c.Response.SupportRanges = true;
-							if(!c.Request.QueryString.ContainsKey("nocache"))
-                                c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
+							c.Response.Headers["content-type"] = node.mime;
+							c.Response.StatusCode = 200;
+							c.Response.SupportRanges = true;
+							if (!c.Request.QueryString.ContainsKey("nocache"))
+								c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
 							c.Response.Content = blobs.GetBlobStream(node.blob_id);
 
 
 						}
-                        else
+						else
 						{
-                            c.Response.Headers["content-type"] = node.mime;
-                            c.Response.StatusCode = 200;
-                            c.Response.SupportRanges = true;
-							if(!c.Request.QueryString.ContainsKey("nocache"))
-                                c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
-                            c.Response.Content = "";
-                        }
-                        
-                    }
-                }
+							c.Response.Headers["content-type"] = node.mime;
+							c.Response.StatusCode = 200;
+							c.Response.SupportRanges = true;
+							if (!c.Request.QueryString.ContainsKey("nocache"))
+								c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
+							c.Response.Content = "";
+						}
+
+					}
+				}
 				if (c.Response.StatusCode != -1 && argRev == node.rev)
 				{
-                    if(!c.Request.QueryString.ContainsKey("nocache"))
-                        c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
+					if (!c.Request.QueryString.ContainsKey("nocache"))
+						c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
 				}
-            };
+			};
 
 			GetAsync["/{id:int}/tmb"] = async (p, c) =>
-            {            
+			{
 				long argRev = -1;
-                if(c.Request.QueryString.ContainsKey("rev"))
-                    argRev = Convert.ToInt64(c.Request.QueryString["rev"]);
+				if (c.Request.QueryString.ContainsKey("rev"))
+					argRev = Convert.ToInt64(c.Request.QueryString["rev"]);
 
 				var node = new Node { id = (int)p["id"] };
-                using (var db = await DB.CreateAsync(dbUrl))
-                {
+				using (var db = await DB.CreateAsync(dbUrl))
+				{
 					if (await node.LoadAsync(db, true))
 					{
 						if (node.blob_id != null)
@@ -606,27 +629,27 @@ namespace Laclasse.Doc
 										c.Response.StatusCode = 307;
 										c.Response.Headers["location"] = $"tmb?rev={node.rev}";
 									}
-                                    else
-									{                              
+									else
+									{
 										c.Response.StatusCode = 200;
 										c.Response.SupportRanges = true;
 										c.Response.Headers["content-type"] = thumbnailBlob.mimetype;
-										if(!c.Request.QueryString.ContainsKey("nocache"))
-                                            c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
+										if (!c.Request.QueryString.ContainsKey("nocache"))
+											c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
 										c.Response.Content = blobs.GetBlobStream(thumbnailBlob.id);
 									}
 								}
 							}
 						}
 					}
-                }
-            };
+				}
+			};
 		}
 
 		public override async Task ProcessRequestAsync(HttpContext context)
 		{
 			await context.EnsureIsAuthenticatedAsync();
-			 
+
 			var match = Regex.Match(context.Request.Path, @"^/zip/(\d+)/content/(.*)$");
 			if (match.Success)
 			{
@@ -732,10 +755,11 @@ namespace Laclasse.Doc
 				if (Erasme.Cloud.Preview.PreviewService.BuildPreview(
 					tempDir, tempFile, mimetype,
 					128, 128, out previewMimetype, out previewPath, out error))
-				{             
-					thumbnailBlob = new Blob {
+				{
+					thumbnailBlob = new Blob
+					{
 						id = Guid.NewGuid().ToString(),
-                        name = "thumbnail",
+						name = "thumbnail",
 						mimetype = previewMimetype
 					};
 					thumbnailTempFile = previewPath;
@@ -744,25 +768,27 @@ namespace Laclasse.Doc
 			catch (Exception e)
 			{
 				thumbnailTempFile = null;
-				thumbnailBlob = null;            
+				thumbnailBlob = null;
 				Console.WriteLine($"ThumbnailPlugin fails {e.ToString()}");
 			}
 		}
-        
+
 
 		public void AddPlugin(IFilePlugin plugin)
-        {
-            foreach(string mimetype in plugin.MimeTypes) {
-                List<IFilePlugin> plugins;
-                if(mimePlugins.ContainsKey(mimetype))
-                    plugins = mimePlugins[mimetype];
-                else {
-                    plugins = new List<IFilePlugin>();
-                    mimePlugins[mimetype] = plugins;
-                }
-                plugins.Add(plugin);
-            }
-            allPlugins.Add(plugin);
-        }
+		{
+			foreach (string mimetype in plugin.MimeTypes)
+			{
+				List<IFilePlugin> plugins;
+				if (mimePlugins.ContainsKey(mimetype))
+					plugins = mimePlugins[mimetype];
+				else
+				{
+					plugins = new List<IFilePlugin>();
+					mimePlugins[mimetype] = plugins;
+				}
+				plugins.Add(plugin);
+			}
+			allPlugins.Add(plugin);
+		}
 	}
 }

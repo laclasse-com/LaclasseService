@@ -36,6 +36,7 @@ html, body, .placeholder {
     left: 0px;
     margin: 0px;
     padding: 0px;
+    overscroll-behavior-y: none;
 }
 </style>
     </head>
@@ -50,61 +51,37 @@ var config = {
             #line default
             #line hidden
             
-            #line 30 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( node.id ));
+            #line 31 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( node.id + "REV" + node.rev ));
             
             #line default
             #line hidden
             
-            #line 30 ""
+            #line 31 ""
             this.Write("\",\n        \"title\": \"");
             
             #line default
             #line hidden
             
-            #line 31 ""
+            #line 32 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( node.name ));
             
             #line default
             #line hidden
             
-            #line 31 ""
-            this.Write("\",\n        \"url\": \"http://daniel.erasme.lan/api/docs/");
+            #line 32 ""
+            this.Write("\",\n        \"url\": \"");
             
             #line default
             #line hidden
             
-            #line 32 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( node.id ));
+            #line 33 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( downloadUrl ));
             
             #line default
             #line hidden
             
-            #line 32 ""
-            this.Write("/content?rev=");
-            
-            #line default
-            #line hidden
-            
-            #line 32 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( node.rev ));
-            
-            #line default
-            #line hidden
-            
-            #line 32 ""
-            this.Write("&session=");
-            
-            #line default
-            #line hidden
-            
-            #line 32 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( session.id ));
-            
-            #line default
-            #line hidden
-            
-            #line 32 ""
+            #line 33 ""
             this.Write(@""",
         ""permissions"": {
             ""comment"": false,
@@ -116,57 +93,56 @@ var config = {
     },
     ""documentType"": ""text"",
     ""editorConfig"": {
-        ""callbackUrl"": ""http://daniel.erasme.lan/api/docs/");
+        ""callbackUrl"": """);
             
             #line default
             #line hidden
             
-            #line 43 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( node.id ));
+            #line 44 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( callbackUrl ));
             
             #line default
             #line hidden
             
-            #line 43 ""
-            this.Write("/onlyoffice?session=");
-            
-            #line default
-            #line hidden
-            
-            #line 43 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( session.id ));
-            
-            #line default
-            #line hidden
-            
-            #line 43 ""
+            #line 44 ""
             this.Write("\",\n        \"lang\": \"fr-FR\",\n        \"user\": {\n            \"id\": \"");
             
             #line default
             #line hidden
             
-            #line 46 ""
+            #line 47 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( user.id ));
             
             #line default
             #line hidden
             
-            #line 46 ""
+            #line 47 ""
             this.Write("\",\n            \"name\": \"");
             
             #line default
             #line hidden
             
-            #line 47 ""
+            #line 48 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( user.firstname + " " + user.lastname ));
             
             #line default
             #line hidden
             
-            #line 47 ""
-            this.Write("\"\n        }\n    },\n    \"width\": \"100%\",\n    \"height\": \"100%\"\n};\n\nvar docEditor = " +
-                    "new DocsAPI.DocEditor(\"placeholder\", config);\n        </script>\n    </body>\n</ht" +
-                    "ml>");
+            #line 48 ""
+            this.Write("\"\n        }\n    },\n    \"type\": \"");
+            
+            #line default
+            #line hidden
+            
+            #line 51 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( mode == OnlyOfficeMode.Mobile ? "mobile" : "desktop" ));
+            
+            #line default
+            #line hidden
+            
+            #line 51 ""
+            this.Write("\",\n    \"width\": \"100%\",\n    \"height\": \"100%\"\n};\n\nvar docEditor = new DocsAPI.DocE" +
+                    "ditor(\"placeholder\", config);\n        </script>\n    </body>\n</html>");
             
             #line default
             #line hidden

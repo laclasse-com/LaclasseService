@@ -11,6 +11,7 @@
 namespace Laclasse.Authentication {
     using System.Linq;
     using System.Text;
+    using Web=System.Web;
     using System.Collections.Generic;
     using Erasme.Http;
     using System;
@@ -27,7 +28,7 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 7 ""
+            #line 8 ""
             this.Write("<!DOCTYPE html>\n<html>\n\t<head>\n\t\t<title>Service d\'Authentification Central de lac" +
                     "lasse.com</title>\n\t\t\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset" +
                     "=utf-8\"/>\n\t\t\t<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">\n\t\t\t<meta n" +
@@ -101,13 +102,13 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 215 ""
+            #line 216 ""
  if (error != null) { 
             
             #line default
             #line hidden
             
-            #line 216 ""
+            #line 217 ""
             this.Write(@"
                     <div style=""display: flex; flex-direction: row; padding: 20px; margin-bottom: 20px; background-color: #f3eff0;"" id=""error-content"">
                         <svg xmlns=""http://www.w3.org/2000/svg"" width=""36"" height=""36"" viewBox=""0 0 48 48"" version=""1.1"" style=""fill: #e10000; align-self: center;"">
@@ -121,38 +122,38 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 224 ""
+            #line 225 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( error ));
             
             #line default
             #line hidden
             
-            #line 224 ""
+            #line 225 ""
             this.Write("\n                            </div>\n                        </div>\n              " +
                     "      </div>\n                    ");
             
             #line default
             #line hidden
             
-            #line 228 ""
+            #line 229 ""
  } 
             
             #line default
             #line hidden
             
-            #line 229 ""
+            #line 230 ""
             this.Write("\n                    ");
             
             #line default
             #line hidden
             
-            #line 230 ""
+            #line 231 ""
  if (info != null) { 
             
             #line default
             #line hidden
             
-            #line 231 ""
+            #line 232 ""
             this.Write(@"
                     <div style=""display: flex; flex-direction: row; padding: 20px; margin-bottom: 20px; background-color: #f3eff0;"" id=""info-content"">
                         <svg xmlns=""http://www.w3.org/2000/svg"" width=""36"" height=""36"" viewBox=""0 0 48 48"" version=""1.1"" style=""fill: #4F891F; align-self: center;"">
@@ -166,26 +167,26 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 239 ""
+            #line 240 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( info ));
             
             #line default
             #line hidden
             
-            #line 239 ""
+            #line 240 ""
             this.Write("\n                            </div>\n                        </div>\n              " +
                     "      </div>\n                    ");
             
             #line default
             #line hidden
             
-            #line 243 ""
+            #line 244 ""
  } 
             
             #line default
             #line hidden
             
-            #line 244 ""
+            #line 245 ""
             this.Write(@"
                     <div style=""text-align: left; padding: 5px; padding-left: 15px; margin-bottom: 10px; font-size: 16px; font-weight: bold; background: #444; color: #f5f5f5; border-top-left-radius: 10px; border-top-right-radius: 10px;"">
                         Espace Numérique de Travail des collèges et écoles de la Métropole de Lyon.
@@ -197,44 +198,44 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 250 ""
+            #line 251 ""
  if (message != null) { 
             
             #line default
             #line hidden
             
-            #line 251 ""
+            #line 252 ""
             this.Write("\n\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t<div class=\"title\">");
             
             #line default
             #line hidden
             
-            #line 253 ""
+            #line 254 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( title ));
             
             #line default
             #line hidden
             
-            #line 253 ""
+            #line 254 ""
             this.Write("</div>\n\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 255 ""
+            #line 256 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( message ));
             
             #line default
             #line hidden
             
-            #line 255 ""
+            #line 256 ""
             this.Write("\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<a class=\"btn\" href=\"logout\">SE DÉCONNECTER</a>\n\t\t\t\t\t\t</div" +
                     ">\n\n\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 260 ""
+            #line 261 ""
 
 						}
 						else
@@ -244,7 +245,7 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 265 ""
+            #line 266 ""
             this.Write(@"
 						<div id=""rescue-content"">
 							<div class=""boxHeader"">
@@ -264,122 +265,122 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 279 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( service ));
+            #line 280 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( Web.HttpUtility.HtmlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 279 ""
+            #line 280 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
             
             #line default
             #line hidden
             
-            #line 280 ""
+            #line 281 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
             
             #line default
             #line hidden
             
-            #line 280 ""
+            #line 281 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
             
             #line default
             #line hidden
             
-            #line 281 ""
+            #line 282 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( state ));
             
             #line default
             #line hidden
             
-            #line 281 ""
+            #line 282 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescue\" value=\"");
             
             #line default
             #line hidden
             
-            #line 282 ""
+            #line 283 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
             
             #line default
             #line hidden
             
-            #line 282 ""
+            #line 283 ""
             this.Write("\">\n\t\t    \t        \t\t\t");
             
             #line default
             #line hidden
             
-            #line 283 ""
+            #line 284 ""
  var first = "checked"; foreach (var user in rescueUsers) { 
             
             #line default
             #line hidden
             
-            #line 284 ""
+            #line 285 ""
             this.Write("\t\t    \t        \t\t\t<input type=\"radio\" name=\"user\" value=\"");
             
             #line default
             #line hidden
             
-            #line 284 ""
+            #line 285 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( user.id ));
             
             #line default
             #line hidden
             
-            #line 284 ""
+            #line 285 ""
             this.Write("\" ");
             
             #line default
             #line hidden
             
-            #line 284 ""
+            #line 285 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( first ));
             
             #line default
             #line hidden
             
-            #line 284 ""
+            #line 285 ""
             this.Write(">");
             
             #line default
             #line hidden
             
-            #line 284 ""
+            #line 285 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( user.firstname + " " + user.lastname ));
             
             #line default
             #line hidden
             
-            #line 284 ""
+            #line 285 ""
             this.Write("</input><br>\n\t\t\t\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 285 ""
+            #line 286 ""
  first = ""; } 
             
             #line default
             #line hidden
             
-            #line 286 ""
+            #line 287 ""
             this.Write("\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" type=\"submit\" value=\"VALI" +
                     "DER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 292 ""
+            #line 293 ""
  	} else if (rescueId != null) { 
             
             #line default
             #line hidden
             
-            #line 293 ""
+            #line 294 ""
             this.Write(@"
 						<div id=""rescue-content"">
 							<div class=""boxHeader"">
@@ -397,26 +398,26 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 305 ""
+            #line 306 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
             
             #line default
             #line hidden
             
-            #line 305 ""
+            #line 306 ""
             this.Write("</b>. Merci de le saisir dans\n\t\t\t\t\t\t\t\t\tle champ ci-dessous. Cela vous permettra d" +
                     "e vous connecter sur le compte\n\t\t\t\t\t\t\t\t\tde ");
             
             #line default
             #line hidden
             
-            #line 307 ""
+            #line 308 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescueUser ));
             
             #line default
             #line hidden
             
-            #line 307 ""
+            #line 308 ""
             this.Write(". Une fois connecté, pensez bien à changer le mot de passe.\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t" +
                     "\t\t<br>\n\t\t\t\t\t\t\t\t<form method=\"post\" action=\"login\">\n\t\t    \t        \t\t\t<input type" +
                     "=\"hidden\" name=\"service\" value=\"");
@@ -424,61 +425,61 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 311 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( service ));
+            #line 312 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( Web.HttpUtility.HtmlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 311 ""
+            #line 312 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
             
             #line default
             #line hidden
             
-            #line 312 ""
+            #line 313 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
             
             #line default
             #line hidden
             
-            #line 312 ""
+            #line 313 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
             
             #line default
             #line hidden
             
-            #line 313 ""
+            #line 314 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( state ));
             
             #line default
             #line hidden
             
-            #line 313 ""
+            #line 314 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescue\" value=\"");
             
             #line default
             #line hidden
             
-            #line 314 ""
+            #line 315 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
             
             #line default
             #line hidden
             
-            #line 314 ""
+            #line 315 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescueId\" value=\"");
             
             #line default
             #line hidden
             
-            #line 315 ""
+            #line 316 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescueId ));
             
             #line default
             #line hidden
             
-            #line 315 ""
+            #line 316 ""
             this.Write("\">\n\t\t    \t        \t\t\t<div>Code:</div>\n\t\t    \t        \t\t\t<input type=\"text\" name=\"" +
                     "rescueCode\" value=\"\">\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" ty" +
                     "pe=\"submit\" value=\"VALIDER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t");
@@ -486,25 +487,25 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 324 ""
+            #line 325 ""
  	} 
             
             #line default
             #line hidden
             
-            #line 325 ""
+            #line 326 ""
             this.Write("\n\t\t\t\t\t\t<!-- authentication -->\n\t\t\t\t\t\t<div style=\"display: ");
             
             #line default
             #line hidden
             
-            #line 327 ""
+            #line 328 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( (rescue != null) ? "none" : "inherit" ));
             
             #line default
             #line hidden
             
-            #line 327 ""
+            #line 328 ""
             this.Write(@""" id=""authentication-content"">
 							<div class=""boxHeader"">Authentification</div>
 
@@ -516,25 +517,25 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 333 ""
+            #line 334 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 333 ""
+            #line 334 ""
             this.Write("&state=");
             
             #line default
             #line hidden
             
-            #line 333 ""
+            #line 334 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
             
             #line default
             #line hidden
             
-            #line 333 ""
+            #line 334 ""
             this.Write(@""">
                                         <img src=""images/education-nationale.svg"" style=""width: 24px; height: 24px; align-self: center;"">
                                         <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;"">Compte Académique Parents/Elèves</div>
@@ -544,25 +545,25 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 337 ""
+            #line 338 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 337 ""
+            #line 338 ""
             this.Write("&state=");
             
             #line default
             #line hidden
             
-            #line 337 ""
+            #line 338 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
             
             #line default
             #line hidden
             
-            #line 337 ""
+            #line 338 ""
             this.Write(@""">
                                         <img src=""images/education-nationale.svg"" style=""width: 24px; height: 24px; align-self: center;"">
                                         <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;"">Compte Académique Profs/Agents</div>
@@ -572,25 +573,25 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 341 ""
+            #line 342 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 341 ""
+            #line 342 ""
             this.Write("&state=");
             
             #line default
             #line hidden
             
-            #line 341 ""
+            #line 342 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
             
             #line default
             #line hidden
             
-            #line 341 ""
+            #line 342 ""
             this.Write(@""">
                                         <img src=""images/grandlyon-connect.svg"" style=""width: 24px; height: 24px; align-self: center;"">
                                         <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;"">Compte GrandLyon Connect</div>
@@ -609,37 +610,37 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 354 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( service ));
+            #line 355 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( Web.HttpUtility.HtmlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 354 ""
+            #line 355 ""
             this.Write("\">\n    \t\t\t            \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
             
             #line default
             #line hidden
             
-            #line 355 ""
+            #line 356 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( state ));
             
             #line default
             #line hidden
             
-            #line 355 ""
+            #line 356 ""
             this.Write("\">\n    \t\t\t            \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
             
             #line default
             #line hidden
             
-            #line 356 ""
+            #line 357 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
             
             #line default
             #line hidden
             
-            #line 356 ""
+            #line 357 ""
             this.Write("\">\n    \t\t\t\t\t\t\t\t\t<div>Identifiant:</div>\n    \t\t\t\t\t\t\t\t\t<input name=\"username\" type=" +
                     "\"text\" style=\"margin-bottom: 10px;\">\n    \t\t\t\t\t\t\t\t\t<div>Mot de passe:</div>\n    \t" +
                     "\t\t\t\t\t\t\t\t<input name=\"password\" type=\"password\" style=\"margin-bottom: 10px;\">\n   " +
@@ -670,37 +671,37 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 395 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( service ));
+            #line 396 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( Web.HttpUtility.HtmlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 395 ""
+            #line 396 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
             
             #line default
             #line hidden
             
-            #line 396 ""
+            #line 397 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( state ));
             
             #line default
             #line hidden
             
-            #line 396 ""
+            #line 397 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
             
             #line default
             #line hidden
             
-            #line 397 ""
+            #line 398 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
             
             #line default
             #line hidden
             
-            #line 397 ""
+            #line 398 ""
             this.Write(@""">
 		    	        			<div>Email ou Tel:</div>
 									<input name=""rescue"" type=""text"" style=""margin-bottom: 10px;"">
@@ -745,13 +746,13 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 436 ""
+            #line 437 ""
  } 
             
             #line default
             #line hidden
             
-            #line 437 ""
+            #line 438 ""
             this.Write(@"					</div>
 					<div class=""footer"">
                         <div style=""position: absolute; height: 60px; width: 60px; border-radius: 30px; background-color: #444; display: block; left: 20px; top: -30px; padding: 0px;""><img src=""images/laclasse-light.svg"" style=""width: 60px; height: 60px;""></div>

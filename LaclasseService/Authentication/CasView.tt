@@ -2,6 +2,7 @@
 <#@ assembly name="System.Core" #>
 <#@ import namespace="System.Linq" #>
 <#@ import namespace="System.Text" #>
+<#@ import namespace="Web=System.Web" #>
 <#@ import namespace="System.Collections.Generic" #>
 <#@ import namespace="Erasme.Http" #>
 <!DOCTYPE html>
@@ -276,7 +277,7 @@ function onContactBack(e) {
 								<div class="title">Choisissez l'utilisateur pour lequel vous avez perdu le mot de passe</div>
 
 								<form method="post" action="login">
-		    	        			<input type="hidden" name="service" value="<#= service #>">
+		    	        			<input type="hidden" name="service" value="<#= Web.HttpUtility.HtmlEncode(service) #>">
 		    	        			<input type="hidden" name="ticket" value="<#= ticket #>">
 		    	        			<input type="hidden" name="state" value="<#= state #>">
 		    	        			<input type="hidden" name="rescue" value="<#= rescue #>">
@@ -308,7 +309,7 @@ function onContactBack(e) {
 								</div>
 								<br>
 								<form method="post" action="login">
-		    	        			<input type="hidden" name="service" value="<#= service #>">
+		    	        			<input type="hidden" name="service" value="<#= Web.HttpUtility.HtmlEncode(service) #>">
 		    	        			<input type="hidden" name="ticket" value="<#= ticket #>">
 		    	        			<input type="hidden" name="state" value="<#= state #>">
 		    	        			<input type="hidden" name="rescue" value="<#= rescue #>">
@@ -351,7 +352,7 @@ function onContactBack(e) {
     							<div style="margin-bottom: 0px; flex: 1;">
     								<div class="title">Connectez-vous avec votre compte Laclasse.com:</div>
     								<form method="post" action="login">
-    			            			<input type="hidden" name="service" value="<#= service #>">
+    			            			<input type="hidden" name="service" value="<#= Web.HttpUtility.HtmlEncode(service) #>">
     			            			<input type="hidden" name="state" value="<#= state #>">
     			            			<input type="hidden" name="ticket" value="<#= ticket #>">
     									<div>Identifiant:</div>
@@ -392,7 +393,7 @@ function onContactBack(e) {
 									</ul>
 								</div>
 								<form method="post" action="login">
-		    	        			<input type="hidden" name="service" value="<#= service #>">
+		    	        			<input type="hidden" name="service" value="<#= Web.HttpUtility.HtmlEncode(service) #>">
 		    	        			<input type="hidden" name="state" value="<#= state #>">
 		    	        			<input type="hidden" name="ticket" value="<#= ticket #>">
 		    	        			<div>Email ou Tel:</div>

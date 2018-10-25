@@ -484,10 +484,11 @@ namespace Laclasse.Doc
 			{
 				var expand = c.Request.QueryString.ContainsKey("expand") ? bool.Parse(c.Request.QueryString["expand"]) : true;
 				var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
-
-				Blob blob; string tempFile;
-				(blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
-
+                
+				Blob blob = null; string tempFile = null;
+				if (fileDefinition.Stream != null)
+					(blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
+            
 				string thumbnailTempFile = null;
 				Blob thumbnailBlob = null;
 
@@ -499,10 +500,21 @@ namespace Laclasse.Doc
 					var node = new Node { id = (int)p["id"] };
 					if (await node.LoadAsync(db))
 					{
-						var oldBlobId = node.blob_id;
-						blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
-						node.blob_id = blob.id;
-						node.rev++;
+						string oldBlobId = null;
+						if (blob != null)
+						{
+							oldBlobId = node.blob_id;
+							blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
+							node.blob_id = blob.id;
+							node.rev++;
+						}
+						if (fileDefinition.Define != null)
+						{
+							var define = fileDefinition.Define;
+							if (define.Fields.ContainsKey(nameof(Node.name)))
+								node.name = define.name;
+						}
+
 						await node.UpdateAsync(db);
 						await node.LoadAsync(db, expand);
 
@@ -554,8 +566,11 @@ namespace Laclasse.Doc
 					{
 						if (node.rev != argRev)
 						{
+							string attachment = "";
+							if (c.Request.QueryString.ContainsKey("attachment"))
+								attachment = "&attachment";
 							c.Response.StatusCode = 307;
-							c.Response.Headers["location"] = $"content?rev={node.rev}";
+							c.Response.Headers["location"] = $"content?rev={node.rev}{attachment}";
 						}
 						else if (node.content != null)
 						{
@@ -598,9 +613,11 @@ namespace Laclasse.Doc
 
 					}
 				}
-				if (c.Response.StatusCode != -1 && argRev == node.rev)
+				if (c.Response.StatusCode != -1)
 				{
-					if (!c.Request.QueryString.ContainsKey("nocache"))
+					if (c.Request.QueryString.ContainsKey("attachment"))
+						c.Response.Headers["content-disposition"] = $"attachment; filename=\"{node.name.Replace('"', ' ')}\"";
+					if (!c.Request.QueryString.ContainsKey("nocache") && argRev == node.rev)
 						c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
 				}
 			};
@@ -773,6 +790,24 @@ namespace Laclasse.Doc
 			}
 		}
 
+		async Task<Node> GetNodeAsync(DB db, int id, bool expand = true)
+		{
+			Node item = new Node { id = id };
+			if (!await item.LoadAsync(db, expand))
+				item = null;
+			return item;
+		}
+
+		async Task DeleteNodeAsync(DB db, int id)
+		{
+			var node = new Node { id = id };
+			if (await node.LoadAsync(db))
+			{
+				await node.DeleteAsync(db);
+				if (node.blob_id != null)
+					await blobs.DeleteBlobAsync(db, node.blob_id);
+			}
+		}
 
 		public void AddPlugin(IFilePlugin plugin)
 		{

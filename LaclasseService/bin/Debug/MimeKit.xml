@@ -1432,11 +1432,11 @@
             Decrypts the specified encryptedData to an output stream.
             </remarks>
             <param name="encryptedData">The encrypted data.</param>
-            <param name="output">The output stream.</param>
+            <param name="decryptedData">The output stream.</param>
             <exception cref="T:System.ArgumentNullException">
             <para><paramref name="encryptedData"/> is <c>null</c>.</para>
             <para>-or-</para>
-            <para><paramref name="output"/> is <c>null</c>.</para>
+            <para><paramref name="decryptedData"/> is <c>null</c>.</para>
             </exception>
             <exception cref="T:Org.BouncyCastle.Cms.CmsException">
             An error occurred in the cryptographic message syntax subsystem.
@@ -7503,6 +7503,45 @@
             <para><paramref name="stream"/> is <c>null</c>.</para>
             <para>-or-</para>
             <para><paramref name="password"/> is <c>null</c>.</para>
+            </exception>
+            <exception cref="T:System.NotSupportedException">
+            Importing keys is not supported by this cryptography context.
+            </exception>
+        </member>
+        <member name="M:MimeKit.Cryptography.SecureMimeContext.Import(System.String,System.String)">
+            <summary>
+            Imports certificates and keys from a pkcs12 file.
+            </summary>
+            <remarks>
+            Imports certificates and keys from a pkcs12 file.
+            </remarks>
+            <param name="fileName">The raw certificate and key data in pkcs12 format.</param>
+            <param name="password">The password to unlock the stream.</param>
+            <exception cref="T:System.ArgumentNullException">
+            <para><paramref name="fileName"/> is <c>null</c>.</para>
+            <para>-or-</para>
+            <para><paramref name="password"/> is <c>null</c>.</para>
+            </exception>
+            <exception cref="T:System.ArgumentException">
+            <para><paramref name="fileName"/> is a zero-length string, contains only white space, or
+            contains one or more invalid characters as defined by
+            <see cref="F:System.IO.Path.InvalidPathChars"/>.</para>
+            <para>-or-</para>
+            <para><paramref name="fileName"/> does not contain a private key.</para>
+            <para>-or-</para>
+            <para><paramref name="fileName"/> does not contain a certificate that could be used for signing.</para>
+            </exception>
+            <exception cref="T:System.IO.DirectoryNotFoundException">
+            <paramref name="fileName"/> is an invalid file path.
+            </exception>
+            <exception cref="T:System.IO.FileNotFoundException">
+            The specified file path could not be found.
+            </exception>
+            <exception cref="T:System.UnauthorizedAccessException">
+            The user does not have access to read the specified file.
+            </exception>
+            <exception cref="T:System.IO.IOException">
+            An I/O error occurred.
             </exception>
             <exception cref="T:System.NotSupportedException">
             Importing keys is not supported by this cryptography context.

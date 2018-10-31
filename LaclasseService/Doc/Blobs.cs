@@ -322,6 +322,7 @@ namespace Laclasse.Doc
 				if ((mimetype == "application/octet-stream") && (fileContentType != null))
 					mimetype = fileContentType;
 			}
+            
             return new FileDefinition<T>() {
 				Mimetype = mimetype,
                 Size = size,

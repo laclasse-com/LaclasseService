@@ -1767,7 +1767,7 @@
             <a href="Overload_MailKit_Net_Imap_ImapFolder_GetStreams.htm">GetStreams</a>
             methods.</para>
             <para>Once this callback returns, the stream argument will be disposed, so
-            it is important to consume stream right away and not add it to a queue
+            it is important to consume the stream right away and not add it to a queue
             for later processing.</para>
             </remarks>
         </member>
@@ -2035,6 +2035,11 @@
             The server supports the <a href="https://tools.ietf.org/html/rfc7889">APPENDLIMIT</a> extension.
             </summary>
         </member>
+        <member name="F:MailKit.Net.Imap.ImapCapabilities.Unauthenticate">
+            <summary>
+            The server supports the <a href="https://tools.ietf.org/html/rfc8437">UNAUTHENTICATE</a> extension.
+            </summary>
+        </member>
         <member name="F:MailKit.Net.Imap.ImapCapabilities.XList">
             <summary>
             The server supports the <a href="https://developers.google.com/gmail/imap_extensions">XLIST</a> extension (GMail).
@@ -2165,7 +2170,7 @@
             The literal can be a string, byte[], Stream, or a MimeMessage.
             </remarks>
         </member>
-        <member name="M:MailKit.Net.Imap.ImapLiteral.#ctor(MimeKit.FormatOptions,System.Object,System.Action{System.Int32})">
+        <member name="M:MailKit.Net.Imap.ImapLiteral.#ctor(MimeKit.FormatOptions,MimeKit.MimeMessage,System.Action{System.Int32})">
             <summary>
             Initializes a new instance of the <see cref="T:MailKit.Net.Imap.ImapLiteral"/> class.
             </summary>
@@ -2175,6 +2180,16 @@
             <param name="options">The formatting options.</param>
             <param name="literal">The literal.</param>
             <param name="action">The progress update action.</param>
+        </member>
+        <member name="M:MailKit.Net.Imap.ImapLiteral.#ctor(MimeKit.FormatOptions,System.Byte[])">
+            <summary>
+            Initializes a new instance of the <see cref="T:MailKit.Net.Imap.ImapLiteral"/> class.
+            </summary>
+            <remarks>
+            Creates a new <see cref="T:MailKit.Net.Imap.ImapLiteral"/>.
+            </remarks>
+            <param name="options">The formatting options.</param>
+            <param name="literal">The literal.</param>
         </member>
         <member name="P:MailKit.Net.Imap.ImapLiteral.Length">
             <summary>
@@ -2403,14 +2418,14 @@
             The ImapEngine is in the disconnected state.
             </summary>
         </member>
-        <member name="F:MailKit.Net.Imap.ImapEngineState.Connected">
+        <member name="F:MailKit.Net.Imap.ImapEngineState.Connecting">
             <summary>
-            The ImapEngine is connected but has not authenticated.
+            The ImapEngine is in the process of connecting.
             </summary>
         </member>
-        <member name="F:MailKit.Net.Imap.ImapEngineState.PreAuth">
+        <member name="F:MailKit.Net.Imap.ImapEngineState.Connected">
             <summary>
-            The ImapEngine is in the PREAUTH state.
+            The ImapEngine is connected but not yet authenticated.
             </summary>
         </member>
         <member name="F:MailKit.Net.Imap.ImapEngineState.Authenticated">
@@ -2748,46 +2763,6 @@
             Asynchronously reads a single line from the <see cref="T:MailKit.Net.Imap.ImapStream"/>.
             </summary>
             <returns>The line.</returns>
-            <param name="cancellationToken">The cancellation token.</param>
-            <exception cref="T:System.InvalidOperationException">
-            The engine is not connected.
-            </exception>
-            <exception cref="T:System.OperationCanceledException">
-            The operation was canceled via the cancellation token.
-            </exception>
-            <exception cref="T:System.IO.IOException">
-            An I/O error occurred.
-            </exception>
-            <exception cref="T:MailKit.Net.Imap.ImapProtocolException">
-            An IMAP protocol error occurred.
-            </exception>
-        </member>
-        <member name="M:MailKit.Net.Imap.ImapEngine.ReadToken(System.String,System.Threading.CancellationToken)">
-            <summary>
-            Reads the next token.
-            </summary>
-            <returns>The token.</returns>
-            <param name="specials">A list of characters that are not legal in bare string tokens.</param>
-            <param name="cancellationToken">The cancellation token.</param>
-            <exception cref="T:System.InvalidOperationException">
-            The engine is not connected.
-            </exception>
-            <exception cref="T:System.OperationCanceledException">
-            The operation was canceled via the cancellation token.
-            </exception>
-            <exception cref="T:System.IO.IOException">
-            An I/O error occurred.
-            </exception>
-            <exception cref="T:MailKit.Net.Imap.ImapProtocolException">
-            An IMAP protocol error occurred.
-            </exception>
-        </member>
-        <member name="M:MailKit.Net.Imap.ImapEngine.ReadTokenAsync(System.String,System.Threading.CancellationToken)">
-            <summary>
-            Asynchronously reads the next token.
-            </summary>
-            <returns>The token.</returns>
-            <param name="specials">A list of characters that are not legal in bare string tokens.</param>
             <param name="cancellationToken">The cancellation token.</param>
             <exception cref="T:System.InvalidOperationException">
             The engine is not connected.
@@ -13815,45 +13790,11 @@
             An I/O error occurred.
             </exception>
         </member>
-        <member name="M:MailKit.Net.Imap.ImapStream.ReadToken(System.String,System.Threading.CancellationToken)">
-            <summary>
-            Reads the next available token from the stream.
-            </summary>
-            <returns>The token.</returns>
-            <param name="specials">A list of characters that are not legal in bare string tokens.</param>
-            <param name="cancellationToken">The cancellation token.</param>
-            <exception cref="T:System.ObjectDisposedException">
-            The stream has been disposed.
-            </exception>
-            <exception cref="T:System.OperationCanceledException">
-            The operation was canceled via the cancellation token.
-            </exception>
-            <exception cref="T:System.IO.IOException">
-            An I/O error occurred.
-            </exception>
-        </member>
         <member name="M:MailKit.Net.Imap.ImapStream.ReadToken(System.Threading.CancellationToken)">
             <summary>
             Reads the next available token from the stream.
             </summary>
             <returns>The token.</returns>
-            <param name="cancellationToken">The cancellation token.</param>
-            <exception cref="T:System.ObjectDisposedException">
-            The stream has been disposed.
-            </exception>
-            <exception cref="T:System.OperationCanceledException">
-            The operation was canceled via the cancellation token.
-            </exception>
-            <exception cref="T:System.IO.IOException">
-            An I/O error occurred.
-            </exception>
-        </member>
-        <member name="M:MailKit.Net.Imap.ImapStream.ReadTokenAsync(System.String,System.Threading.CancellationToken)">
-            <summary>
-            Asynchronously reads the next available token from the stream.
-            </summary>
-            <returns>The token.</returns>
-            <param name="specials">A list of characters that are not legal in bare string tokens.</param>
             <param name="cancellationToken">The cancellation token.</param>
             <exception cref="T:System.ObjectDisposedException">
             The stream has been disposed.
@@ -14163,19 +14104,6 @@
             </exception>
             <exception cref="T:System.ArgumentOutOfRangeException">
             One or more of the indexes has a negative value.
-            </exception>
-        </member>
-        <member name="M:MailKit.Net.Imap.ImapUtils.FormatUidSet(System.Collections.Generic.IList{MailKit.UniqueId})">
-            <summary>
-            Formats the array of UIDs as a string suitable for use with IMAP commands.
-            </summary>
-            <returns>The UID set.</returns>
-            <param name="uids">The UIDs.</param>
-            <exception cref="T:System.ArgumentNullException">
-            <paramref name="uids"/> is <c>null</c>.
-            </exception>
-            <exception cref="T:System.ArgumentException">
-            One or more of the UIDs is invalid.
             </exception>
         </member>
         <member name="M:MailKit.Net.Imap.ImapUtils.ParseImplementationAsync(MailKit.Net.Imap.ImapEngine,MailKit.Net.Imap.ImapCommand,System.Int32,System.Boolean)">
@@ -14539,6 +14467,37 @@
             The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
             </exception>
         </member>
+        <member name="M:MailKit.Net.Pop3.Pop3Client.GetMessageCountAsync(System.Threading.CancellationToken)">
+            <summary>
+            Get the message count.
+            </summary>
+            <remarks>
+            Asynchronously gets the message count.
+            </remarks>
+            <returns>The message count.</returns>
+            <param name="cancellationToken">The cancellation token.</param>
+            <exception cref="T:System.ObjectDisposedException">
+            The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
+            </exception>
+            <exception cref="T:MailKit.ServiceNotConnectedException">
+            The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> is not connected.
+            </exception>
+            <exception cref="T:MailKit.ServiceNotAuthenticatedException">
+            The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> is not authenticated.
+            </exception>
+            <exception cref="T:System.OperationCanceledException">
+            The operation was canceled via the cancellation token.
+            </exception>
+            <exception cref="T:System.IO.IOException">
+            An I/O error occurred.
+            </exception>
+            <exception cref="T:MailKit.Net.Pop3.Pop3CommandException">
+            The POP3 command failed.
+            </exception>
+            <exception cref="T:MailKit.Net.Pop3.Pop3ProtocolException">
+            A POP3 protocol error occurred.
+            </exception>
+        </member>
         <member name="M:MailKit.Net.Pop3.Pop3Client.NoOpAsync(System.Threading.CancellationToken)">
             <summary>
             Ping the POP3 server to keep the connection alive.
@@ -14875,9 +14834,7 @@
             <paramref name="indexes"/> is <c>null</c>.
             </exception>
             <exception cref="T:System.ArgumentException">
-            <para>One or more of the <paramref name="indexes"/> are invalid.</para>
-            <para>-or-</para>
-            <para>No indexes were specified.</para>
+            One or more of the <paramref name="indexes"/> are invalid.
             </exception>
             <exception cref="T:System.ObjectDisposedException">
             The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
@@ -15006,9 +14963,7 @@
             <paramref name="indexes"/> is <c>null</c>.
             </exception>
             <exception cref="T:System.ArgumentException">
-            <para>One or more of the <paramref name="indexes"/> are invalid.</para>
-            <para>-or-</para>
-            <para>No indexes were specified.</para>
+            One or more of the <paramref name="indexes"/> are invalid.
             </exception>
             <exception cref="T:System.ObjectDisposedException">
             The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
@@ -15140,9 +15095,7 @@
             <paramref name="indexes"/> is <c>null</c>.
             </exception>
             <exception cref="T:System.ArgumentException">
-            <para>One or more of the <paramref name="indexes"/> are invalid.</para>
-            <para>-or-</para>
-            <para>No indexes were specified.</para>
+            One or more of the <paramref name="indexes"/> are invalid.
             </exception>
             <exception cref="T:System.ObjectDisposedException">
             The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
@@ -15271,9 +15224,7 @@
             <paramref name="indexes"/> is <c>null</c>.
             </exception>
             <exception cref="T:System.ArgumentException">
-            <para>One or more of the <paramref name="indexes"/> are invalid.</para>
-            <para>-or-</para>
-            <para>No indexes were specified.</para>
+            One or more of the <paramref name="indexes"/> are invalid.
             </exception>
             <exception cref="T:System.ObjectDisposedException">
             The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
@@ -15831,6 +15782,37 @@
             The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
             </exception>
         </member>
+        <member name="M:MailKit.Net.Pop3.Pop3Client.GetMessageCount(System.Threading.CancellationToken)">
+            <summary>
+            Get the message count.
+            </summary>
+            <remarks>
+            Gets the message count.
+            </remarks>
+            <returns>The message count.</returns>
+            <param name="cancellationToken">The cancellation token.</param>
+            <exception cref="T:System.ObjectDisposedException">
+            The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
+            </exception>
+            <exception cref="T:MailKit.ServiceNotConnectedException">
+            The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> is not connected.
+            </exception>
+            <exception cref="T:MailKit.ServiceNotAuthenticatedException">
+            The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> is not authenticated.
+            </exception>
+            <exception cref="T:System.OperationCanceledException">
+            The operation was canceled via the cancellation token.
+            </exception>
+            <exception cref="T:System.IO.IOException">
+            An I/O error occurred.
+            </exception>
+            <exception cref="T:MailKit.Net.Pop3.Pop3CommandException">
+            The POP3 command failed.
+            </exception>
+            <exception cref="T:MailKit.Net.Pop3.Pop3ProtocolException">
+            A POP3 protocol error occurred.
+            </exception>
+        </member>
         <member name="M:MailKit.Net.Pop3.Pop3Client.NoOp(System.Threading.CancellationToken)">
             <summary>
             Ping the POP3 server to keep the connection alive.
@@ -16210,9 +16192,7 @@
             <paramref name="indexes"/> is <c>null</c>.
             </exception>
             <exception cref="T:System.ArgumentException">
-            <para>One or more of the <paramref name="indexes"/> are invalid.</para>
-            <para>-or-</para>
-            <para>No indexes were specified.</para>
+            One or more of the <paramref name="indexes"/> are invalid.
             </exception>
             <exception cref="T:System.ObjectDisposedException">
             The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
@@ -16341,9 +16321,7 @@
             <paramref name="indexes"/> is <c>null</c>.
             </exception>
             <exception cref="T:System.ArgumentException">
-            <para>One or more of the <paramref name="indexes"/> are invalid.</para>
-            <para>-or-</para>
-            <para>No indexes were specified.</para>
+            One or more of the <paramref name="indexes"/> are invalid.
             </exception>
             <exception cref="T:System.ObjectDisposedException">
             The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
@@ -16475,9 +16453,7 @@
             <paramref name="indexes"/> is <c>null</c>.
             </exception>
             <exception cref="T:System.ArgumentException">
-            <para>One or more of the <paramref name="indexes"/> are invalid.</para>
-            <para>-or-</para>
-            <para>No indexes were specified.</para>
+            One or more of the <paramref name="indexes"/> are invalid.
             </exception>
             <exception cref="T:System.ObjectDisposedException">
             The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
@@ -16604,9 +16580,7 @@
             <paramref name="indexes"/> is <c>null</c>.
             </exception>
             <exception cref="T:System.ArgumentException">
-            <para>One or more of the <paramref name="indexes"/> are invalid.</para>
-            <para>-or-</para>
-            <para>No indexes were specified.</para>
+            One or more of the <paramref name="indexes"/> are invalid.
             </exception>
             <exception cref="T:System.ObjectDisposedException">
             The <see cref="T:MailKit.Net.Pop3.Pop3Client"/> has been disposed.
@@ -22325,22 +22299,6 @@
             use even with a clear-text connection.
             </remarks>
         </member>
-        <member name="M:MailKit.Security.SaslMechanismDigestMd5.#ctor(System.Uri,System.Net.NetworkCredential,System.String)">
-            <summary>
-            Initializes a new instance of the <see cref="T:MailKit.Security.SaslMechanismDigestMd5"/> class.
-            </summary>
-            <remarks>
-            Creates a new DIGEST-MD5 SASL context.
-            </remarks>
-            <param name="uri">The URI of the service.</param>
-            <param name="credentials">The user's credentials.</param>
-            <param name="entropy">Random characters to act as the cnonce token.</param>
-            <exception cref="T:System.ArgumentNullException">
-            <para><paramref name="uri"/> is <c>null</c>.</para>
-            <para>-or-</para>
-            <para><paramref name="credentials"/> is <c>null</c>.</para>
-            </exception>
-        </member>
         <member name="M:MailKit.Security.SaslMechanismDigestMd5.#ctor(System.Uri,System.Net.ICredentials)">
             <summary>
             Initializes a new instance of the <see cref="T:MailKit.Security.SaslMechanismDigestMd5"/> class.
@@ -23057,19 +23015,6 @@
             SCRAM-based SASL mechanisms are salted challenge/response authentication mechanisms.
             </remarks>
         </member>
-        <member name="M:MailKit.Security.SaslMechanismScramBase.#ctor(System.Net.NetworkCredential,System.String)">
-            <summary>
-            Initializes a new instance of the <see cref="T:MailKit.Security.SaslMechanismScramBase"/> class.
-            </summary>
-            <remarks>
-            Creates a new SCRAM-based SASL context.
-            </remarks>
-            <param name="credentials">The user's credentials.</param>
-            <param name="entropy">Random characters to act as the cnonce token.</param>
-            <exception cref="T:System.ArgumentNullException">
-            <paramref name="credentials"/> is <c>null</c>.
-            </exception>
-        </member>
         <member name="M:MailKit.Security.SaslMechanismScramBase.#ctor(System.Uri,System.Net.ICredentials)">
             <summary>
             Initializes a new instance of the <see cref="T:MailKit.Security.SaslMechanismScramBase"/> class.
@@ -23225,19 +23170,6 @@
             A salted challenge/response SASL mechanism that uses the HMAC SHA-1 algorithm.
             </remarks>
         </member>
-        <member name="M:MailKit.Security.SaslMechanismScramSha1.#ctor(System.Net.NetworkCredential,System.String)">
-            <summary>
-            Initializes a new instance of the <see cref="T:MailKit.Security.SaslMechanismScramSha1"/> class.
-            </summary>
-            <remarks>
-            Creates a new SCRAM-SHA-1 SASL context.
-            </remarks>
-            <param name="credentials">The user's credentials.</param>
-            <param name="entropy">Random characters to act as the cnonce token.</param>
-            <exception cref="T:System.ArgumentNullException">
-            <paramref name="credentials"/> is <c>null</c>.
-            </exception>
-        </member>
         <member name="M:MailKit.Security.SaslMechanismScramSha1.#ctor(System.Uri,System.Net.ICredentials)">
             <summary>
             Initializes a new instance of the <see cref="T:MailKit.Security.SaslMechanismScramSha1"/> class.
@@ -23337,19 +23269,6 @@
             <remarks>
             A salted challenge/response SASL mechanism that uses the HMAC SHA-256 algorithm.
             </remarks>
-        </member>
-        <member name="M:MailKit.Security.SaslMechanismScramSha256.#ctor(System.Net.NetworkCredential,System.String)">
-            <summary>
-            Initializes a new instance of the <see cref="T:MailKit.Security.SaslMechanismScramSha256"/> class.
-            </summary>
-            <remarks>
-            Creates a new SCRAM-SHA-256 SASL context.
-            </remarks>
-            <param name="credentials">The user's credentials.</param>
-            <param name="entropy">Random characters to act as the cnonce token.</param>
-            <exception cref="T:System.ArgumentNullException">
-            <paramref name="credentials"/> is <c>null</c>.
-            </exception>
         </member>
         <member name="M:MailKit.Security.SaslMechanismScramSha256.#ctor(System.Uri,System.Net.ICredentials)">
             <summary>
@@ -24078,6 +23997,9 @@
             Creates a new <see cref="T:MailKit.AuthenticatedEventArgs"/>.
             </remarks>
             <param name="message">The free-form text.</param>
+            <exception cref="T:System.ArgumentNullException">
+            <paramref name="message"/> is <c>null</c>.
+            </exception>
         </member>
         <member name="P:MailKit.AuthenticatedEventArgs.Message">
             <summary>
@@ -30557,6 +30479,20 @@
             Gets an object that can be used to synchronize access to the folder.
             </remarks>
             <value>The sync root.</value>
+        </member>
+        <member name="P:MailKit.IMailService.SslProtocols">
+            <summary>
+            Gets or sets the SSL and TLS protocol versions that the client is allowed to use.
+            </summary>
+            <remarks>
+            <para>Gets or sets the SSL and TLS protocol versions that the client is allowed to use.</para>
+            <para>By default, MailKit initializes this value to support only TLS v1.0 and greater and
+            does not support any version of SSL due to those protocols no longer being considered
+            secure.</para>
+            <para>This property should be set before calling any of the
+            <a href="Overload_MailKit_IMailService_Connect.htm">Connect</a> methods.</para>
+            </remarks>
+            <value>The SSL and TLS protocol versions that are supported.</value>
         </member>
         <member name="P:MailKit.IMailService.ClientCertificates">
             <summary>
@@ -47005,14 +46941,17 @@
         </member>
         <member name="P:MailKit.MailService.SslProtocols">
             <summary>
-            Gets or sets the SSL/TLS protocols that the client is allowed to use.
+            Gets or sets the SSL and TLS protocol versions that the client is allowed to use.
             </summary>
             <remarks>
-            <para>Gets or sets the SSL/TLS protocols that the client is allowed to use.</para>
+            <para>Gets or sets the SSL and TLS protocol versions that the client is allowed to use.</para>
+            <para>By default, MailKit initializes this value to support only TLS v1.0 and greater and
+            does not support any version of SSL due to those protocols no longer being considered
+            secure.</para>
             <para>This property should be set before calling any of the
             <a href="Overload_MailKit_MailService_Connect.htm">Connect</a> methods.</para>
             </remarks>
-            <value>The ssl protocols.</value>
+            <value>The SSL and TLS protocol versions that are supported.</value>
         </member>
         <member name="P:MailKit.MailService.ClientCertificates">
             <summary>

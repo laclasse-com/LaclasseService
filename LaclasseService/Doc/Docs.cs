@@ -28,6 +28,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -431,6 +432,7 @@ namespace Laclasse.Doc
 			{
 				var expand = c.Request.QueryString.ContainsKey("expand") ? bool.Parse(c.Request.QueryString["expand"]) : true;
 				var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
+				GenerateDefaultContent(fileDefinition);
 				Blob blob; string tempFile;
 				(blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
 
@@ -789,6 +791,33 @@ namespace Laclasse.Doc
 				Console.WriteLine($"ThumbnailPlugin fails {e.ToString()}");
 			}
 		}
+
+		void GenerateDefaultContent(FileDefinition<Node> fileDefinition)
+		{
+			if (fileDefinition.Define != null && fileDefinition.Define.mime != null && fileDefinition.Stream == null)
+            {
+				var mimetype = fileDefinition.Define.mime;
+                // handle default content for Word, Excel and PowerPoint files
+                if (mimetype == "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                {
+                    var assembly = Assembly.GetExecutingAssembly();
+                    string resourceName = assembly.GetManifestResourceNames().Single(str => str.EndsWith("sample.docx"));
+					fileDefinition.Stream = assembly.GetManifestResourceStream(resourceName);
+                }
+                else if (mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                {
+                    var assembly = Assembly.GetExecutingAssembly();
+                    string resourceName = assembly.GetManifestResourceNames().Single(str => str.EndsWith("sample.xlsx"));
+					fileDefinition.Stream = assembly.GetManifestResourceStream(resourceName);
+                }
+                else if (mimetype == "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                {
+                    var assembly = Assembly.GetExecutingAssembly();
+                    string resourceName = assembly.GetManifestResourceNames().Single(str => str.EndsWith("sample.pptx"));
+					fileDefinition.Stream = assembly.GetManifestResourceStream(resourceName);
+                }
+            }         
+		}      
 
 		async Task<Node> GetNodeAsync(DB db, int id, bool expand = true)
 		{

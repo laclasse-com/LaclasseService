@@ -292,9 +292,14 @@ namespace Laclasse.Directory
 
 			return new SqlFilter() { Inner = filter };
 		}
-              
+
 		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
+			// for performance check if super admin first
+			var authUser = await context.GetAuthenticatedUserAsync();
+			if (authUser.IsSuperAdmin)
+				return;
+
 			// get the expanded user if we dont already have it. expanded fields like profiles
 			// are needed to check rights
 			var expandUser = this;
@@ -311,7 +316,6 @@ namespace Laclasse.Directory
 			// password field only visible to the admin of the user
 			if (IsSet(nameof(password)))
 			{
-				var authUser = await context.GetAuthenticatedUserAsync();
 				if ((authUser == null) || !authUser.HasRightsOnUser(expandUser, false, false, true))
 					Fields.Remove(nameof(password));
 			}
@@ -392,7 +396,7 @@ namespace Laclasse.Directory
 
 				var reader = c.Request.ReadAsMultipart();
 				MultipartPart part;
-				while((part = await reader.ReadPartAsync()) != null)
+				while ((part = await reader.ReadPartAsync()) != null)
 				{
 					if (part.Headers.ContainsKey("content-disposition") && part.Headers.ContainsKey("content-type"))
 					{
@@ -417,7 +421,7 @@ namespace Laclasse.Directory
 							var name = StringExt.RandomString(16) + "_" + uid + ext;
 
 							// crop / resize / convert the image using ImageMagick
-							var startInfo = new ProcessStartInfo("/usr/bin/convert", "- -auto-orient -strip -set option:distort:viewport \"%[fx:min(w,h)]x%[fx:min(w,h)]+%[fx:max((w-h)/2,0)]+%[fx:max((h-w)/2,0)]\" -distort SRT 0 +repage -quality 80 -resize 256x256 "+format+":" + Path.Combine(dir.FullName, name));
+							var startInfo = new ProcessStartInfo("/usr/bin/convert", "- -auto-orient -strip -set option:distort:viewport \"%[fx:min(w,h)]x%[fx:min(w,h)]+%[fx:max((w-h)/2,0)]+%[fx:max((h-w)/2,0)]\" -distort SRT 0 +repage -quality 80 -resize 256x256 " + format + ":" + Path.Combine(dir.FullName, name));
 							startInfo.RedirectStandardOutput = false;
 							startInfo.RedirectStandardInput = true;
 							startInfo.UseShellExecute = false;
@@ -444,7 +448,7 @@ namespace Laclasse.Directory
 							if ((oldUser.avatar != null) && (oldUser.avatar != "empty"))
 							{
 								var oldFile = Path.Combine(avatarDir, uid[0].ToString(), uid[1].ToString(), uid[2].ToString(), Path.GetFileName(oldUser.avatar));
-								if(File.Exists(oldFile))
+								if (File.Exists(oldFile))
 									File.Delete(oldFile);
 							}
 						}
@@ -478,9 +482,9 @@ namespace Laclasse.Directory
 				}
 				else
 					avatarPath = "/api/avatar/user/" +
-                        uid.Substring(0, 1) + "/" + uid.Substring(1, 1) + "/" +
-                        uid.Substring(2, 1) + "/" + user.avatar;
-                
+						uid.Substring(0, 1) + "/" + uid.Substring(1, 1) + "/" +
+						uid.Substring(2, 1) + "/" + user.avatar;
+
 				c.Response.StatusCode = 302;
 				c.Response.Headers["location"] = avatarPath;
 			};
@@ -601,7 +605,7 @@ namespace Laclasse.Directory
 			int loginNumber = 1;
 			var finalLogin = login;
 
-			while(true)
+			while (true)
 			{
 				var item = (await db.SelectAsync("SELECT `login` FROM `user` WHERE `login`=?", finalLogin)).SingleOrDefault();
 				if (item == null)

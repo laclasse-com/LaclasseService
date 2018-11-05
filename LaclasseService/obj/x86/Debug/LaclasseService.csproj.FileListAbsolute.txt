@@ -21,6 +21,8 @@
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe
 /home/daniel/Programmation/laclassev4/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.pdb
 >>>>>>> develop
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csprojAssemblyReference.cache
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CoreCompileInputs.cache
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/LaclasseService.exe.config
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/LaclasseService.exe
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/LaclasseService.pdb
@@ -59,10 +61,8 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Numerics.Vectors.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Runtime.CompilerServices.Unsafe.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Threading.Tasks.Extensions.xml
-/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MimeKit.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MailKit.xml
-/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csprojAssemblyReference.cache
-/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CoreCompileInputs.cache
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MimeKit.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CopyComplete
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.pdb

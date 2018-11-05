@@ -27,7 +27,7 @@ html, body, .placeholder {
         <script>
 var config = {
     "document": {
-        "fileType": "docx",
+        "fileType": "<#= fileType #>",
         "key": "<#= node.id + "REV" + node.rev #>",
         "title": "<#= node.name #>",
         "url": "<#= downloadUrl #>",
@@ -39,7 +39,7 @@ var config = {
             "review": true
         },
     },
-    "documentType": "text",
+    "documentType": "<#= documentType #>",
     "editorConfig": {
         "callbackUrl": "<#= callbackUrl #>",
         "lang": "fr-FR",

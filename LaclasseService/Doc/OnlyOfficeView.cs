@@ -45,8 +45,19 @@ html, body, .placeholder {
         <script>
 var config = {
     ""document"": {
-        ""fileType"": ""docx"",
-        ""key"": """);
+        ""fileType"": """);
+            
+            #line default
+            #line hidden
+            
+            #line 30 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( fileType ));
+            
+            #line default
+            #line hidden
+            
+            #line 30 ""
+            this.Write("\",\n        \"key\": \"");
             
             #line default
             #line hidden
@@ -82,18 +93,21 @@ var config = {
             #line hidden
             
             #line 33 ""
-            this.Write(@""",
-        ""permissions"": {
-            ""comment"": false,
-            ""download"": true,
-            ""edit"": true,
-            ""print"": true,
-            ""review"": true
-        },
-    },
-    ""documentType"": ""text"",
-    ""editorConfig"": {
-        ""callbackUrl"": """);
+            this.Write("\",\n        \"permissions\": {\n            \"comment\": false,\n            \"download\":" +
+                    " true,\n            \"edit\": true,\n            \"print\": true,\n            \"review\"" +
+                    ": true\n        },\n    },\n    \"documentType\": \"");
+            
+            #line default
+            #line hidden
+            
+            #line 42 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( documentType ));
+            
+            #line default
+            #line hidden
+            
+            #line 42 ""
+            this.Write("\",\n    \"editorConfig\": {\n        \"callbackUrl\": \"");
             
             #line default
             #line hidden

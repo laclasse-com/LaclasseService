@@ -46,8 +46,40 @@ namespace Laclasse.Doc
 		Mobile
 	}
 
-	public partial class OnlyOfficeView
+	public enum OnlyOfficeFileType
+    {
+        // text
+        docx, // application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        doc,  // application/msword
+        epub, // application/epub+zip
+        odt,  // application/vnd.oasis.opendocument.text 
+        rtf,  // application/rtf
+        txt,  // text/plain
+        xps,  // application/vnd.ms-xpsdocument
+
+        // spreadsheet
+        xlsx, // application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+        xls,  // application/vnd.ms-excel
+        ods,  // application/vnd.oasis.opendocument.spreadsheet
+        csv,  // text/csv
+
+        // presentation
+        pptx, // application/vnd.openxmlformats-officedocument.presentationml.presentation
+        ppt,  // application/vnd.ms-powerpoint
+        odp   // application/vnd.oasis.opendocument.presentation
+    }
+
+    public enum OnlyOfficeDocumentType
+    {
+        text,
+        spreadsheet,
+        presentation
+    }
+
+    public partial class OnlyOfficeView
 	{
+        public OnlyOfficeDocumentType documentType = OnlyOfficeDocumentType.text;
+        public OnlyOfficeFileType fileType = OnlyOfficeFileType.docx;
 		public OnlyOfficeMode mode = OnlyOfficeMode.Desktop;
 		public Node node = null;
 		public Session session = null;
@@ -345,6 +377,10 @@ namespace Laclasse.Doc
 					if (c.Request.Headers.ContainsKey("user-agent") && Regex.IsMatch(c.Request.Headers["user-agent"], "(Android|iPhone|iPad)"))
 						mode = OnlyOfficeMode.Mobile;
 
+                    OnlyOfficeDocumentType documentType = OnlyOfficeDocumentType.text;
+					OnlyOfficeFileType fileType = OnlyOfficeFileType.docx;
+                    NodeToFileType(item, out documentType, out fileType);
+
 					await item.EnsureRightAsync(c, Laclasse.Right.Read, null);
 					var session = await c.GetSessionAsync();
 					var authUser = await c.GetAuthenticatedUserAsync();
@@ -353,6 +389,8 @@ namespace Laclasse.Doc
 					c.Response.Content = new OnlyOfficeView
 					{
 						mode = mode,
+                        documentType = documentType,
+                        fileType = fileType,
 						node = item,
 						session = session,
 						user = authUser.user,
@@ -792,7 +830,90 @@ namespace Laclasse.Doc
 			}
 		}
 
-		void GenerateDefaultContent(FileDefinition<Node> fileDefinition)
+        static void NodeToFileType(Node node, out OnlyOfficeDocumentType documentType, out OnlyOfficeFileType fileType)
+        {
+            var mime = node.mime;
+            documentType = OnlyOfficeDocumentType.text;
+            fileType = OnlyOfficeFileType.docx;
+
+            // text
+            if (mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            {
+                documentType = OnlyOfficeDocumentType.text;
+                fileType = OnlyOfficeFileType.docx;
+            }
+            else if (mime == "application/msword")
+            {
+                documentType = OnlyOfficeDocumentType.text;
+                fileType = OnlyOfficeFileType.doc;
+            }
+            else if (mime == "application/epub+zip")
+            {
+                documentType = OnlyOfficeDocumentType.text;
+                fileType = OnlyOfficeFileType.epub;
+            }
+            else if (mime == "application/vnd.oasis.opendocument.text")
+            {
+                documentType = OnlyOfficeDocumentType.text;
+                fileType = OnlyOfficeFileType.odt;
+            }
+            else if (mime == "application/rtf")
+            {
+                documentType = OnlyOfficeDocumentType.text;
+                fileType = OnlyOfficeFileType.rtf;
+            }
+            else if (mime == "text/plain")
+            {
+                documentType = OnlyOfficeDocumentType.text;
+                fileType = OnlyOfficeFileType.txt;
+            }
+            else if (mime == "application/vnd.ms-xpsdocument")
+            {
+                documentType = OnlyOfficeDocumentType.text;
+                fileType = OnlyOfficeFileType.xps;
+            }
+
+            // spreadsheet
+            else if (mime == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            {
+                documentType = OnlyOfficeDocumentType.spreadsheet;
+                fileType = OnlyOfficeFileType.xlsx;
+            }
+            else if (mime == "application/vnd.ms-excel")
+            {
+                documentType = OnlyOfficeDocumentType.spreadsheet;
+                fileType = OnlyOfficeFileType.xls;
+            }
+            else if (mime == "application/vnd.oasis.opendocument.spreadsheet")
+            {
+                documentType = OnlyOfficeDocumentType.spreadsheet;
+                fileType = OnlyOfficeFileType.ods;
+            }
+            else if (mime == "text/csv")
+            {
+                documentType = OnlyOfficeDocumentType.spreadsheet;
+                fileType = OnlyOfficeFileType.csv;
+            }
+
+            // presentation
+            else if (mime == "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+            {
+                documentType = OnlyOfficeDocumentType.presentation;
+                fileType = OnlyOfficeFileType.pptx;
+            }
+            else if (mime == "application/vnd.ms-powerpoint")
+            {
+                documentType = OnlyOfficeDocumentType.presentation;
+                fileType = OnlyOfficeFileType.ppt;
+            }
+            else if (mime == "application/vnd.oasis.opendocument.presentation")
+            {
+                documentType = OnlyOfficeDocumentType.presentation;
+                fileType = OnlyOfficeFileType.odp;
+            }
+        }
+
+        void GenerateDefaultContent(FileDefinition<Node> fileDefinition)
 		{
 			if (fileDefinition.Define != null && fileDefinition.Define.mime != null && fileDefinition.Stream == null)
             {

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -40,11 +41,11 @@ namespace Laclasse.Doc
         }
     }
 
-    public enum ItemRight
+    public struct ItemRight
     {
-        Owner,
-        Reader,
-        Writer
+        public bool Read;
+        public bool Write;
+        public bool Locked;
     }
 
     public class Item
@@ -89,9 +90,14 @@ namespace Laclasse.Doc
             }
         }
 
-        public virtual Task<ItemRight> RightsAsync()
+        public virtual async Task<ItemRight> RightsAsync()
         {
-            return Task.FromResult(ItemRight.Owner);
+            // rights are herited from the parent is any
+            var parent = await GetParentAsync();
+            ItemRight rights = new ItemRight { Read = true, Write = true, Locked = false };
+            if (parent != null)
+                rights = await parent.RightsAsync();
+            return rights;
         }
 
         public virtual void ProcessAdvancedRights()
@@ -102,10 +108,6 @@ namespace Laclasse.Doc
         public string SanitizeName()
         {
             return "";
-        }
-
-        public void Create()
-        {
         }
 
         public virtual Task ChangeAsync()
@@ -125,7 +127,10 @@ namespace Laclasse.Doc
         public virtual async Task<JsonObject> ToJsonAsync(bool expand)
         {
             var json = node.ToJson();
-            json["right"] = (await RightsAsync()).ToString();
+            var rights = await RightsAsync();
+            json["read"] = rights.Read;
+            json["write"] = rights.Write;
+            json["locked"] = rights.Locked;
             return json;
         }
 
@@ -136,7 +141,7 @@ namespace Laclasse.Doc
             return types["*"](context, node);
         }
 
-        public static async Task<Item> Create(Context context, FileDefinition<Node> fileDefinition)
+        public static async Task<Item> CreateAsync(Context context, FileDefinition<Node> fileDefinition)
         {
             Docs.GenerateDefaultContent(fileDefinition);
             Blob blob; string tempFile;
@@ -203,6 +208,7 @@ namespace Laclasse.Doc
             Register("ct", (context, node) => new CahierTexte(context, node));
             Register("etablissement", (context, node) => new Structure(context, node));
             Register("cartable", (context, node) => new Cartable(context, node));
+            Register("groupe_libre", (context, node) => new GroupeLibre(context, node));
             Register("directory", (context, node) => new Folder(context, node));
             Register("text/uri-list", (context, node) => new WebLink(context, node));
             Register("*", (context, node) => new Document(context, node));
@@ -225,7 +231,14 @@ namespace Laclasse.Doc
         public override async Task<JsonObject> ToJsonAsync(bool expand)
         {
             var json = await base.ToJsonAsync(expand);
-            json["DANIEL"] = "WEBLINK";
+            if (node.blob_id != null)
+            {
+                using (var stream = context.blobs.GetBlobStream(node.blob_id))
+                using (var streamReader = new StreamReader(stream))
+                {
+                    json["url"] = await streamReader.ReadLineAsync();
+                }
+            }
             return json;
         }
     }
@@ -254,12 +267,17 @@ namespace Laclasse.Doc
             return node.children.Select((child) => ByNode(context, child));
         }
 
+        public virtual Task<IEnumerable<Item>> GetFilteredChildrenAsync()
+        {
+            return GetChildrenAsync();
+        }
+
         public override async Task<JsonObject> ToJsonAsync(bool expand)
         {
             var json = await base.ToJsonAsync(expand);
             JsonArray children = new JsonArray();
             json["children"] = children;
-            foreach (var item in await GetChildrenAsync())
+            foreach (var item in await GetFilteredChildrenAsync())
                 children.Add(await item.ToJsonAsync(false));
             return json;
         }
@@ -271,11 +289,35 @@ namespace Laclasse.Doc
         {
         }
 
+        public override Task<ItemRight> RightsAsync()
+        {
+            var rights = new ItemRight { Read = false, Write = false, Locked = true };
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else if (context.user.IsUser && context.user.user.id == node.cartable_uid)
+                rights = new ItemRight { Read = true, Write = true, Locked = true };
+            return Task.FromResult(rights);
+        }
+
         public override async Task<JsonObject> ToJsonAsync(bool expand)
         {
             var json = await base.ToJsonAsync(expand);
             json["name"] = "Mon Cartable";
             return json;
+        }
+
+        public static async Task<Cartable> CreateAsync(Context context, string userId)
+        {
+            return await Item.CreateAsync(context, new FileDefinition<Node>
+            {
+                Define = new Node
+                {
+                    mime = "cartable",
+                    parent_id = null,
+                    name = userId,
+                    cartable_uid = userId
+                }
+            }) as Cartable;
         }
     }
 
@@ -300,6 +342,21 @@ namespace Laclasse.Doc
             return _structure;
         }
 
+        public override Task<ItemRight> RightsAsync()
+        {
+            var rights = new ItemRight { Read = false, Write = false, Locked = true };
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else if (context.user.IsUser)
+            {
+                if (context.user.user.profiles.Any((p) => p.structure_id == node.etablissement_uai))
+                    rights.Read = true;
+                if (context.user.user.profiles.Any((p) => p.structure_id == node.etablissement_uai && p.type != "TUT" && p.type != "ELV"))
+                    rights.Write = true;
+            }
+            return Task.FromResult(rights);
+        }
+
         public override async Task<JsonObject> ToJsonAsync(bool expand)
         {
             var json = await base.ToJsonAsync(expand);
@@ -307,6 +364,59 @@ namespace Laclasse.Doc
             if (structure != null)
                 json["name"] = structure.name;
             return json;
+        }
+
+        public override async Task<IEnumerable<Item>> GetChildrenAsync()
+        {
+            var children = await base.GetChildrenAsync();
+            // ensure the "classes" folder exists
+            if (!children.Any((c) => c is Classes))
+            {
+                var fileDefinition = new FileDefinition<Node>
+                {
+                    Define = new Node
+                    {
+                        mime = "classes",
+                        parent_id = node.id,
+                        name = "classes"
+                    }
+                };
+                var classesItem = await Item.CreateAsync(context, fileDefinition);
+                context.items[classesItem.node.id] = classesItem;
+                children.Append(classesItem);
+            }
+            // ensure the "groupes" folder exists
+            if (!children.Any((c) => c is Groupes))
+            {
+                var fileDefinition = new FileDefinition<Node>
+                {
+                    Define = new Node
+                    {
+                        mime = "groupes",
+                        parent_id = node.id,
+                        name = "groupes"
+                    }
+                };
+                var groupesItem = await Item.CreateAsync(context, fileDefinition);
+                context.items[groupesItem.node.id] = groupesItem;
+                children.Append(groupesItem);
+            }
+            return children;
+        }
+
+
+        public static async Task<Structure> CreateAsync(Context context, string structureId)
+        {
+            return await Item.CreateAsync(context, new FileDefinition<Node>
+            {
+                Define = new Node
+                {
+                    mime = "etablissement",
+                    parent_id = null,
+                    name = structureId,
+                    etablissement_uai = structureId
+                }
+            }) as Structure;
         }
     }
 
@@ -343,10 +453,11 @@ namespace Laclasse.Doc
                                 {
                                     mime = "classe",
                                     parent_id = node.id,
-                                    name = group.name
+                                    name = group.name,
+                                    classe_id = group.id
                                 }
                             };
-                            var groupItem = await Item.Create(context, fileDefinition);
+                            var groupItem = await Item.CreateAsync(context, fileDefinition);
                             context.items[groupItem.node.id] = groupItem;
                             children.Append(groupItem);
                         }
@@ -354,6 +465,43 @@ namespace Laclasse.Doc
                 }
             }
             return children;
+        }
+
+        public override async Task<IEnumerable<Item>> GetFilteredChildrenAsync()
+        {
+            var children = await GetChildrenAsync();
+            var root = await GetRootAsync();
+            if (root is Structure && !context.user.IsSuperAdmin)
+            {
+                var profiles = context.user.user.profiles.FindAll((p) => p.structure_id == root.node.etablissement_uai).Select((p) => p.type);
+                // admin see every thing
+                if (!profiles.Contains("DIR") && !profiles.Contains("ADM"))
+                {
+                    var structGroups = (await ((Structure)root).GetStructureAsync()).groups.Where((g) => g.type == Directory.GroupType.CLS);
+
+                    // users that are not TUT, ELV or ENS sees all existing groups
+                    if (profiles.Any((p) => p != "TUT" && p != "ELV" && p != "ENS"))
+                        children = children.Where((child) => structGroups.Any((g) => g.name == child.node.name));
+                    // TUT, ELV and ENS only sees their groups
+                    else
+                    {
+                        var userGroups = structGroups.Where((g) => context.user.user.groups.Any((ug) => ug.group_id == g.id) || context.user.user.children_groups.Any((ug) => ug.group_id == g.id));
+                        children = children.Where((child) => userGroups.Any((g) => g.name == child.node.name));
+                    }
+                }
+
+            }
+            return children;
+        }
+
+        public override async Task<ItemRight> RightsAsync()
+        {
+            var rights = await base.RightsAsync();
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else
+                rights.Locked = true;
+            return rights;
         }
     }
 
@@ -377,7 +525,7 @@ namespace Laclasse.Doc
                         name = "Cahier de textes.ct"
                     }
                 };
-                var ctItem = await Item.Create(context, fileDefinition);
+                var ctItem = await Item.CreateAsync(context, fileDefinition);
                 context.items[ctItem.node.id] = ctItem;
                 children.Append(ctItem);
             }
@@ -389,6 +537,84 @@ namespace Laclasse.Doc
     {
         public Groupes(Context context, Node node) : base(context, node)
         {
+        }
+
+        public override async Task<IEnumerable<Item>> GetChildrenAsync()
+        {
+            var children = await base.GetChildrenAsync();
+            var root = await GetRootAsync();
+            if (root is Structure)
+            {
+                var rootStructure = root as Structure;
+                var structure = await rootStructure.GetStructureAsync();
+                if (structure != null)
+                {
+                    // load structure's groups if needed
+                    if (!structure.Fields.ContainsKey(nameof(structure.groups)))
+                    {
+                        using (var db = await DB.CreateAsync(context.directoryDbUrl))
+                        {
+                            await structure.LoadExpandFieldAsync(db, nameof(structure.groups));
+                        }
+                        // check if all classes exists and create missing ones
+                        var newGroups = structure.groups.FindAll((group) => group.type == Directory.GroupType.GRP && !children.Any((child) => child.node.name == group.name));
+                        foreach (var group in newGroups)
+                        {
+                            var fileDefinition = new FileDefinition<Node>
+                            {
+                                Define = new Node
+                                {
+                                    mime = "groupe",
+                                    parent_id = node.id,
+                                    name = group.name,
+                                    groupe_id = group.id
+                                }
+                            };
+                            var groupItem = await Item.CreateAsync(context, fileDefinition);
+                            context.items[groupItem.node.id] = groupItem;
+                            children.Append(groupItem);
+                        }
+                    }
+                }
+            }
+            return children;
+        }
+
+        public override async Task<IEnumerable<Item>> GetFilteredChildrenAsync()
+        {
+            var children = await GetChildrenAsync();
+            var root = await GetRootAsync();
+            if (root is Structure && !context.user.IsSuperAdmin)
+            {
+                var profiles = context.user.user.profiles.FindAll((p) => p.structure_id == root.node.etablissement_uai).Select((p) => p.type);
+                // admin see every thing
+                if (!profiles.Contains("DIR") && !profiles.Contains("ADM"))
+                {
+                    var structGroups = (await ((Structure)root).GetStructureAsync()).groups.Where((g) => g.type == Directory.GroupType.GRP);
+
+                    // users that are not TUT, ELV or ENS sees all existing groups
+                    if (profiles.Any((p) => p != "TUT" && p != "ELV" && p != "ENS"))
+                        children = children.Where((child) => structGroups.Any((g) => g.name == child.node.name));
+                    // TUT, ELV and ENS only sees their groups
+                    else
+                    {
+                        var userGroups = structGroups.Where((g) => context.user.user.groups.Any((ug) => ug.group_id == g.id) || context.user.user.children_groups.Any((ug) => ug.group_id == g.id));
+                        children = children.Where((child) => userGroups.Any((g) => g.name == child.node.name));
+                    }
+                }
+
+            }
+            return children;
+        }
+
+        public override async Task<ItemRight> RightsAsync()
+        {
+            var rights = await base.RightsAsync();
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else
+                rights.Locked = true;
+            return rights;
         }
     }
 
@@ -405,4 +631,44 @@ namespace Laclasse.Doc
         {
         }
     }
+
+    public class GroupeLibre : Folder
+    {
+        public GroupeLibre(Context context, Node node) : base(context, node)
+        {
+        }
+
+        public override Task<ItemRight> RightsAsync()
+        {
+            ItemRight rights;
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else
+                rights = new ItemRight { Read = true, Locked = true, Write = context.user.user.groups.Any((g) => node.groupe_libre_id == g.group_id) };
+            return Task.FromResult(rights);
+        }
+
+        public static async Task<GroupeLibre> CreateAsync(Context context, int groupId, string groupName)
+        {
+            return await Item.CreateAsync(context, new FileDefinition<Node>
+            {
+                Define = new Node
+                {
+                    mime = "groupe_libre",
+                    parent_id = null,
+                    name = groupName,
+                    groupe_libre_id = groupId
+                }
+            }) as GroupeLibre;
+        }
+
+        public static async Task<GroupeLibre> GetOrCreateAsync(Context context, int groupId, string groupName)
+        {
+            var groupsNodes = await context.db.SelectAsync<Node>("SELECT * FROM `node` WHERE `groupe_libre_id`= ?", groupId);
+            if (groupsNodes.Count > 0)
+                return Item.ByNode(context, groupsNodes[0]) as GroupeLibre;
+            return await CreateAsync(context, groupId, groupName);
+        }
+    }
+
 }

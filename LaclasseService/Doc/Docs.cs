@@ -333,6 +333,22 @@ namespace Laclasse.Doc
 
             BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
+            GetAsync["/roots"] = async (p, c) =>
+            {
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var roots = await GetRootsAsync(context);
+                    var jsonArray = new JsonArray();
+                    foreach (var r in roots)
+                        jsonArray.Add(await r.ToJsonAsync(true));
+                    c.Response.Content = jsonArray;
+                    await db.CommitAsync();
+                }
+                c.Response.StatusCode = 200;
+            };
+
+
             GetAsync["/"] = async (p, c) =>
             {
                 bool expand = true;
@@ -968,6 +984,34 @@ namespace Laclasse.Doc
                 if (node.blob_id != null)
                     await blobs.DeleteBlobAsync(db, node.blob_id);
             }
+        }
+
+        async Task<IEnumerable<Item>> GetRootsAsync(Context context)
+        {
+            var roots = new List<Item>();
+            if (!context.user.IsUser)
+                return roots;
+            // ensure user has a "cartable"
+            var cartables = await context.db.SelectAsync<Node>("SELECT * FROM `node` WHERE `cartable_uid`=?", context.user.user.id);
+            if (cartables.Count == 0)
+                roots.Add(await Cartable.CreateAsync(context, context.user.user.id));
+            else
+                roots.Add(Item.ByNode(context, cartables[0]));
+            // ensure the structures exists
+            var structuresIds = context.user.user.profiles.Select((up) => up.structure_id).Distinct();
+            var exitsStructures = (await context.db.SelectAsync<Node>($"SELECT * FROM `node` WHERE {DB.InFilter("etablissement_uai", structuresIds)}"));
+            var exitsStructuresIds = exitsStructures.Select(s => s.etablissement_uai);
+            foreach (var structureId in structuresIds.Except(exitsStructuresIds))
+                roots.Add(await Structure.CreateAsync(context, structureId));
+            roots.AddRange(exitsStructures.Select((s) => Item.ByNode(context, s)));
+            // ensure the "groupe libre" exists
+            var allGplIds = context.user.user.groups.Select((g) => g.group_id).Concat(context.user.user.children_groups.Select((g) => g.group_id));
+            ModelList<Directory.Group> allGroups;
+            using (var db = await DB.CreateAsync(context.directoryDbUrl))
+                allGroups = await db.SelectAsync<Directory.Group>($"SELECT * FROM `group` WHERE {DB.InFilter("id", allGplIds)}");
+            foreach (var group in allGroups)
+                roots.Add(await GroupeLibre.GetOrCreateAsync(context, group.id, group.name));
+            return roots;
         }
 
         public void AddPlugin(IFilePlugin plugin)

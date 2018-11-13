@@ -36,252 +36,252 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "flux_portail", PrimaryKey = nameof(id))]
-	public class FluxPortail : Model
-	{
-		[ModelField]
-		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
-		[ModelField]
-		public int nb { get { return GetField(nameof(nb), 0); } set { SetField(nameof(nb), value); } }
-		[ModelField]
-		public string url { get { return GetField<string>(nameof(url), null); } set { SetField(nameof(url), value); } }
-		[ModelField]
-		public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
-		[ModelField(Required = true, ForeignModel = typeof(Structure))]
-		public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
-	}
+    [Model(Table = "flux_portail", PrimaryKey = nameof(id))]
+    public class FluxPortail : Model
+    {
+        [ModelField]
+        public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
+        [ModelField]
+        public int nb { get { return GetField(nameof(nb), 0); } set { SetField(nameof(nb), value); } }
+        [ModelField]
+        public string url { get { return GetField<string>(nameof(url), null); } set { SetField(nameof(url), value); } }
+        [ModelField]
+        public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
+        [ModelField(Required = true, ForeignModel = typeof(Structure))]
+        public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
+    }
 
-	public class PortailFlux : ModelService<FluxPortail>
-	{
-		public PortailFlux(string dbUrl) : base(dbUrl)
-		{
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
-		}
-	}
+    public class PortailFlux : ModelService<FluxPortail>
+    {
+        public PortailFlux(string dbUrl) : base(dbUrl)
+        {
+            // API only available to authenticated users
+            BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+        }
+    }
 
-	public class Rss : Model
-	{
-		[ModelField]
-		public string title { get { return GetField<string>(nameof(title), null); } set { SetField(nameof(title), value); } }
-		[ModelField]
-		public string content { get { return GetField<string>(nameof(content), null); } set { SetField(nameof(content), value); } }
-		[ModelField]
-		public DateTime pubDate { get { return GetField(nameof(pubDate), DateTime.Now); } set { SetField(nameof(pubDate), value); } }
-		[ModelField]
-		public string link { get { return GetField<string>(nameof(link), null); } set { SetField(nameof(link), value); } }
-		[ModelField]
-		public string image { get { return GetField<string>(nameof(image), null); } set { SetField(nameof(image), value); } }
-	}
+    public class Rss : Model
+    {
+        [ModelField]
+        public string title { get { return GetField<string>(nameof(title), null); } set { SetField(nameof(title), value); } }
+        [ModelField]
+        public string content { get { return GetField<string>(nameof(content), null); } set { SetField(nameof(content), value); } }
+        [ModelField]
+        public DateTime pubDate { get { return GetField(nameof(pubDate), DateTime.Now); } set { SetField(nameof(pubDate), value); } }
+        [ModelField]
+        public string link { get { return GetField<string>(nameof(link), null); } set { SetField(nameof(link), value); } }
+        [ModelField]
+        public string image { get { return GetField<string>(nameof(image), null); } set { SetField(nameof(image), value); } }
+    }
 
 
-	public class StructureRss : HttpRouting
-	{ 
-		public StructureRss(string dbUrl)
-		{
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+    public class StructureRss : HttpRouting
+    {
+        public StructureRss(string dbUrl)
+        {
+            // API only available to authenticated users
+            BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
-			GetAsync["/{uai}/rss"] = async (p, c) =>
-			{
-				var structure = new Structure { id = (string)p["uai"] };
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					if (await structure.LoadAsync(db))
-					{
-						await structure.LoadExpandFieldAsync(db, nameof(structure.flux));
+            GetAsync["/{uai}/rss"] = async (p, c) =>
+            {
+                var structure = new Structure { id = (string)p["uai"] };
+                using (DB db = await DB.CreateAsync(dbUrl))
+                {
+                    if (await structure.LoadAsync(db))
+                    {
+                        await structure.LoadExpandFieldAsync(db, nameof(structure.flux));
 
-						var infos = new ModelList<Rss>();
+                        var infos = new ModelList<Rss>();
 
-						// parallel loading
-						await Task.WhenAll(structure.flux.Select((flux) => Task.Run(() =>
-						{
-							try
-							{
-								var settings = new XmlReaderSettings();
-								settings.IgnoreComments = true;
-								settings.DtdProcessing = DtdProcessing.Ignore;
+                        // parallel loading
+                        await Task.WhenAll(structure.flux.Select((flux) => Task.Run(() =>
+                        {
+                            try
+                            {
+                                var settings = new XmlReaderSettings();
+                                settings.IgnoreComments = true;
+                                settings.DtdProcessing = DtdProcessing.Ignore;
+                                var uri = new Uri(flux.url);
+                                using (var client = HttpClient.Create(uri))
+                                {
+                                    var clientRequest = new HttpClientRequest();
+                                    clientRequest.Method = "GET";
+                                    clientRequest.Path = uri.PathAndQuery;
+                                    client.SendRequest(clientRequest);
 
-								var uri = new Uri(flux.url);
-								using (var client = HttpClient.Create(uri))
-								{
-									var clientRequest = new HttpClientRequest();
-									clientRequest.Method = "GET";
-									clientRequest.Path = uri.PathAndQuery;
-									client.SendRequest(clientRequest);
+                                    var response = client.GetResponse();
 
-									var response = client.GetResponse();
+                                    var doc = XDocument.Load(response.InputStream);
+                                    XElement root = doc.Root;
+                                    XNamespace ns = doc.Root.Name.Namespace;
+                                    var contentns = "http://purl.org/rss/1.0/modules/content/";
+                                    var dcns = "http://purl.org/dc/elements/1.1/";
 
-									var doc = XDocument.Load(response.InputStream);
-									XElement root = doc.Root;
-									XNamespace ns = doc.Root.Name.Namespace;
-									var contentns = "http://purl.org/rss/1.0/modules/content/";
+                                    // RSS 2.0
+                                    if (root.Name.LocalName == "rss")
+                                    {
+                                        foreach (XElement item in root.Element("channel").Elements("item"))
+                                        {
+                                            var rss = new Rss();
+                                            var title = item.Element("title");
+                                            if (title != null)
+                                                rss.title = title.Value;
+                                            var content = item.Element("description");
+                                            if (content != null)
+                                                rss.content = content.Value;
+                                            var link = item.Element("link");
+                                            if (link != null)
+                                                rss.link = link.Value;
+                                            var date = item.Element("pubDate");
+                                            if (date == null)
+                                                date = item.Element(XName.Get("date", dcns));
+                                            if (date != null)
+                                                rss.pubDate = DateTime.Parse(date.Value);
+                                            var encoded = item.Element(XName.Get("encoded", contentns));
+                                            if (encoded != null)
+                                            {
+                                                var imageUrl = GetImageFromHtml(encoded.Value);
+                                                if (imageUrl != null)
+                                                    rss.image = imageUrl;
+                                            }
 
-									// RSS 2.0
-									if (root.Name.LocalName == "rss")
-									{
-										foreach (XElement item in root.Element("channel").Elements("item"))
-										{
-											var rss = new Rss();
-											var title = item.Element("title");
-											if (title != null)
-												rss.title = title.Value;
-											var content = item.Element("description");
-											if (content != null)
-												rss.content = content.Value;
-											var link = item.Element("link");
-											if (link != null)
-												rss.link = link.Value;
-											var date = item.Element("pubDate");
-											if (date != null)
-												rss.pubDate = DateTime.Parse(date.Value);
-											var encoded = item.Element(XName.Get("encoded", contentns));
-											if (encoded != null)
-											{
-												var imageUrl = GetImageFromHtml(encoded.Value);
-												if (imageUrl != null)
-													rss.image = imageUrl;
-											}
+                                            lock (infos)
+                                                infos.Add(rss);
+                                        }
+                                    }
+                                    // ATOM
+                                    else if (root.Name.LocalName == "feed")
+                                    {
+                                        var atomns = "http://www.w3.org/2005/Atom";
+                                        foreach (XElement item in root.Elements(XName.Get("entry", atomns)))
+                                        {
+                                            var rss = new Rss();
+                                            var title = item.Element(XName.Get("title", atomns));
+                                            if (title != null)
+                                                rss.title = title.Value;
+                                            var summary = item.Element(XName.Get("summary", atomns));
+                                            if (summary != null)
+                                                rss.content = summary.Value;
+                                            var content = item.Element(XName.Get("content", atomns));
+                                            if (content != null)
+                                            {
+                                                var type = "text";
+                                                if (content.Attribute("type") != null)
+                                                    type = content.Attribute("type").Value;
+                                                var textContent = content.Value;
+                                                if (type == "html")
+                                                {
+                                                    textContent = GetTextFromHtml(content.Value);
+                                                    var imageUrl = GetImageFromHtml(content.Value);
+                                                    if (imageUrl != null)
+                                                        rss.image = imageUrl;
+                                                }
+                                                if (rss.content == null)
+                                                    rss.content = textContent;
+                                            }
+                                            var link = item.Element(XName.Get("link", atomns));
+                                            if (link != null)
+                                                rss.link = link.Attribute("href").Value;
+                                            var updated = item.Element(XName.Get("updated", atomns));
+                                            if (updated != null)
+                                                rss.pubDate = DateTime.Parse(updated.Value);
 
-											lock (infos)
-												infos.Add(rss);
-										}
-									}
-									// ATOM
-									else if (root.Name.LocalName == "feed")
-									{
-										Console.WriteLine("ATOM FORMAT");
-										var atomns = "http://www.w3.org/2005/Atom";
-										foreach (XElement item in root.Elements(XName.Get("entry", atomns)))
-										{
-											var rss = new Rss();
-											var title = item.Element(XName.Get("title", atomns));
-											if (title != null)
-												rss.title = title.Value;
-											var summary = item.Element(XName.Get("summary", atomns));
-											if (summary != null)
-												rss.content = summary.Value;
-											var content = item.Element(XName.Get("content", atomns));
-											if (content != null)
-											{
-												var type = "text";
-												if (content.Attribute("type") != null)
-													type = content.Attribute("type").Value;
-												var textContent = content.Value;
-												if (type == "html")
-												{
-													textContent = GetTextFromHtml(content.Value);
-													var imageUrl = GetImageFromHtml(content.Value);
-													if (imageUrl != null)
-														rss.image = imageUrl;
-												}
-												if (rss.content == null)
-													rss.content = textContent;
-											}
-											var link = item.Element(XName.Get("link", atomns));
-											if (link != null)
-												rss.link = link.Attribute("href").Value;
-											var updated = item.Element(XName.Get("updated", atomns));
-											if (updated != null)
-												rss.pubDate = DateTime.Parse(updated.Value);
+                                            lock (infos)
+                                                infos.Add(rss);
+                                        }
+                                    }
+                                    // RSS 1.0
+                                    else if (root.Name.LocalName == "RDF")
+                                    {
+                                        var rss10ns = "http://purl.org/rss/1.0/";
 
-											lock (infos)
-												infos.Add(rss);
-										}
-									}
-									// RSS 1.0
-									else if (root.Name.LocalName == "RDF")
-									{
-										var rss10ns = "http://purl.org/rss/1.0/";
-										var dcns = "http://purl.org/dc/elements/1.1/";
+                                        foreach (XElement item in root.Elements(XName.Get("item", rss10ns)))
+                                        {
+                                            var rss = new Rss();
+                                            var title = item.Element(XName.Get("title", rss10ns));
+                                            if (title != null)
+                                                rss.title = title.Value;
+                                            var content = item.Element(XName.Get("description", rss10ns));
+                                            if (content != null)
+                                                rss.content = content.Value;
+                                            var link = item.Element(XName.Get("link", rss10ns));
+                                            if (link != null)
+                                                rss.link = link.Value;
+                                            var date = item.Element(XName.Get("date", dcns));
+                                            if (date != null)
+                                                rss.pubDate = DateTime.Parse(date.Value);
+                                            var encoded = item.Element(XName.Get("encoded", contentns));
+                                            if (encoded != null)
+                                            {
+                                                var imageUrl = GetImageFromHtml(encoded.Value);
+                                                if (imageUrl != null)
+                                                    rss.image = imageUrl;
+                                            }
+                                            lock (infos)
+                                                infos.Add(rss);
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception)
+                            {
+                                Console.WriteLine($"ERROR: invalid RSS feed '{flux.url}'");
+                            }
+                        })));
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = infos.Filter(c);
+                    }
+                }
+            };
+        }
 
-										foreach (XElement item in root.Elements(XName.Get("item", rss10ns)))
-										{
-											var rss = new Rss();
-											var title = item.Element(XName.Get("title", rss10ns));
-											if (title != null)
-												rss.title = title.Value;
-											var content = item.Element(XName.Get("description", rss10ns));
-											if (content != null)
-												rss.content = content.Value;
-											var link = item.Element(XName.Get("link", rss10ns));
-											if (link != null)
-												rss.link = link.Value;
-											var date = item.Element(XName.Get("date", dcns));
-											if (date != null)
-												rss.pubDate = DateTime.Parse(date.Value);
-											var encoded = item.Element(XName.Get("encoded", contentns));
-											if (encoded != null)
-											{
-												var imageUrl = GetImageFromHtml(encoded.Value);
-												if (imageUrl != null)
-													rss.image = imageUrl;
-											}
-											lock (infos)
-												infos.Add(rss);
-										}
-									}
-								}
-							}
-							catch (Exception)
-							{
-								Console.WriteLine($"ERROR: invalid RSS feed '{flux.url}'");
-							}
-						})));
-						c.Response.StatusCode = 200;
-						c.Response.Content = infos.Filter(c);
-					}
-				}
-			};
-		}
+        static string GetTextFromHtml(string html)
+        {
+            // load the document using sgml reader
+            var document = new XmlDocument();
+            using (var sgmlReader = new Sgml.SgmlReader())
+            {
+                sgmlReader.CaseFolding = Sgml.CaseFolding.ToLower;
+                sgmlReader.DocType = "HTML";
+                sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
 
-		static string GetTextFromHtml(string html)
-		{
-			// load the document using sgml reader
-			var document = new XmlDocument();
-			using (var sgmlReader = new Sgml.SgmlReader())
-			{
-				sgmlReader.CaseFolding = Sgml.CaseFolding.ToLower;
-				sgmlReader.DocType = "HTML";
-				sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
+                using (var sr = new StringReader(html))
+                {
+                    sgmlReader.InputStream = sr;
+                    document.Load(sgmlReader);
+                }
+            }
+            return document.InnerText;
+        }
 
-				using (var sr = new StringReader(html))
-				{
-					sgmlReader.InputStream = sr;
-					document.Load(sgmlReader);
-				}
-			}
-			return document.InnerText;
-		}
+        static string GetImageFromHtml(string html)
+        {
+            // load the document using sgml reader
+            var document = new XmlDocument();
+            using (var sgmlReader = new Sgml.SgmlReader())
+            {
+                sgmlReader.CaseFolding = Sgml.CaseFolding.ToLower;
+                sgmlReader.DocType = "HTML";
+                sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
 
-		static string GetImageFromHtml(string html)
-		{
-			// load the document using sgml reader
-			var document = new XmlDocument();
-			using (var sgmlReader = new Sgml.SgmlReader())
-			{
-				sgmlReader.CaseFolding = Sgml.CaseFolding.ToLower;
-				sgmlReader.DocType = "HTML";
-				sgmlReader.WhitespaceHandling = WhitespaceHandling.None;
+                using (var sr = new StringReader(html))
+                {
+                    sgmlReader.InputStream = sr;
+                    document.Load(sgmlReader);
+                }
+            }
 
-				using (var sr = new StringReader(html))
-				{
-					sgmlReader.InputStream = sr;
-					document.Load(sgmlReader);
-				}
-			}
-
-			string imageUrl = null;
-			var images = document.GetElementsByTagName("img");
-			foreach (XmlNode image in images)
-			{
-				if (image.Attributes["src"] != null)
-				{
-					imageUrl = image.Attributes["src"].Value;
-					break;
-				}
-			}
-			return imageUrl;
-		}
-	}
+            string imageUrl = null;
+            var images = document.GetElementsByTagName("img");
+            foreach (XmlNode image in images)
+            {
+                if (image.Attributes["src"] != null)
+                {
+                    imageUrl = image.Attributes["src"].Value;
+                    break;
+                }
+            }
+            return imageUrl;
+        }
+    }
 }

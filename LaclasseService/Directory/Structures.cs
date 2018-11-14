@@ -36,121 +36,123 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	[Model(Table = "structure", PrimaryKey = nameof(id))]
-	public class Structure : Model
-	{
-		// should be "^[0-9]{7,7}[A-Z]$"
+    [Model(Table = "structure", PrimaryKey = nameof(id))]
+    public class Structure : Model
+    {
+        // should be "^[0-9]{7,7}[A-Z]$"
 
-		[ModelField(Required = true, RegexMatch = "^[0-9A-Z]+$")]
-		public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
-		[ModelField]
-		public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
-		[ModelField]
-		public string siren { get { return GetField<string>(nameof(siren), null); } set { SetField(nameof(siren), value); } }
-		[ModelField]
-		public string address { get { return GetField<string>(nameof(address), null); } set { SetField(nameof(address), value); } }
-		[ModelField]
-		public string zip_code { get { return GetField<string>(nameof(zip_code), null); } set { SetField(nameof(zip_code), value); } }
-		[ModelField]
-		public string city { get { return GetField<string>(nameof(city), null); } set { SetField(nameof(city), value); } }
-		[ModelField]
-		public string phone { get { return GetField<string>(nameof(phone), null); } set { SetField(nameof(phone), value); } }
-		[ModelField]
-		public string fax { get { return GetField<string>(nameof(fax), null); } set { SetField(nameof(fax), value); } }
-		[ModelField]
-		public double? longitude { get { return GetField<double?>(nameof(longitude), null); } set { SetField(nameof(longitude), value); } }
-		[ModelField]
-		public double? latitude { get { return GetField<double?>(nameof(latitude), null); } set { SetField(nameof(latitude), value); } }
-		[ModelField]
-		public DateTime? aaf_mtime { get { return GetField<DateTime?>(nameof(aaf_mtime), null); } set { SetField(nameof(aaf_mtime), value); } }
-		[ModelField]
-		public string domain { get { return GetField<string>(nameof(domain), null); } set { SetField(nameof(domain), value); } }
-		[ModelField]
-		public string public_ip { get { return GetField<string>(nameof(public_ip), null); } set { SetField(nameof(public_ip), value); } }
-		[ModelField(Required = true)]
-		public int type { get { return GetField(nameof(type), 0); } set { SetField(nameof(type), value); } }
-		[ModelField]
-		public bool aaf_sync_activated { get { return GetField(nameof(aaf_sync_activated), false); } set { SetField(nameof(aaf_sync_activated), value); } }
-		[ModelField]
-		public string private_ip { get { return GetField<string>(nameof(private_ip), null); } set { SetField(nameof(private_ip), value); } }
-		[ModelField]
-		public string educnat_marking_id { get { return GetField<string>(nameof(educnat_marking_id), null); } set { SetField(nameof(educnat_marking_id), value); } }
-		[ModelField]
-		public int? aaf_jointure_id { get { return GetField<int?>(nameof(aaf_jointure_id), null); } set { SetField(nameof(aaf_jointure_id), value); } }
+        [ModelField(Required = true, RegexMatch = "^[0-9A-Z]+$")]
+        public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
+        [ModelField]
+        public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
+        [ModelField]
+        public string siren { get { return GetField<string>(nameof(siren), null); } set { SetField(nameof(siren), value); } }
+        [ModelField]
+        public string address { get { return GetField<string>(nameof(address), null); } set { SetField(nameof(address), value); } }
+        [ModelField]
+        public string zip_code { get { return GetField<string>(nameof(zip_code), null); } set { SetField(nameof(zip_code), value); } }
+        [ModelField]
+        public string city { get { return GetField<string>(nameof(city), null); } set { SetField(nameof(city), value); } }
+        [ModelField]
+        public string phone { get { return GetField<string>(nameof(phone), null); } set { SetField(nameof(phone), value); } }
+        [ModelField]
+        public string fax { get { return GetField<string>(nameof(fax), null); } set { SetField(nameof(fax), value); } }
+        [ModelField]
+        public double? longitude { get { return GetField<double?>(nameof(longitude), null); } set { SetField(nameof(longitude), value); } }
+        [ModelField]
+        public double? latitude { get { return GetField<double?>(nameof(latitude), null); } set { SetField(nameof(latitude), value); } }
+        [ModelField]
+        public DateTime? aaf_mtime { get { return GetField<DateTime?>(nameof(aaf_mtime), null); } set { SetField(nameof(aaf_mtime), value); } }
+        [ModelField]
+        public string domain { get { return GetField<string>(nameof(domain), null); } set { SetField(nameof(domain), value); } }
+        [ModelField]
+        public string public_ip { get { return GetField<string>(nameof(public_ip), null); } set { SetField(nameof(public_ip), value); } }
+        [ModelField(Required = true)]
+        public int type { get { return GetField(nameof(type), 0); } set { SetField(nameof(type), value); } }
+        [ModelField]
+        public bool aaf_sync_activated { get { return GetField(nameof(aaf_sync_activated), false); } set { SetField(nameof(aaf_sync_activated), value); } }
+        [ModelField]
+        public string private_ip { get { return GetField<string>(nameof(private_ip), null); } set { SetField(nameof(private_ip), value); } }
+        [ModelField]
+        public string educnat_marking_id { get { return GetField<string>(nameof(educnat_marking_id), null); } set { SetField(nameof(educnat_marking_id), value); } }
+        [ModelField]
+        public int? aaf_jointure_id { get { return GetField<int?>(nameof(aaf_jointure_id), null); } set { SetField(nameof(aaf_jointure_id), value); } }
+        [ModelField]
+        public string email { get { return GetField<string>(nameof(email), null); } set { SetField(nameof(email), value); } }
 
-		[ModelExpandField(Name = nameof(groups), ForeignModel = typeof(Group))]
-		public ModelList<Group> groups { get { return GetField<ModelList<Group>>(nameof(groups), null); } set { SetField(nameof(groups), value); } }
+        [ModelExpandField(Name = nameof(groups), ForeignModel = typeof(Group))]
+        public ModelList<Group> groups { get { return GetField<ModelList<Group>>(nameof(groups), null); } set { SetField(nameof(groups), value); } }
 
-		public async Task<ModelList<Group>> GetGroupsAsync(DB db)
-		{
-			await LoadExpandFieldAsync(db, nameof(groups));
-			return groups;
-		}
+        public async Task<ModelList<Group>> GetGroupsAsync(DB db)
+        {
+            await LoadExpandFieldAsync(db, nameof(groups));
+            return groups;
+        }
 
-		[ModelExpandField(Name = nameof(resources), ForeignModel = typeof(StructureResource))]
-		public ModelList<StructureResource> resources { get { return GetField<ModelList<StructureResource>>(nameof(resources), null); } set { SetField(nameof(resources), value); } }
+        [ModelExpandField(Name = nameof(resources), ForeignModel = typeof(StructureResource))]
+        public ModelList<StructureResource> resources { get { return GetField<ModelList<StructureResource>>(nameof(resources), null); } set { SetField(nameof(resources), value); } }
 
-		[ModelExpandField(Name = nameof(profiles), ForeignModel = typeof(UserProfile))]
-		public ModelList<UserProfile> profiles { get { return GetField<ModelList<UserProfile>>(nameof(profiles), null); } set { SetField(nameof(profiles), value); } }
+        [ModelExpandField(Name = nameof(profiles), ForeignModel = typeof(UserProfile))]
+        public ModelList<UserProfile> profiles { get { return GetField<ModelList<UserProfile>>(nameof(profiles), null); } set { SetField(nameof(profiles), value); } }
 
-		[ModelExpandField(Name = nameof(tiles), ForeignModel = typeof(Tile), Visible = false)]
-		public ModelList<Tile> tiles { get { return GetField<ModelList<Tile>>(nameof(tiles), null); } set { SetField(nameof(tiles), value); } }
+        [ModelExpandField(Name = nameof(tiles), ForeignModel = typeof(Tile), Visible = false)]
+        public ModelList<Tile> tiles { get { return GetField<ModelList<Tile>>(nameof(tiles), null); } set { SetField(nameof(tiles), value); } }
 
-		[ModelExpandField(Name = nameof(flux), ForeignModel = typeof(FluxPortail), Visible = false)]
-		public ModelList<FluxPortail> flux { get { return GetField<ModelList<FluxPortail>>(nameof(flux), null); } set { SetField(nameof(flux), value); } }
+        [ModelExpandField(Name = nameof(flux), ForeignModel = typeof(FluxPortail), Visible = false)]
+        public ModelList<FluxPortail> flux { get { return GetField<ModelList<FluxPortail>>(nameof(flux), null); } set { SetField(nameof(flux), value); } }
 
-        public override SqlFilter FilterAuthUser (AuthenticatedUser user)
+        public override SqlFilter FilterAuthUser(AuthenticatedUser user)
         {
             if (user.IsSuperAdmin || user.IsApplication)
                 return new SqlFilter();
 
-			// read right on all structures for all user
+            // read right on all structures for all user
             // that are not just only ELV (student) or TUT (parent)
-			if (user.user.profiles.Exists((p) => (p.type != "ELV") && (p.type != "TUT")))
-				return new SqlFilter();
+            if (user.user.profiles.Exists((p) => (p.type != "ELV") && (p.type != "TUT")))
+                return new SqlFilter();
 
-            var structuresIds = user.user.profiles.Select ((arg) => arg.structure_id).Distinct ();
-			return new SqlFilter() { Where = DB.InFilter("id", structuresIds) };
+            var structuresIds = user.user.profiles.Select((arg) => arg.structure_id).Distinct();
+            return new SqlFilter() { Where = DB.InFilter("id", structuresIds) };
         }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
-		{
-			if (right == Right.Create)
-				await context.EnsureIsSuperAdminAsync();
-			else
-				await context.EnsureHasRightsOnStructureAsync(
-					this, true, (right == Right.Update), (right == Right.Delete));
-		}
-	}
+        public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
+        {
+            if (right == Right.Create)
+                await context.EnsureIsSuperAdminAsync();
+            else
+                await context.EnsureHasRightsOnStructureAsync(
+                    this, true, (right == Right.Update), (right == Right.Delete));
+        }
+    }
 
-	public class Structures : ModelService<Structure>
-	{
-		public Structures(string dbUrl, string storageDir) : base(dbUrl)
-		{
-			var structureDir = Path.Combine(storageDir, "structure");
+    public class Structures : ModelService<Structure>
+    {
+        public Structures(string dbUrl, string storageDir) : base(dbUrl)
+        {
+            var structureDir = Path.Combine(storageDir, "structure");
 
-			if (!Dir.Exists(structureDir))
-				Dir.CreateDirectory(structureDir);
+            if (!Dir.Exists(structureDir))
+                Dir.CreateDirectory(structureDir);
 
-			GetAsync["/{id}/subjects"] = async (p, c) =>
-			{
-				c.Response.StatusCode = 200;
-				using (DB db = await DB.CreateAsync(dbUrl))
-					c.Response.Content = await db.SelectAsync<Grade>("SELECT * FROM subject WHERE id IN (SELECT `subject_id` FROM `group_user` WHERE `group_id` IN (SELECT id FROM `group` WHERE `structure_id`=?))", (string)p["id"]);
-			};
-
-			GetAsync["/{id}/image"] = async (p, c) =>
+            GetAsync["/{id}/subjects"] = async (p, c) =>
             {
-				var id = (string)p["id"];
+                c.Response.StatusCode = 200;
+                using (DB db = await DB.CreateAsync(dbUrl))
+                    c.Response.Content = await db.SelectAsync<Grade>("SELECT * FROM subject WHERE id IN (SELECT `subject_id` FROM `group_user` WHERE `group_id` IN (SELECT id FROM `group` WHERE `structure_id`=?))", (string)p["id"]);
+            };
 
-				var oldStructure = new Structure { id = id };
+            GetAsync["/{id}/image"] = async (p, c) =>
+            {
+                var id = (string)p["id"];
+
+                var oldStructure = new Structure { id = id };
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-					if (!await oldStructure.LoadAsync(db, true))
-						oldStructure = null;
+                    if (!await oldStructure.LoadAsync(db, true))
+                        oldStructure = null;
                 }
 
-				if (oldStructure == null)
+                if (oldStructure == null)
                     return;
 
                 var fullPath = Path.Combine(structureDir, $"{id}.jpg");
@@ -174,27 +176,27 @@ namespace Laclasse.Directory
                         c.Response.StatusCode = 200;
                         c.Response.SupportRanges = true;
                         c.Response.Content = new FileContent(fullPath);
-                    }               
+                    }
                 }
             };
 
             DeleteAsync["/{id}/image"] = async (p, c) =>
             {
-				var id = (string)p["id"];
+                var id = (string)p["id"];
 
-				var oldStructure = new Structure { id = id };
+                var oldStructure = new Structure { id = id };
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-					if (!await oldStructure.LoadAsync(db, true))
-						oldStructure = null;
+                    if (!await oldStructure.LoadAsync(db, true))
+                        oldStructure = null;
                 }
 
-				if (oldStructure == null)
+                if (oldStructure == null)
                     return;
 
-				await c.EnsureHasRightsOnStructureAsync(oldStructure, false, false, true);
-                
-				var fullPath = Path.Combine(structureDir, $"{id}.jpg");
+                await c.EnsureHasRightsOnStructureAsync(oldStructure, false, false, true);
+
+                var fullPath = Path.Combine(structureDir, $"{id}.jpg");
 
                 if (File.Exists(fullPath))
                 {
@@ -208,17 +210,17 @@ namespace Laclasse.Directory
             {
                 var id = (string)p["id"];
 
-				var oldStructure = new Structure { id = id };
+                var oldStructure = new Structure { id = id };
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-					if (!await oldStructure.LoadAsync(db, true))
-						oldStructure = null;
+                    if (!await oldStructure.LoadAsync(db, true))
+                        oldStructure = null;
                 }
 
-				if (oldStructure == null)
+                if (oldStructure == null)
                     return;
 
-				await c.EnsureHasRightsOnStructureAsync(oldStructure, false, false, true);
+                await c.EnsureHasRightsOnStructureAsync(oldStructure, false, false, true);
 
                 var reader = c.Request.ReadAsMultipart();
                 MultipartPart part;
@@ -258,6 +260,6 @@ namespace Laclasse.Directory
                     }
                 }
             };
-		}
-	}
+        }
+    }
 }

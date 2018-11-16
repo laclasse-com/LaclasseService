@@ -172,6 +172,7 @@
       <DependentUpon>OnlyOfficeView.tt</DependentUpon>
     </Compile>
     <Compile Include="Doc\Item.cs" />
+    <Compile Include="BonApp\BonApp.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -199,6 +200,7 @@
     <Folder Include="Doc\" />
     <Folder Include="Sms\" />
     <Folder Include="Storage\" />
+    <Folder Include="BonApp\" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Doc\sample.docx" />

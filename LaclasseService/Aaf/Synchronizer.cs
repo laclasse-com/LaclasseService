@@ -119,7 +119,7 @@ namespace Laclasse.Aaf
             "ENTAuxEnsClassesPrincipal", "ENTAuxEnsClassesMatieres", "ENTAuxEnsGroupesMatieres", "ENTPersonFonctions",
             "ENTEleveClasses", "ENTEleveGroupes", "ENTEleveCodeEnseignements",
             "ENTEleveEnseignements", "ENTPersonAutresPrenoms", "ENTElevePersRelEleve",
-            "mobile", "mail"
+            "mobile", "mail", "ENTEleveAutoriteParentale", "ENTPersonClasses", "ENTPersonGroupes"
         };
 
         ModelList<Structure> aafStructures;
@@ -223,12 +223,12 @@ namespace Laclasse.Aaf
                 foreach (var file in zipDir.EnumerateFiles("*.zip"))
                 {
                     var syncFile = new SyncFile(zipFilesFolder) { id = file.Name, size = file.Length };
-                    var matches = System.Text.RegularExpressions.Regex.Match(file.Name, "ENT2DVA\\.(20\\d\\d)(\\d\\d)(\\d\\d).*\\.zip");
+                    var matches = System.Text.RegularExpressions.Regex.Match(file.Name, "ENT[12]D(VA)?\\.(20\\d\\d)(\\d\\d)(\\d\\d).*\\.zip");
                     if (matches.Success)
                         syncFile.date = new DateTime(
-                            Convert.ToInt32(matches.Groups[1].Value),
                             Convert.ToInt32(matches.Groups[2].Value),
-                            Convert.ToInt32(matches.Groups[3].Value));
+                            Convert.ToInt32(matches.Groups[3].Value),
+                            Convert.ToInt32(matches.Groups[4].Value));
                     if (System.Text.RegularExpressions.Regex.IsMatch(file.Name, "Delta"))
                         syncFile.format = SyncFileFormat.Delta;
                     else
@@ -474,6 +474,11 @@ namespace Laclasse.Aaf
 
             if (structure)
             {
+                // if eleve is also needed load them before sync because
+                // the eleve contains the groups in the ENT1DVA file format
+                if (eleve)
+                    await LoadAafEleveAsync(db);
+
                 diff.structures = new StructuresDiff();
                 diff.structures.stats = new SyncStat();
 
@@ -487,29 +492,37 @@ namespace Laclasse.Aaf
                     (src, dst) =>
                 {
                     var itemDiff = src.DiffWithId(dst);
-                    var groupsDiff = Model.Diff(
-                        src.groups.FindAll((obj) => obj.aaf_name != null), dst.groups,
-                        (s, d) => s.type == d.type && s.aaf_name == d.aaf_name,
-                        (s2, d2) =>
+                    if (dst.groups != null)
                     {
-                        var groupDiff = s2.DiffWithId(d2);
-                        var gradesDiff = Model.Diff(s2.grades, d2.grades, (s3, d3) => s3.grade_id == d3.grade_id);
-                        if (!gradesDiff.IsEmpty)
+                        var groupsDiff = Model.Diff(
+                            src.groups.FindAll((obj) => obj.aaf_name != null), dst.groups,
+                            (s, d) => s.type == d.type && s.aaf_name == d.aaf_name,
+                            (s2, d2) =>
                         {
-                            groupDiff.grades = new ModelList<GroupGrade>();
-                            groupDiff.grades.diff = gradesDiff;
-                        }
-                        return groupDiff;
-                    });
-                    if (!groupsDiff.IsEmpty)
-                    {
-                        itemDiff.groups = new ModelList<Group>();
-                        itemDiff.groups.diff = groupsDiff;
-                        foreach (var addGroup in groupsDiff.add)
+                            var groupDiff = s2.DiffWithId(d2);
+                            var gradesDiff = Model.Diff(s2.grades, d2.grades, (s3, d3) => s3.grade_id == d3.grade_id);
+                            if (!gradesDiff.IsEmpty)
+                            {
+                                groupDiff.grades = new ModelList<GroupGrade>();
+                                groupDiff.grades.diff = gradesDiff;
+                            }
+                            return groupDiff;
+                        });
+                        // Dont remove any group in Delta file format because
+                        // the groups are all known only when we have all the
+                        // students in the ENT1DVA file
+                        if (syncFile.format == SyncFileFormat.Delta)
+                            groupsDiff.remove = new ModelList<Group>();
+                        if (!groupsDiff.IsEmpty)
                         {
-                            addGroup.Fields.Remove(nameof(addGroup.id));
-                            addGroup.name = addGroup.aaf_name;
-                            addGroup.aaf_mtime = DateTime.Now;
+                            itemDiff.groups = new ModelList<Group>();
+                            itemDiff.groups.diff = groupsDiff;
+                            foreach (var addGroup in groupsDiff.add)
+                            {
+                                addGroup.Fields.Remove(nameof(addGroup.id));
+                                addGroup.name = addGroup.aaf_name;
+                                addGroup.aaf_mtime = DateTime.Now;
+                            }
                         }
                     }
                     return itemDiff;
@@ -727,6 +740,8 @@ namespace Laclasse.Aaf
 
         async Task LoadAafEleveAsync(DB db)
         {
+            if (aafStudents != null)
+                return;
             if (syncFile.format == SyncFileFormat.Delta)
                 await LoadEntUsersAsync(db);
             await LoadAafPersRelEleveAsync(db);
@@ -880,20 +895,26 @@ namespace Laclasse.Aaf
                 if (entUser == null)
                 {
                     aafUser.Fields.Remove(nameof(aafUser.id));
-                    aafUser.groups = AafGroupUserToEntGroupUser(aafUser.groups);
-                    aafUser.groups.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+                    if (aafUser.groups != null)
+                    {
+                        aafUser.groups = AafGroupUserToEntGroupUser(aafUser.groups);
+                        aafUser.groups.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+                    }
                     aafUser.profiles = aafUserProfiles;
                     aafUser.profiles.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
                     diff.diff.add.Add(aafUser);
 
-                    foreach (var groupUser in aafUser.groups)
+                    if (aafUser.groups != null)
                     {
-                        // if the subject doesn't exists in the ENT, we need to create it (better than null subject)
-                        if (apply && groupUser.subject_id != null && GetEntSubjectById(groupUser.subject_id) == null)
+                        foreach (var groupUser in aafUser.groups)
                         {
-                            var entSubject = new Subject { id = groupUser.subject_id, name = groupUser.subject_id };
-                            await entSubject.SaveAsync(db);
-                            entSubjectsById[entSubject.id] = entSubject;
+                            // if the subject doesn't exists in the ENT, we need to create it (better than null subject)
+                            if (apply && groupUser.subject_id != null && GetEntSubjectById(groupUser.subject_id) == null)
+                            {
+                                var entSubject = new Subject { id = groupUser.subject_id, name = groupUser.subject_id };
+                                await entSubject.SaveAsync(db);
+                                entSubjectsById[entSubject.id] = entSubject;
+                            }
                         }
                     }
                 }
@@ -964,55 +985,58 @@ namespace Laclasse.Aaf
                         var group = GetEntGroupById(obj.group_id);
                         return (group != null) && IsSyncStructure(group.structure_id);
                     });
-                    var aafInterGroups = AafGroupUserToEntGroupUser(aafUser.groups);
-                    var groupsDiff = Model.Diff(
-                        entInterGroups, aafInterGroups,
-                        (src, dst) => src.group_id == dst.group_id && src.type == dst.type && src.subject_id == dst.subject_id,
-                        (src, dst) =>
-                        {
-                            var itemDiff = src.DiffWithId(dst);
-                            // aaf_mtime is special. If the src has no aaf_mtime, we need to set one
-                            // else dont update it. The aaf_mtime is set at the last change time
-                            if (!itemDiff.IsEmpty && src.aaf_mtime == null)
-                                itemDiff.aaf_mtime = DateTime.Now;
-                            return itemDiff;
-                        }
-                    );
-
-
-                    if (!groupsDiff.IsEmpty)
+                    if (aafUser.groups != null)
                     {
-                        userDiff.groups = new ModelList<GroupUser>();
-                        userDiff.groups.diff = groupsDiff;
-
-                        foreach (var groupUser in groupsDiff.add)
-                        {
-                            // if the subject doesn't exists in the ENT, we need to create it (better than null subject)
-                            if (apply && groupUser.subject_id != null && GetEntSubjectById(groupUser.subject_id) == null)
+                        var aafInterGroups = AafGroupUserToEntGroupUser(aafUser.groups);
+                        var groupsDiff = Model.Diff(
+                            entInterGroups, aafInterGroups,
+                            (src, dst) => src.group_id == dst.group_id && src.type == dst.type && src.subject_id == dst.subject_id,
+                            (src, dst) =>
                             {
-                                var entSubject = new Subject { id = groupUser.subject_id, name = groupUser.subject_id };
-                                await entSubject.SaveAsync(db);
-                                entSubjectsById[entSubject.id] = entSubject;
+                                var itemDiff = src.DiffWithId(dst);
+                                // aaf_mtime is special. If the src has no aaf_mtime, we need to set one
+                                // else dont update it. The aaf_mtime is set at the last change time
+                                if (!itemDiff.IsEmpty && src.aaf_mtime == null)
+                                    itemDiff.aaf_mtime = DateTime.Now;
+                                return itemDiff;
                             }
-                        }
-                        if (groupsDiff.add != null)
-                            groupsDiff.add.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
-                        if (groupsDiff.change != null)
-                            groupsDiff.change.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+                        );
 
-                        // only remove AAF created user from the group
-                        if (groupsDiff.remove != null)
+
+                        if (!groupsDiff.IsEmpty)
                         {
-                            var removeGroupUsers = new ModelList<GroupUser>();
-                            foreach (var groupUser in groupsDiff.remove)
+                            userDiff.groups = new ModelList<GroupUser>();
+                            userDiff.groups.diff = groupsDiff;
+
+                            foreach (var groupUser in groupsDiff.add)
                             {
-                                if (groupUser.aaf_mtime != null)
-                                    removeGroupUsers.Add(groupUser);
+                                // if the subject doesn't exists in the ENT, we need to create it (better than null subject)
+                                if (apply && groupUser.subject_id != null && GetEntSubjectById(groupUser.subject_id) == null)
+                                {
+                                    var entSubject = new Subject { id = groupUser.subject_id, name = groupUser.subject_id };
+                                    await entSubject.SaveAsync(db);
+                                    entSubjectsById[entSubject.id] = entSubject;
+                                }
                             }
-                            groupsDiff.remove = removeGroupUsers;
+                            if (groupsDiff.add != null)
+                                groupsDiff.add.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+                            if (groupsDiff.change != null)
+                                groupsDiff.change.ForEach((obj) => obj.aaf_mtime = DateTime.Now);
+
+                            // only remove AAF created user from the group
+                            if (groupsDiff.remove != null)
+                            {
+                                var removeGroupUsers = new ModelList<GroupUser>();
+                                foreach (var groupUser in groupsDiff.remove)
+                                {
+                                    if (groupUser.aaf_mtime != null)
+                                        removeGroupUsers.Add(groupUser);
+                                }
+                                groupsDiff.remove = removeGroupUsers;
+                            }
+                            if (groupsDiff.IsEmpty)
+                                userDiff.UnSetField(nameof(User.groups));
                         }
-                        if (groupsDiff.IsEmpty)
-                            userDiff.UnSetField(nameof(User.groups));
                     }
                     if (userDiff.Fields.Count > 1)
                         diff.diff.change.Add(userDiff);
@@ -1529,10 +1553,15 @@ namespace Laclasse.Aaf
         {
             var user = new User { aaf_jointure_id = id };
             Gender? gender = null;
+            string personalTitle = null;
             if (attrs.ContainsKey("personalTitle"))
-                if (attrs["personalTitle"] == "Mme")
+                personalTitle = attrs["personalTitle"];
+            if (attrs.ContainsKey("ENTPersonCivilite"))
+                personalTitle = attrs["ENTPersonCivilite"];
+            if (personalTitle != null)
+                if (personalTitle == "Mme")
                     gender = Gender.F;
-                else if (attrs["personalTitle"] == "M.")
+                else if (personalTitle == "M.")
                     gender = Gender.M;
             if (gender != null)
                 user.gender = gender;
@@ -1579,10 +1608,14 @@ namespace Laclasse.Aaf
             // normalize the firstname. Lower the givenName and capitalize the first letters
             if (attrs.ContainsKey("givenName"))
                 user.firstname = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attrs["givenName"].ToLower());
+            else if (attrs.ContainsKey("ENTPersonPrenom"))
+                user.firstname = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attrs["ENTPersonPrenom"].ToLower());
 
             // normalize the lastname. Uppercase
             if (attrs.ContainsKey("sn"))
                 user.lastname = attrs["sn"].ToUpper();
+            else if (attrs.ContainsKey("ENTPersonNom"))
+                user.lastname = attrs["ENTPersonNom"].ToUpper();
 
             // handle phones
             if (attrs.ContainsKey("telephoneNumber") && !string.IsNullOrWhiteSpace(attrs["telephoneNumber"]))
@@ -1624,6 +1657,39 @@ namespace Laclasse.Aaf
                     }
                 }
             }
+            if (attrs.ContainsKey("ENTPersRelEleveTelPro") && !string.IsNullOrWhiteSpace(attrs["ENTPersRelEleveTelPro"]))
+            {
+                if (user.phones == null)
+                    user.phones = new ModelList<Phone>();
+
+                user.phones.Add(new Phone
+                {
+                    number = attrs["ENTPersRelEleveTelPro"],
+                    type = "TRAVAIL"
+                });
+            }
+            if (attrs.ContainsKey("ENTPersonTelPerso") && !string.IsNullOrWhiteSpace(attrs["ENTPersonTelPerso"]))
+            {
+                if (user.phones == null)
+                    user.phones = new ModelList<Phone>();
+
+                user.phones.Add(new Phone
+                {
+                    number = attrs["ENTPersonTelPerso"],
+                    type = "MAISON"
+                });
+            }
+            if (attrs.ContainsKey("ENTPersRelEleveTelMobile") && !string.IsNullOrWhiteSpace(attrs["ENTPersRelEleveTelMobile"]))
+            {
+                if (user.phones == null)
+                    user.phones = new ModelList<Phone>();
+
+                user.phones.Add(new Phone
+                {
+                    number = attrs["ENTPersRelEleveTelMobile"],
+                    type = "PORTABLE"
+                });
+            }
 
             // handle emails
             if (attrsMul.ContainsKey("mail"))
@@ -1636,6 +1702,21 @@ namespace Laclasse.Aaf
                     if (string.IsNullOrWhiteSpace(mail))
                         continue;
 
+                    user.emails.Add(new Email
+                    {
+                        address = mail,
+                        type = (categoriePersonne == "PersEducNat") ? EmailType.Academique : EmailType.Autre
+                    });
+                }
+            }
+            if (attrs.ContainsKey("ENTPersonMail"))
+            {
+                if (user.emails == null)
+                    user.emails = new ModelList<Email>();
+
+                var mail = attrs["ENTPersonMail"];
+                if (!string.IsNullOrWhiteSpace(mail))
+                {
                     user.emails.Add(new Email
                     {
                         address = mail,
@@ -1672,6 +1753,54 @@ namespace Laclasse.Aaf
                     }
                 }
             }
+            else if (attrsMul.ContainsKey("ENTPersonClasses"))
+            {
+                if (user.groups == null)
+                    user.groups = new ModelList<GroupUser>();
+                foreach (var classe in attrsMul["ENTPersonClasses"])
+                {
+                    var tab = classe.Split('$');
+                    if (tab.Length == 5)
+                    {
+                        var structureAafId = Convert.ToInt32(tab[0]);
+                        var group = GetAafGroupByAaf(structureAafId, tab[4], GroupType.CLS);
+                        // create the group if needed
+                        if (group == null)
+                        {
+                            var aafStructure = GetAafStructureByAafId(structureAafId);
+                            if (aafStructure != null)
+                            {
+                                group = new Group
+                                {
+                                    id = --groupIdGenerator,
+                                    type = Directory.GroupType.CLS,
+                                    aaf_name = tab[4],
+                                    structure_id = aafStructure.id,
+                                    grades = new ModelList<GroupGrade>()
+                                };
+                                if (aafStructure.groups == null)
+                                    aafStructure.groups = new ModelList<Group>();
+                                aafStructure.groups.Add(group);
+                                aafGroupByTypeStructureAafName[$"{structureAafId}${group.type}${group.aaf_name}"] = group;
+                                aafGroupsById[group.id] = group;
+                            }
+                        }
+
+                        if (group != null)
+                        {
+                            // protect against duplicate
+                            if (!user.groups.Any((arg) => arg.type == "ELV" && arg.group_id == group.id))
+                            {
+                                user.groups.Add(new GroupUser
+                                {
+                                    type = "ELV",
+                                    group_id = group.id
+                                });
+                            }
+                        }
+                    }
+                }
+            }
 
             // handle student's groups
             if (attrsMul.ContainsKey("ENTEleveGroupes"))
@@ -1685,6 +1814,54 @@ namespace Laclasse.Aaf
                     if (tab.Length == 2)
                     {
                         var group = GetAafGroupByAaf(Convert.ToInt32(tab[0]), tab[1], GroupType.GRP);
+
+                        if (group != null)
+                        {
+                            // protect against duplicate
+                            if (!user.groups.Any((arg) => arg.type == "ELV" && arg.group_id == group.id))
+                            {
+                                user.groups.Add(new GroupUser
+                                {
+                                    type = "ELV",
+                                    group_id = group.id
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            else if (attrsMul.ContainsKey("ENTPersonGroupes"))
+            {
+                if (user.groups == null)
+                    user.groups = new ModelList<GroupUser>();
+                foreach (var classe in attrsMul["ENTPersonGroupes"])
+                {
+                    var tab = classe.Split('$');
+                    if (tab.Length == 5)
+                    {
+                        var structureAafId = Convert.ToInt32(tab[0]);
+                        var group = GetAafGroupByAaf(structureAafId, tab[4], GroupType.GRP);
+                        // create the group if needed
+                        if (group == null)
+                        {
+                            var aafStructure = GetAafStructureByAafId(structureAafId);
+                            if (aafStructure != null)
+                            {
+                                group = new Group
+                                {
+                                    id = --groupIdGenerator,
+                                    type = Directory.GroupType.GRP,
+                                    aaf_name = tab[4],
+                                    structure_id = aafStructure.id,
+                                    grades = new ModelList<GroupGrade>()
+                                };
+                                if (aafStructure.groups == null)
+                                    aafStructure.groups = new ModelList<Group>();
+                                aafStructure.groups.Add(group);
+                                aafGroupByTypeStructureAafName[$"{structureAafId}${group.type}${group.aaf_name}"] = group;
+                                aafGroupsById[group.id] = group;
+                            }
+                        }
 
                         if (group != null)
                         {
@@ -1943,6 +2120,83 @@ namespace Laclasse.Aaf
                     }
                 }
             }
+            else if (attrsMul.ContainsKey("ENTEleveAutoriteParentale"))
+            {
+                user.parents = new ModelList<UserChild>();
+                foreach (var relEleve in attrsMul["ENTEleveAutoriteParentale"])
+                {
+                    var tab = relEleve.Split('$');
+                    if (tab.Length == 2)
+                    {
+                        var parent_aaf_jointure_id = long.Parse(tab[0]);
+
+                        User parent = null;
+                        // check if the parent is provided in the AAF file
+                        if (aafParentsByAafId.ContainsKey(parent_aaf_jointure_id))
+                            parent = aafParentsByAafId[parent_aaf_jointure_id];
+                        // if the parent is not find in this AAF file and if we are
+                        // in a Delta file, take the parent from the current ENT known parent
+                        else if (syncFile.format == SyncFileFormat.Delta && entUsersByAafId.ContainsKey((int)parent_aaf_jointure_id))
+                        {
+                            parent = entUsersByAafId[(int)parent_aaf_jointure_id];
+                            aafParentsByAafId[parent_aaf_jointure_id] = parent;
+                        }
+
+                        // ERROR: parent not found...
+                        if (parent == null)
+                        {
+                            Console.WriteLine($"WARNING: INVALID ENTEleveAutoriteParentale PARENT WITH aaf_jointure_id {parent_aaf_jointure_id} NOT FOUND");
+                            continue;
+                        }
+                        else
+                        {
+                            var relTypeInt = int.Parse(tab[1]);
+                            if (aafRelationType.ContainsKey(relTypeInt))
+                            {
+                                var relType = aafRelationType[relTypeInt];
+
+                                user.parents.Add(new UserChild
+                                {
+                                    type = relType,
+                                    parent_id = parent.id,
+                                    child_id = user.id,
+                                    financial = true,
+                                    legal = true,
+                                    contact = true
+                                });
+
+                                // copy the child relation to the parent
+                                if (parent.children == null)
+                                    parent.children = new ModelList<UserChild>();
+                                if (!parent.children.Any((arg) => arg.child_id == user.id))
+                                    parent.children.Add(new UserChild
+                                    {
+                                        type = relType,
+                                        parent_id = parent.id,
+                                        child_id = user.id,
+                                        financial = true,
+                                        legal = true,
+                                        contact = true
+                                    });
+                                // convert the child profiles to parent profiles in the structures
+                                if (user.profiles != null)
+                                {
+                                    if (parent.profiles == null)
+                                        parent.profiles = new ModelList<UserProfile>();
+                                    foreach (var profile in user.profiles.FindAll((obj) => obj.type == "ELV"))
+                                        if (!parent.profiles.Any((arg) => arg.type == "TUT" && arg.structure_id == profile.structure_id))
+                                            parent.profiles.Add(new UserProfile { type = "TUT", structure_id = profile.structure_id });
+                                }
+                            }
+                            else
+                            {
+                                Console.WriteLine($"WARNING: INVALID ENTEleveAutoriteParentale aafRelationType WITH ID {relTypeInt} NOT FOUND");
+                            }
+                        }
+                    }
+                }
+            }
+
 
             return user;
         }
@@ -2113,18 +2367,26 @@ namespace Laclasse.Aaf
                 {
                     aafStructures.Add(aafStructure);
                     aafStructuresByAafId[(int)aafStructure.aaf_jointure_id] = aafStructure;
-                    foreach (var group in aafStructure.groups)
+                    if (aafStructure.groups != null)
                     {
-                        // copy the group because we want to keep the AAF version
-                        // and if the group is created with a SaveAsync it will be transform in the ENT version
-                        var groupCopy = new Group();
-                        foreach (var key in group.Fields.Keys)
-                            groupCopy.Fields[key] = group.Fields[key];
-                        aafGroupsById[group.id] = groupCopy;
-                        aafGroupByTypeStructureAafName[$"{aafStructure.aaf_jointure_id}${group.type}${group.aaf_name}"] = groupCopy;
+                        foreach (var group in aafStructure.groups)
+                        {
+                            // copy the group because we want to keep the AAF version
+                            // and if the group is created with a SaveAsync it will be transform in the ENT version
+                            var groupCopy = new Group();
+                            foreach (var key in group.Fields.Keys)
+                                groupCopy.Fields[key] = group.Fields[key];
+                            aafGroupsById[group.id] = groupCopy;
+                            aafGroupByTypeStructureAafName[$"{aafStructure.aaf_jointure_id}${group.type}${group.aaf_name}"] = groupCopy;
+                        }
                     }
                 }
             }
+        }
+
+        Structure GetAafStructureByAafId(int aafId)
+        {
+            return (aafStructuresByAafId.ContainsKey(aafId)) ? aafStructuresByAafId[aafId] : null;
         }
 
         Structure NodeToStructure(XmlNode node)
@@ -2160,11 +2422,9 @@ namespace Laclasse.Aaf
                 }
             }
             attrs.RequireFields(
-                "ENTStructureJointure", "ENTStructureUAI", "ENTEtablissementUAI",
+                "ENTStructureJointure", "ENTStructureUAI",
                 "ENTStructureSIREN", "ENTStructureNomCourant", "ENTStructureTypeStruct",
-                "ENTEtablissementMinistereTutelle", "ENTEtablissementContrat", "postOfficeBox",
-                "street", "postalCode", "l", "telephoneNumber", "facsimileTelephoneNumber",
-                "ENTEtablissementStructRattachFctl", "ENTEtablissementBassin", "ENTServAcAcademie");
+                "ENTServAcAcademie");
 
             var ENTStructureNomCourant = attrs["ENTStructureNomCourant"];
             var ENTServAcAcademie = attrs["ENTServAcAcademie"];
@@ -2180,78 +2440,90 @@ namespace Laclasse.Aaf
                 aaf_jointure_id = Convert.ToInt32(attrs["ENTStructureJointure"]),
                 siren = attrs["ENTStructureSIREN"],
                 name = ENTStructureNomCourant,
-                address = attrs["street"],
-                zip_code = attrs["postalCode"],
-                city = attrs["l"],
-                phone = attrs["telephoneNumber"],
-                fax = attrs["facsimileTelephoneNumber"],
+                address = attrs.ContainsKey("street") ? attrs["street"] : attrs.ContainsKey("ENTStructureAdresse") ? attrs["ENTStructureAdresse"] : null,
+                zip_code = attrs.ContainsKey("postalCode") ? attrs["postalCode"] : attrs.ContainsKey("ENTStructureCodePostal") ? attrs["ENTStructureCodePostal"] : null,
+                city = attrs.ContainsKey("l") ? attrs["l"] : attrs.ContainsKey("ENTStructureVille") ? attrs["ENTStructureVille"] : null,
+                phone = attrs.ContainsKey("telephoneNumber") ? attrs["telephoneNumber"] : attrs.ContainsKey("ENTStructureTelephone") ? attrs["ENTStructureTelephone"] : null,
+                fax = attrs.ContainsKey("facsimileTelephoneNumber") ? attrs["facsimileTelephoneNumber"] : attrs.ContainsKey("ENTStructureFax") ? attrs["ENTStructureFax"] : null,
                 email = !attrs.ContainsKey("ENTStructureMailSI") || attrs["ENTStructureMailSI"] == "" ? null : attrs["ENTStructureMailSI"],
-                groups = new ModelList<Group>()
             };
 
             // handle CLASSES
-            foreach (var aafClasse in ENTStructureClasses)
+            if (ENTStructureClasses != null)
             {
-                if (string.IsNullOrEmpty(aafClasse))
-                    continue;
+                if (aafStructure.groups == null)
+                    aafStructure.groups = new ModelList<Group>();
+                foreach (var aafClasse in ENTStructureClasses)
+                {
+                    if (string.IsNullOrEmpty(aafClasse))
+                        continue;
 
-                var tab = aafClasse.Split('$');
-                if (tab.Length < 2)
-                    throw new Exception($"For structure {id} Invalid classes define {aafClasse}");
-                var classe = new Group
-                {
-                    id = --groupIdGenerator,
-                    type = Directory.GroupType.CLS,
-                    aaf_name = tab[0],
-                    structure_id = aafStructure.id,
-                    description = string.IsNullOrEmpty(tab[1]) ? null : tab[1],
-                    grades = new ModelList<GroupGrade>()
-                };
-                // only add if the aaf_name is not already defined because some "classe" are defined
-                // multiples times
-                if (!aafStructure.groups.Any((arg) => (arg.type == classe.type) && (arg.aaf_name == classe.aaf_name)))
-                {
-                    aafStructure.groups.Add(classe);
-                    //handle group's grades
-                    var aafClasseGrades = tab.Skip(2);
-                    foreach (var classeGrade in aafClasseGrades)
+                    var tab = aafClasse.Split('$');
+                    if (tab.Length < 2)
+                        throw new Exception($"For structure {id} Invalid classes define {aafClasse}");
+                    var classe = new Group
                     {
-                        var grade = GetAafGradeById(classeGrade);
-                        if (grade == null)
-                            errors.Add($"ERROR: GRADE WITH ID {classeGrade} NOT FOUND BUT USED IN GROUP " +
-                                       $"(ID: {classe.id}, STRUCTURE: {classe.structure_id}, NAME: {classe.aaf_name}");
-                        else
-                            classe.grades.Add(new GroupGrade { grade_id = grade.id });
+                        id = --groupIdGenerator,
+                        type = Directory.GroupType.CLS,
+                        aaf_name = tab[0],
+                        structure_id = aafStructure.id,
+                        description = string.IsNullOrEmpty(tab[1]) ? null : tab[1],
+                        grades = new ModelList<GroupGrade>()
+                    };
+                    // only add if the aaf_name is not already defined because some "classe" are defined
+                    // multiples times
+                    if (!aafStructure.groups.Any((arg) => (arg.type == classe.type) && (arg.aaf_name == classe.aaf_name)))
+                    {
+                        aafStructure.groups.Add(classe);
+                        //handle group's grades
+                        var aafClasseGrades = tab.Skip(2);
+                        foreach (var classeGrade in aafClasseGrades)
+                        {
+                            var grade = GetAafGradeById(classeGrade);
+                            if (grade == null)
+                                errors.Add($"ERROR: GRADE WITH ID {classeGrade} NOT FOUND BUT USED IN GROUP " +
+                                           $"(ID: {classe.id}, STRUCTURE: {classe.structure_id}, NAME: {classe.aaf_name}");
+                            else
+                                classe.grades.Add(new GroupGrade
+                                {
+                                    grade_id = grade.id
+                                });
+                        }
                     }
+                    //else
+                    //	errors.Add($"ERROR: GROUP NAME DUPLICATE (STRUCTURE: {classe.structure_id}, TYPE: {classe.type}, NAME: {classe.aaf_name})");
                 }
-                //else
-                //	errors.Add($"ERROR: GROUP NAME DUPLICATE (STRUCTURE: {classe.structure_id}, TYPE: {classe.type}, NAME: {classe.aaf_name})");
             }
 
             // handle GROUPES ELEVES
-            foreach (var aafGroupe in ENTStructureGroupes)
+            if (ENTStructureGroupes != null)
             {
-                if (string.IsNullOrEmpty(aafGroupe))
-                    continue;
-
-                var tab = aafGroupe.Split('$');
-                if (tab.Length < 2)
-                    throw new Exception($"For structure {id} invalid groupe define {aafGroupe}");
-                var groupe = new Group
+                if (aafStructure.groups == null)
+                    aafStructure.groups = new ModelList<Group>();
+                foreach (var aafGroupe in ENTStructureGroupes)
                 {
-                    id = --groupIdGenerator,
-                    type = Directory.GroupType.GRP,
-                    aaf_name = tab[0],
-                    structure_id = aafStructure.id,
-                    description = string.IsNullOrEmpty(tab[1]) ? null : tab[1],
-                    grades = new ModelList<GroupGrade>()
-                };
-                // only add if the aaf_name is not already defined because some "groupe" are defined
-                // multiples times
-                if (!aafStructure.groups.Any((arg) => (arg.type == groupe.type) && (arg.aaf_name == groupe.aaf_name)))
-                    aafStructure.groups.Add(groupe);
-                //else
-                //	errors.Add($"ERROR: GROUP NAME DUPLICATE (STRUCTURE: {groupe.structure_id}, TYPE: {groupe.type}, NAME: {groupe.aaf_name})");
+                    if (string.IsNullOrEmpty(aafGroupe))
+                        continue;
+
+                    var tab = aafGroupe.Split('$');
+                    if (tab.Length < 2)
+                        throw new Exception($"For structure {id} invalid groupe define {aafGroupe}");
+                    var groupe = new Group
+                    {
+                        id = --groupIdGenerator,
+                        type = Directory.GroupType.GRP,
+                        aaf_name = tab[0],
+                        structure_id = aafStructure.id,
+                        description = string.IsNullOrEmpty(tab[1]) ? null : tab[1],
+                        grades = new ModelList<GroupGrade>()
+                    };
+                    // only add if the aaf_name is not already defined because some "groupe" are defined
+                    // multiples times
+                    if (!aafStructure.groups.Any((arg) => (arg.type == groupe.type) && (arg.aaf_name == groupe.aaf_name)))
+                        aafStructure.groups.Add(groupe);
+                    //else
+                    //	errors.Add($"ERROR: GROUP NAME DUPLICATE (STRUCTURE: {groupe.structure_id}, TYPE: {groupe.type}, NAME: {groupe.aaf_name})");
+                }
             }
             return aafStructure;
         }
@@ -2303,7 +2575,9 @@ namespace Laclasse.Aaf
 
         public static async Task DaySyncTaskAsync(Logger logger, string syncFilesFolder, string zipFilesFolder, string logFilesFolder, string dbUrl)
         {
-            var files = GetFiles(syncFilesFolder, zipFilesFolder);
+            IEnumerable<SyncFile> files = GetFiles(syncFilesFolder, zipFilesFolder);
+            // only takes ENT2VA files
+            files = files.Where((file) => file.id.Contains("ENT2DVA"));
 
             DateTime latestFileDateSync = DateTime.MinValue;
 

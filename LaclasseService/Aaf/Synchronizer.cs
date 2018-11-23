@@ -1559,7 +1559,7 @@ namespace Laclasse.Aaf
             if (attrs.ContainsKey("ENTPersonCivilite"))
                 personalTitle = attrs["ENTPersonCivilite"];
             if (personalTitle != null)
-                if (personalTitle == "Mme")
+                if ((personalTitle == "Mme") || (personalTitle == "Mlle"))
                     gender = Gender.F;
                 else if (personalTitle == "M.")
                     gender = Gender.M;
@@ -1585,8 +1585,10 @@ namespace Laclasse.Aaf
             }
 
             if (attrs.ContainsKey("ENTPersonAdresse") && !string.IsNullOrWhiteSpace(attrs["ENTPersonAdresse"]))
-                user.address = string.Join("\n", attrs["ENTPersonAdresse"].Split(new char[] { '$' }, StringSplitOptions.RemoveEmptyEntries));
-
+            {
+                var address = string.Join("\n", attrs["ENTPersonAdresse"].Split(new char[] { '$' }, StringSplitOptions.RemoveEmptyEntries));
+                user.address = string.IsNullOrEmpty(address) ? null : address;
+            }
             if (attrs.ContainsKey("ENTPersonCodePostal") && !string.IsNullOrWhiteSpace(attrs["ENTPersonCodePostal"]))
                 user.zip_code = attrs["ENTPersonCodePostal"];
 
@@ -1602,7 +1604,7 @@ namespace Laclasse.Aaf
             if (attrs.ContainsKey("ENTEleveMEF"))
                 user.student_grade_id = attrs["ENTEleveMEF"];
 
-            if (attrs.ContainsKey("ENTEleveINE"))
+            if (attrs.ContainsKey("ENTEleveINE") && !string.IsNullOrWhiteSpace(attrs["ENTEleveINE"]))
                 user.student_ine = attrs["ENTEleveINE"];
 
             // normalize the firstname. Lower the givenName and capitalize the first letters

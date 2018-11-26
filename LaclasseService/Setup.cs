@@ -145,6 +145,7 @@ namespace Laclasse
     public class SessionSetup
     {
         public int timeout = 43200;
+        public int longTimeout = 1296000;
         public string header = "x-laclasse-authentication";
         public string cookie = "LACLASSE_AUTH";
     }

@@ -129,6 +129,7 @@ namespace Laclasse
 
             var sessions = new Sessions(
                 dbUrl, setup.authentication.session.timeout,
+                setup.authentication.session.longTimeout,
                 setup.authentication.session.cookie);
 
             var contextInjector = new ContextInjector();

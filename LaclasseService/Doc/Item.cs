@@ -96,7 +96,10 @@ namespace Laclasse.Doc
             var parent = await GetParentAsync();
             ItemRight rights = new ItemRight { Read = true, Write = true, Locked = false };
             if (parent != null)
+            {
                 rights = await parent.RightsAsync();
+                rights.Locked = false;
+            }
             return rights;
         }
 
@@ -531,6 +534,26 @@ namespace Laclasse.Doc
             }
             return children;
         }
+
+        public override async Task<ItemRight> RightsAsync()
+        {
+            var rights = await base.RightsAsync();
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else
+            {
+                rights.Locked = true;
+                var root = await GetRootAsync();
+                if (root is Structure)
+                {
+                    // only students, teachers and management staff are allowed to write
+                    var allowedProfiles = new string[] { "ENS", "ELV", "DOC", "DIR", "ADM" };
+                    if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && allowedProfiles.Contains(p.type)))
+                        rights.Write = true;
+                }
+            }
+            return rights;
+        }
     }
 
     public class Groupes : Folder
@@ -623,12 +646,57 @@ namespace Laclasse.Doc
         public Groupe(Context context, Node node) : base(context, node)
         {
         }
+
+        public override async Task<ItemRight> RightsAsync()
+        {
+            var rights = await base.RightsAsync();
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else
+            {
+                rights.Locked = true;
+                var root = await GetRootAsync();
+                if (root is Structure)
+                {
+                    // only students, teachers and management staff are allowed to write
+                    var allowedProfiles = new string[] { "ENS", "ELV", "DOC", "DIR", "ADM" };
+                    if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && allowedProfiles.Contains(p.type)))
+                        rights.Write = true;
+                }
+            }
+            return rights;
+        }
     }
 
     public class CahierTexte : Folder
     {
         public CahierTexte(Context context, Node node) : base(context, node)
         {
+        }
+
+        public override async Task<ItemRight> RightsAsync()
+        {
+            var rights = await base.RightsAsync();
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else
+            {
+                rights.Locked = true;
+                var root = await GetRootAsync();
+                if (root is Structure)
+                {
+                    rights.Read = false;
+                    // a profile on the "etablissement" = read right
+                    if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai))
+                        rights.Read = true;
+                    rights.Write = false;
+                    // students and parents are not allowed to write
+                    var allowedProfiles = new string[] { "ENS", "DOC", "DIR", "ADM" };
+                    if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && allowedProfiles.Contains(p.type)))
+                        rights.Write = true;
+                }
+            }
+            return rights;
         }
     }
 

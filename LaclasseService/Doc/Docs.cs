@@ -1008,7 +1008,7 @@ namespace Laclasse.Doc
             var allGplIds = context.user.user.groups.Select((g) => g.group_id).Concat(context.user.user.children_groups.Select((g) => g.group_id));
             ModelList<Directory.Group> allGroups;
             using (var db = await DB.CreateAsync(context.directoryDbUrl))
-                allGroups = await db.SelectAsync<Directory.Group>($"SELECT * FROM `group` WHERE {DB.InFilter("id", allGplIds)}");
+                allGroups = await db.SelectAsync<Directory.Group>($"SELECT * FROM `group` WHERE {DB.InFilter("id", allGplIds)} AND `type`='GPL'");
             foreach (var group in allGroups)
                 roots.Add(await GroupeLibre.GetOrCreateAsync(context, group.id, group.name));
             return roots;

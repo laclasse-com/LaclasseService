@@ -92,20 +92,74 @@ namespace Laclasse.Doc
 
         public virtual async Task<ItemRight> RightsAsync()
         {
-            // rights are herited from the parent is any
-            var parent = await GetParentAsync();
             ItemRight rights = new ItemRight { Read = true, Write = true, Locked = false };
-            if (parent != null)
+            if (!context.user.IsSuperAdmin)
             {
-                rights = await parent.RightsAsync();
-                rights.Locked = false;
+                // rights are herited from the parent is any
+                var parent = await GetParentAsync();
+                if (parent != null)
+                {
+                    rights = await parent.RightsAsync();
+                    rights.Locked = false;
+                }
+                rights = await ProcessAdvancedRightsAsync(rights);
             }
+            Console.WriteLine($"{this}.RightsAsync() {node.name}, read: {rights.Read}");
             return rights;
         }
 
-        public virtual void ProcessAdvancedRights()
+        public virtual async Task<ItemRight> ProcessAdvancedRightsAsync(ItemRight rights)
         {
+            // handle advanced rights        
+            // advanced right only supported for structure and free groups
+            var root = await GetRootAsync();
 
+            if (!(root is Structure || root is GroupeLibre))
+                return rights;
+
+            IEnumerable<Directory.UserProfile> profiles = new List<Directory.UserProfile>();
+            if (root is Structure)
+                profiles = context.user.user.profiles.Where((p) => p.structure_id == root.node.etablissement_uai);
+            else if (root is GroupeLibre)
+                profiles = context.user.user.profiles;
+
+            bool? advRead = null;
+            bool? advWrite = null;
+
+            var profilesString = "";
+            profiles.ForEach((p) => profilesString += p.type + ",");
+            Console.WriteLine($"{this}.ProcessAdvancedRightsAsync user.profiles: {profilesString}");
+
+            if (node.rights != null && node.rights.Count > 0)
+            {
+                foreach (var advRight in node.rights)
+                {
+                    Console.WriteLine($"{this}.ProcessAdvancedRightsAsync {advRight.profile} advRight: {advRight.read}");
+                    if (profiles.Any((p) => StringToRightProfile(p.type) == advRight.profile))
+                    {
+                        if (advRead != true || advRead == null)
+                            advRead = advRight.read;
+                        if (advWrite != true || advWrite == null)
+                            advWrite = advRight.write;
+                    }
+                }
+            }
+
+            if (advRead != null)
+                rights.Read = (bool)advRead;
+            if (advWrite != null)
+                rights.Write = (bool)advWrite;
+
+            // handle special rights for the owner
+            if (node.owner != null && node.owner == context.user.user.id)
+            {
+                rights.Read = true;
+                rights.Write = true;
+            }
+            Console.WriteLine($"{this}.ProcessAdvancedRightsAsync advRead: {advRead}");
+            //r[:advanced_rights] = true
+            //r[:advanced_admin] = profiles.any ? { | p | p['type'] != 'ELV' && p['type'] != 'TUT' }
+            return rights;
         }
 
         public string SanitizeName()
@@ -121,6 +175,9 @@ namespace Laclasse.Doc
         // Delete an Item
         public virtual async Task DeleteAsync()
         {
+            var rights = await RightsAsync();
+            if (!rights.Write || rights.Locked)
+                throw new WebException(403, "Rights needed");
             await node.DeleteAsync(context.db);
             context.items.Remove(node.id);
             if (node.blob_id != null)
@@ -202,6 +259,15 @@ namespace Laclasse.Doc
                 types[mimetype] = creator;
         }
 
+        public static RightProfile StringToRightProfile(string profile)
+        {
+            if (profile == "TUT")
+                return RightProfile.TUT;
+            if (profile == "ELV")
+                return RightProfile.ELV;
+            return RightProfile.TUT;
+        }
+
         static Item()
         {
             Register("classes", (context, node) => new Classes(context, node));
@@ -267,7 +333,11 @@ namespace Laclasse.Doc
             if (!node.Fields.ContainsKey(nameof(node.children)))
                 await node.LoadExpandFieldAsync(context.db, nameof(node.children));
             var children = new List<Item>();
-            return node.children.Select((child) => ByNode(context, child));
+            // get all children by their id because the node need to by
+            // fully loaded with the node's expanded field to have a valid Item
+            foreach (var child in node.children)
+                children.Add(await context.GetByIdAsync(child.id));
+            return children;
         }
 
         public virtual Task<IEnumerable<Item>> GetFilteredChildrenAsync()
@@ -277,11 +347,21 @@ namespace Laclasse.Doc
 
         public override async Task<JsonObject> ToJsonAsync(bool expand)
         {
+            Console.WriteLine($"Folder.ToJsonAsync {node.name}");
             var json = await base.ToJsonAsync(expand);
-            JsonArray children = new JsonArray();
-            json["children"] = children;
-            foreach (var item in await GetFilteredChildrenAsync())
-                children.Add(await item.ToJsonAsync(false));
+            json.Remove("children");
+            if (expand)
+            {
+                var rights = await RightsAsync();
+                Console.WriteLine($"Folder.ToJsonAsync {node.name} Read: {rights.Read}");
+                JsonArray children = new JsonArray();
+                json["children"] = children;
+                if (rights.Read)
+                {
+                    foreach (var item in await GetFilteredChildrenAsync())
+                        children.Add(await item.ToJsonAsync(false));
+                }
+            }
             return json;
         }
     }
@@ -551,7 +631,9 @@ namespace Laclasse.Doc
                     if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && allowedProfiles.Contains(p.type)))
                         rights.Write = true;
                 }
+                rights = await ProcessAdvancedRightsAsync(rights);
             }
+            Console.WriteLine($"Classe.RightsAsync Read: {rights.Read}");
             return rights;
         }
     }

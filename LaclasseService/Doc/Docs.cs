@@ -168,7 +168,7 @@ namespace Laclasse.Doc
         [ModelExpandField(Name = nameof(children), ForeignModel = typeof(Node))]
         public ModelList<Node> children { get { return GetField<ModelList<Node>>(nameof(children), null); } set { SetField(nameof(children), value); } }
         [ModelExpandField(Name = nameof(rights), ForeignModel = typeof(Right))]
-        public ModelList<Node> rights { get { return GetField<ModelList<Node>>(nameof(rights), null); } set { SetField(nameof(rights), value); } }
+        public ModelList<Right> rights { get { return GetField<ModelList<Right>>(nameof(rights), null); } set { SetField(nameof(rights), value); } }
 
         [ModelExpandField(Name = nameof(blob), ForeignModel = typeof(Blob))]
         public Blob blob { get { return GetField<Blob>(nameof(blob), null); } set { SetField(nameof(blob), value); } }
@@ -408,10 +408,12 @@ namespace Laclasse.Doc
             GetAsync["/{id}/onlyoffice"] = async (p, c) =>
             {
                 var id = long.Parse((string)p["id"]);
-                Node item = new Node { id = id };
+                Item item;
                 using (DB db = await DB.CreateAsync(dbUrl))
-                    if (!await item.LoadAsync(db, true))
-                        item = null;
+                {
+                    var context = new Context { tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    item = await context.GetByIdAsync(id);
+                }
                 if (item != null)
                 {
                     var mode = OnlyOfficeMode.Desktop;
@@ -420,9 +422,12 @@ namespace Laclasse.Doc
 
                     OnlyOfficeDocumentType documentType = OnlyOfficeDocumentType.text;
                     OnlyOfficeFileType fileType = OnlyOfficeFileType.docx;
-                    NodeToFileType(item, out documentType, out fileType);
+                    NodeToFileType(item.node, out documentType, out fileType);
 
-                    await item.EnsureRightAsync(c, Laclasse.Right.Read, null);
+                    var rights = await item.RightsAsync();
+                    if (!rights.Read)
+                        throw new WebException(403, "Rights needed");
+
                     var session = await c.GetSessionAsync();
                     var authUser = await c.GetAuthenticatedUserAsync();
                     c.Response.StatusCode = 200;
@@ -432,10 +437,10 @@ namespace Laclasse.Doc
                         mode = mode,
                         documentType = documentType,
                         fileType = fileType,
-                        node = item,
+                        node = item.node,
                         session = session,
                         user = authUser.user,
-                        downloadUrl = $"{Regex.Replace(c.SelfURL(), "onlyoffice$", "content")}?rev={item.rev}&session={session.id}",
+                        downloadUrl = $"{Regex.Replace(c.SelfURL(), "onlyoffice$", "content")}?rev={item.node.rev}&session={session.id}",
                         callbackUrl = $"{c.SelfURL()}?session={session.id}"
                     }.TransformText();
                 }

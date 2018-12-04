@@ -600,10 +600,9 @@ namespace Laclasse.Doc
                             var define = fileDefinition.Define;
                             if (define.Fields.ContainsKey(nameof(Node.name)))
                                 node.name = define.name;
+                            if (define.Fields.ContainsKey(nameof(Node.parent_id)))
+                                node.parent_id = define.parent_id;
                         }
-
-                        await node.UpdateAsync(db);
-                        await node.LoadAsync(db, expand);
 
                         if (thumbnailTempFile != null)
                         {
@@ -612,12 +611,79 @@ namespace Laclasse.Doc
                             node.has_tmb = true;
                         }
 
+                        await node.UpdateAsync(db);
+                        await node.LoadAsync(db, expand);
+
                         // delete old blob if any
                         if (oldBlobId != null)
                             await blobs.DeleteBlobAsync(db, oldBlobId);
 
                         c.Response.StatusCode = 200;
                         c.Response.Content = node;
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
+            PostAsync["/{id}/copy"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+                var expand = c.Request.QueryString.ContainsKey("expand") ? bool.Parse(c.Request.QueryString["expand"]) : true;
+                var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
+
+                var dstNode = new Node
+                {
+                    rev = 0,
+                    mtime = (long)(DateTime.Now - DateTime.Parse("1970-01-01T00:00:00Z")).TotalSeconds
+                };
+
+                using (var db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var node = new Node { id = id };
+                    if (await node.LoadAsync(db, true))
+                    {
+                        dstNode.name = node.name;
+                        dstNode.mime = node.mime;
+
+                        Blob blob = null; string tempFile = null;
+                        string thumbnailTempFile = null;
+                        Blob thumbnailBlob = null;
+
+                        if (node.blob_id != null)
+                        {
+                            fileDefinition.Stream = blobs.GetBlobStream(node.blob_id);
+                            (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition, node.blob);
+
+                            if (tempFile != null)
+                                BuildThumbnail(tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
+                        }
+
+                        if (blob != null)
+                        {
+                            blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
+                            dstNode.blob_id = blob.id;
+                        }
+                        if (fileDefinition.Define != null)
+                        {
+                            var define = fileDefinition.Define;
+                            if (define.Fields.ContainsKey(nameof(Node.name)))
+                                dstNode.name = define.name;
+                            if (define.Fields.ContainsKey(nameof(Node.parent_id)))
+                                dstNode.parent_id = define.parent_id;
+                        }
+
+                        if (thumbnailTempFile != null)
+                        {
+                            thumbnailBlob.parent_id = blob.id;
+                            thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
+                            dstNode.has_tmb = true;
+                        }
+
+                        await dstNode.SaveAsync(db);
+                        await dstNode.LoadAsync(db, expand);
+
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = dstNode;
                     }
                     await db.CommitAsync();
                 }

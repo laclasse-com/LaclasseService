@@ -926,7 +926,7 @@ namespace Laclasse.Authentication
             {
                 c.Response.StatusCode = 302;
                 c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
-                c.Response.Headers["set-cookie"] = $"{cookieName}={sessionId};{((longSession) ? $" Max-Age={Math.Round(session.duration.TotalSeconds)};" : "")} Path=/";
+                c.Response.Headers["set-cookie"] = $"{cookieName}={sessionId};{((longSession) ? $" Max-Age={Math.Round(session.duration.TotalSeconds)}; Expires={DateTime.Now.AddSeconds(session.duration.TotalSeconds).ToString("r")};" : "")} Path=/";
 
                 string service = preTicket.service;
                 if (preTicket.wantTicket)

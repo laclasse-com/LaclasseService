@@ -101,6 +101,7 @@ namespace Laclasse.Authentication
                         ["start"] = session.start,
                         ["duration"] = session.duration.TotalSeconds,
                         ["user"] = session.user,
+                        ["idp"] = session.idp.ToString()
                     };
                 }
             };
@@ -119,6 +120,7 @@ namespace Laclasse.Authentication
                         ["start"] = session.start,
                         ["duration"] = session.duration.TotalSeconds,
                         ["user"] = session.user,
+                        ["idp"] = session.idp.ToString()
                     };
                 }
             };

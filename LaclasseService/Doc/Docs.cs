@@ -662,6 +662,7 @@ namespace Laclasse.Doc
                         {
                             blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
                             dstNode.blob_id = blob.id;
+                            dstNode.size = blob.size;
                         }
                         if (fileDefinition.Define != null)
                         {
@@ -688,6 +689,73 @@ namespace Laclasse.Doc
                     await db.CommitAsync();
                 }
             };
+
+            PutAsync["/{id}/copy/{src}"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+                var src = long.Parse((string)p["src"]);
+                var expand = c.Request.QueryString.ContainsKey("expand") ? bool.Parse(c.Request.QueryString["expand"]) : true;
+                var fileDefinition = new FileDefinition<Node>();
+
+                using (var db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var srcNode = new Node { id = src };
+                    var dstNode = new Node { id = id };
+
+                    if (await srcNode.LoadAsync(db, true) && await dstNode.LoadAsync(db, true))
+                    {
+                        Blob blob = null; string tempFile = null;
+                        string thumbnailTempFile = null;
+                        Blob thumbnailBlob = null;
+
+                        if (srcNode.blob_id != null)
+                        {
+                            fileDefinition.Stream = blobs.GetBlobStream(srcNode.blob_id);
+                            (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition, srcNode.blob);
+
+                            if (tempFile != null)
+                                BuildThumbnail(tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
+                        }
+
+                        string oldBlobId = null;
+                        if (blob != null)
+                        {
+                            oldBlobId = dstNode.blob_id;
+                            blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
+                            dstNode.blob_id = blob.id;
+                            dstNode.size = blob.size;
+                            dstNode.rev++;
+                        }
+                        if (fileDefinition.Define != null)
+                        {
+                            var define = fileDefinition.Define;
+                            if (define.Fields.ContainsKey(nameof(Node.name)))
+                                dstNode.name = define.name;
+                            if (define.Fields.ContainsKey(nameof(Node.parent_id)))
+                                dstNode.parent_id = define.parent_id;
+                        }
+
+                        if (thumbnailTempFile != null)
+                        {
+                            thumbnailBlob.parent_id = blob.id;
+                            thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
+                            dstNode.has_tmb = true;
+                        }
+
+                        await dstNode.UpdateAsync(db);
+                        await dstNode.LoadAsync(db, expand);
+
+                        // delete old blob if any
+                        if (oldBlobId != null)
+                            await blobs.DeleteBlobAsync(db, oldBlobId);
+
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = dstNode;
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
 
             GetAsync["/{id}/content"] = async (p, c) =>
             {

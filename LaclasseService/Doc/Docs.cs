@@ -320,16 +320,20 @@ namespace Laclasse.Doc
         string dbUrl;
         string path;
         string tempDir;
+        string directoryDbUrl;
+        DocSetup setup;
         Blobs blobs;
         Dictionary<string, List<IFilePlugin>> mimePlugins = new Dictionary<string, List<IFilePlugin>>();
         List<IFilePlugin> allPlugins = new List<IFilePlugin>();
 
-        public Docs(string dbUrl, string path, string tempDir, Blobs blobs, int cacheDuration, string directoryDbUrl)
+        public Docs(string dbUrl, string path, string tempDir, Blobs blobs, int cacheDuration, string directoryDbUrl, DocSetup setup)
         {
             this.dbUrl = dbUrl;
             this.path = path;
             this.tempDir = tempDir;
             this.blobs = blobs;
+            this.setup = setup;
+            this.directoryDbUrl = directoryDbUrl;
 
             BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
@@ -337,7 +341,7 @@ namespace Laclasse.Doc
             {
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var roots = await GetRootsAsync(context);
                     var jsonArray = new JsonArray();
                     foreach (var r in roots)
@@ -358,7 +362,7 @@ namespace Laclasse.Doc
                 var filterAuth = (new Node()).FilterAuthUser(authUser);
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var result = await Model.SearchAsync<Node>(db, c, filterAuth);
                     var jsonArray = new JsonArray();
                     foreach (var item in result.Data)
@@ -378,7 +382,7 @@ namespace Laclasse.Doc
 
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var item = await context.GetByIdAsync(id);
                     await db.CommitAsync();
                     if (item != null)
@@ -394,7 +398,7 @@ namespace Laclasse.Doc
                 var id = long.Parse((string)p["id"]);
                 using (var db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var item = await context.GetByIdAsync(id);
                     if (item != null)
                         await item.DeleteAsync();
@@ -404,6 +408,37 @@ namespace Laclasse.Doc
                 c.Response.Content = "";
             };
 
+            PostAsync["/"] = async (p, c) =>
+            {
+                var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
+                using (var db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var item = await Item.CreateAsync(context, fileDefinition);
+                    await db.CommitAsync();
+                    c.Response.StatusCode = 200;
+                    c.Response.Content = await item.ToJsonAsync(true);
+                }
+            };
+
+            PutAsync["/{id}"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+                var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
+
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var item = await context.GetByIdAsync(id);
+                    await item.ChangeAsync(fileDefinition);
+                    await db.CommitAsync();
+                    if (item != null)
+                    {
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = await item.ToJsonAsync(true);
+                    }
+                }
+            };
 
             GetAsync["/{id}/onlyoffice"] = async (p, c) =>
             {
@@ -411,7 +446,7 @@ namespace Laclasse.Doc
                 Item item;
                 using (DB db = await DB.CreateAsync(dbUrl))
                 {
-                    var context = new Context { tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     item = await context.GetByIdAsync(id);
                 }
                 if (item != null)
@@ -510,119 +545,6 @@ namespace Laclasse.Doc
 
                 c.Response.StatusCode = 200;
                 c.Response.Content = new JsonObject { ["error"] = 0 };
-            };
-
-            PostAsync["/"] = async (p, c) =>
-            {
-                var expand = c.Request.QueryString.ContainsKey("expand") ? bool.Parse(c.Request.QueryString["expand"]) : true;
-                var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
-                GenerateDefaultContent(fileDefinition);
-                Blob blob; string tempFile;
-                (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
-
-                Node node = fileDefinition.Define;
-                if (node == null)
-                    node = new Node();
-                if (node.name == null)
-                    node.name = blob.name;
-                if (node.mime == null)
-                    node.mime = blob.mimetype;
-                node.size = blob.size;
-                node.rev = 0;
-                node.mtime = (long)(DateTime.Now - DateTime.Parse("1970-01-01T00:00:00Z")).TotalSeconds;
-
-                var authUser = c.GetAuthenticatedUser();
-                if (authUser.IsUser)
-                {
-                    node.owner = authUser.user.id;
-                    node.owner_firstname = authUser.user.firstname;
-                    node.owner_lastname = authUser.user.lastname;
-                }
-
-                string thumbnailTempFile = null;
-                Blob thumbnailBlob = null;
-
-                if (tempFile != null)
-                    BuildThumbnail(tempDir, tempFile, node.mime, out thumbnailTempFile, out thumbnailBlob);
-
-                using (var db = await DB.CreateAsync(dbUrl))
-                {
-                    if (tempFile != null)
-                    {
-                        blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
-                        node.blob_id = blob.id;
-                    }
-                    if (thumbnailTempFile != null)
-                    {
-                        thumbnailBlob.parent_id = blob.id;
-                        thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
-                        node.has_tmb = true;
-                    }
-                    await node.SaveAsync(db, expand);
-                    await db.CommitAsync();
-                }
-
-                c.Response.StatusCode = 200;
-                c.Response.Content = node;
-            };
-
-            PutAsync["/{id}"] = async (p, c) =>
-            {
-                var id = long.Parse((string)p["id"]);
-                var expand = c.Request.QueryString.ContainsKey("expand") ? bool.Parse(c.Request.QueryString["expand"]) : true;
-                var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
-
-                Blob blob = null; string tempFile = null;
-                if (fileDefinition.Stream != null)
-                    (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
-
-                string thumbnailTempFile = null;
-                Blob thumbnailBlob = null;
-
-                if (tempFile != null)
-                    BuildThumbnail(tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
-
-                using (var db = await DB.CreateAsync(dbUrl, true))
-                {
-                    var node = new Node { id = id };
-                    if (await node.LoadAsync(db))
-                    {
-                        string oldBlobId = null;
-                        if (blob != null)
-                        {
-                            oldBlobId = node.blob_id;
-                            blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
-                            node.blob_id = blob.id;
-                            node.rev++;
-                        }
-                        if (fileDefinition.Define != null)
-                        {
-                            var define = fileDefinition.Define;
-                            if (define.Fields.ContainsKey(nameof(Node.name)))
-                                node.name = define.name;
-                            if (define.Fields.ContainsKey(nameof(Node.parent_id)))
-                                node.parent_id = define.parent_id;
-                        }
-
-                        if (thumbnailTempFile != null)
-                        {
-                            thumbnailBlob.parent_id = blob.id;
-                            thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
-                            node.has_tmb = true;
-                        }
-
-                        await node.UpdateAsync(db);
-                        await node.LoadAsync(db, expand);
-
-                        // delete old blob if any
-                        if (oldBlobId != null)
-                            await blobs.DeleteBlobAsync(db, oldBlobId);
-
-                        c.Response.StatusCode = 200;
-                        c.Response.Content = node;
-                    }
-                    await db.CommitAsync();
-                }
             };
 
             PostAsync["/{id}/copy"] = async (p, c) =>
@@ -756,7 +678,6 @@ namespace Laclasse.Doc
                 }
             };
 
-
             GetAsync["/{id}/content"] = async (p, c) =>
             {
                 var id = long.Parse((string)p["id"]);
@@ -764,66 +685,33 @@ namespace Laclasse.Doc
                 if (c.Request.QueryString.ContainsKey("rev"))
                     argRev = Convert.ToInt64(c.Request.QueryString["rev"]);
 
-                var node = new Node { id = id };
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-                    if (await node.LoadAsync(db, true))
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var item = await context.GetByIdAsync(id);
+                    if (item != null)
                     {
-                        if (node.rev != argRev)
+                        if (item.node.rev != argRev)
                         {
                             string attachment = "";
                             if (c.Request.QueryString.ContainsKey("attachment"))
                                 attachment = "&attachment";
                             c.Response.StatusCode = 307;
-                            c.Response.Headers["location"] = $"content?rev={node.rev}{attachment}";
-                        }
-                        else if (node.content != null)
-                        {
-                            var fullPath = Path.GetFullPath(ContentToPath(path, node.content));
-                            // check if full path is in the base directory
-                            if (!fullPath.StartsWith(path, StringComparison.InvariantCulture))
-                            {
-                                c.Response.StatusCode = 403;
-                                c.Response.Content = new StringContent("Invalid file path\r\n");
-                                return;
-                            }
-                            if (File.Exists(fullPath))
-                            {
-                                c.Response.SupportRanges = true;
-                                if (!c.Request.QueryString.ContainsKey("nocache"))
-                                    c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
-                                c.Response.Content = new FileContent(fullPath);
-                            }
-                        }
-                        else if (node.blob_id != null)
-                        {
-                            c.Response.Headers["content-type"] = node.mime;
-                            c.Response.StatusCode = 200;
-                            c.Response.SupportRanges = true;
-                            if (!c.Request.QueryString.ContainsKey("nocache"))
-                                c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
-                            c.Response.Content = blobs.GetBlobStream(node.blob_id);
-
-
+                            c.Response.Headers["location"] = $"content?rev={item.node.rev}{attachment}";
                         }
                         else
                         {
-                            c.Response.Headers["content-type"] = node.mime;
                             c.Response.StatusCode = 200;
                             c.Response.SupportRanges = true;
-                            if (!c.Request.QueryString.ContainsKey("nocache"))
+                            c.Response.Headers["content-type"] = item.node.mime;
+                            if (!c.Request.QueryString.ContainsKey("nocache") && argRev == item.node.rev)
                                 c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
-                            c.Response.Content = "";
+                            if (c.Request.QueryString.ContainsKey("attachment"))
+                                c.Response.Headers["content-disposition"] = $"attachment; filename=\"{item.node.name.Replace('"', ' ')}\"";
+                            c.Response.Content = await item.GetContentAsync();
                         }
-
                     }
-                }
-                if (c.Response.StatusCode != -1)
-                {
-                    if (c.Request.QueryString.ContainsKey("attachment"))
-                        c.Response.Headers["content-disposition"] = $"attachment; filename=\"{node.name.Replace('"', ' ')}\"";
-                    if (!c.Request.QueryString.ContainsKey("nocache") && argRev == node.rev)
-                        c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
+                    await db.CommitAsync();
                 }
             };
 
@@ -879,53 +767,44 @@ namespace Laclasse.Doc
                 string fileId = match.Groups[1].Value;
                 string remainPath = match.Groups[2].Value;
 
-                string filePath = null;
+                //                string filePath = null;
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-                    var node = await db.SelectRowAsync<Node>(long.Parse(fileId), false);
-                    if (node != null)
-                    {
-                        filePath = Path.GetFullPath(ContentToPath(path, node.content));
-                        // check if full path is in the base directory
-                        if (!filePath.StartsWith(path, StringComparison.InvariantCulture))
-                            filePath = null;
-                    }
-                }
+                    var ctx = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await context.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var item = await ctx.GetByIdAsync(long.Parse(fileId));
 
-                if (filePath != null && !File.Exists(filePath))
-                    filePath = null;
-
-                if (filePath != null)
-                {
-                    using (var zipFile = new ZipFile(filePath))
+                    if (item != null)
                     {
-                        // special case, if the path is not set, look for an index file
-                        if (remainPath == "")
+                        using (var zipFile = new ZipFile(await item.GetContentAsync()))
                         {
-                            foreach (ZipEntry e in zipFile)
+                            // special case, if the path is not set, look for an index file
+                            if (remainPath == "")
                             {
-                                if ((e.Name == "index.html") ||
-                                    (e.Name == "index.xhtml") ||
-                                    (e.Name == "index.htm"))
+                                foreach (ZipEntry e in zipFile)
                                 {
-                                    context.Response.StatusCode = 302;
-                                    context.Response.Headers["location"] = e.Name;
-                                    break;
+                                    if ((e.Name == "index.html") ||
+                                        (e.Name == "index.xhtml") ||
+                                        (e.Name == "index.htm"))
+                                    {
+                                        context.Response.StatusCode = 302;
+                                        context.Response.Headers["location"] = e.Name;
+                                        break;
+                                    }
                                 }
                             }
-                        }
-                        else
-                        {
-                            var entry = zipFile.GetEntry(remainPath);
-                            if (entry != null)
+                            else
                             {
-                                var entryStream = new ZipEntryStream(zipFile, entry);
-                                var fileContent = new FileContent(entryStream);
-                                var splittedPath = remainPath.Split('/');
-                                fileContent.FileName = splittedPath[splittedPath.Length - 1];
-                                context.Response.SupportRanges = true;
-                                context.Response.Content = fileContent;
-                                await context.SendResponseAsync();
+                                var entry = zipFile.GetEntry(remainPath);
+                                if (entry != null)
+                                {
+                                    var entryStream = new ZipEntryStream(zipFile, entry);
+                                    var fileContent = new FileContent(entryStream);
+                                    var splittedPath = remainPath.Split('/');
+                                    fileContent.FileName = splittedPath[splittedPath.Length - 1];
+                                    context.Response.SupportRanges = true;
+                                    context.Response.Content = fileContent;
+                                    await context.SendResponseAsync();
+                                }
                             }
                         }
                     }
@@ -936,33 +815,6 @@ namespace Laclasse.Doc
             if (!context.Response.Sent && context.Response.StatusCode == -1)
                 await base.ProcessRequestAsync(context);
         }
-
-        static string ContentToPath(string basePath, string content)
-        {
-            string filePath = null;
-            var tab = content.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-            if (tab[0] == "users")
-            {
-                var userId = tab[1].ToLowerInvariant();
-                var userPath = $"{userId[0]}/{userId[1]}/{userId[2]}/{userId.Substring(3, 2)}/{userId.Substring(5)}";
-                var remainPath = String.Join("/", tab, 2, tab.Length - 2);
-                filePath = $"{basePath}users/{userPath}/{remainPath}";
-            }
-            else if (tab[0] == "etablissements")
-            {
-                var structureId = tab[1].ToLowerInvariant();
-                var remainPath = String.Join("/", tab, 2, tab.Length - 2);
-                filePath = $"{basePath}etablissements/{structureId}/{remainPath}";
-            }
-            else if (tab[0] == "groupes_libres")
-            {
-                var groupId = tab[1];
-                var remainPath = String.Join("/", tab, 2, tab.Length - 2);
-                filePath = $"{basePath}groupes_libres/{groupId}/{remainPath}";
-            }
-            return filePath;
-        }
-
 
         public static void BuildThumbnail(string tempDir, string tempFile, string mimetype, out string thumbnailTempFile, out Blob thumbnailBlob)
         {
@@ -1103,25 +955,6 @@ namespace Laclasse.Doc
                     string resourceName = assembly.GetManifestResourceNames().Single(str => str.EndsWith("sample.pptx"));
                     fileDefinition.Stream = assembly.GetManifestResourceStream(resourceName);
                 }
-            }
-        }
-
-        async Task<Node> GetNodeAsync(DB db, int id, bool expand = true)
-        {
-            Node item = new Node { id = id };
-            if (!await item.LoadAsync(db, expand))
-                item = null;
-            return item;
-        }
-
-        async Task DeleteNodeAsync(DB db, int id)
-        {
-            var node = new Node { id = id };
-            if (await node.LoadAsync(db))
-            {
-                await node.DeleteAsync(db);
-                if (node.blob_id != null)
-                    await blobs.DeleteBlobAsync(db, node.blob_id);
             }
         }
 

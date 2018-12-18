@@ -151,7 +151,19 @@ namespace Laclasse.Doc
         public async Task<Blob> GetBlobAsync(DB db, string id)
         {
             var blob = new Blob { id = id };
-            return (await blob.LoadAsync(db)) ? blob : null;
+            return (await blob.LoadAsync(db, true)) ? blob : null;
+        }
+
+        public async Task<Blob> SearchSameBlobAsync(DB db, Blob blob)
+        {
+            var blobs = await db.SelectAsync<Blob>("SELECT * FROM `blob` WHERE `size` = ? AND `sha1` = ? AND `md5` = ?", blob.size, blob.sha1, blob.md5);
+            Blob res = null;
+            if (blobs.Count > 0)
+            {
+                res = blobs[0];
+                await res.LoadAsync(db, true);
+            }
+            return res;
         }
 
         public Stream GetBlobStream(string id)
@@ -282,7 +294,7 @@ namespace Laclasse.Doc
             Stream fileContentStream = null;
 
             string contentType = context.Request.Headers["content-type"];
-            if (contentType.IndexOf("multipart/form-data") >= 0)
+            if (contentType.IndexOf("multipart/form-data", StringComparison.InvariantCulture) >= 0)
             {
                 MultipartReader reader = context.Request.ReadAsMultipart();
                 MultipartPart part;
@@ -295,7 +307,7 @@ namespace Laclasse.Doc
                         StreamReader streamReader = new StreamReader(part.Stream, Encoding.UTF8);
                         string jsonString = await streamReader.ReadToEndAsync();
                         define = new T();
-                        define.FromJson(JsonValue.Parse(jsonString) as JsonObject);
+                        define.FromJson(JsonValue.Parse(jsonString) as JsonObject, null, context);
                     }
                     // the file content
                     else if (part.Headers.ContentDisposition["name"] == "file")
@@ -314,7 +326,7 @@ namespace Laclasse.Doc
             else
             {
                 define = new T();
-                define.FromJson(await context.Request.ReadAsJsonAsync() as JsonObject);
+                define.FromJson(await context.Request.ReadAsJsonAsync() as JsonObject, null, context);
             }
 
             if (filename == null)

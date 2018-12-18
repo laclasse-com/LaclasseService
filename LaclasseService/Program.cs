@@ -119,6 +119,10 @@ namespace Laclasse
             if (!System.IO.Directory.Exists(setup.server.temporaryDirectory))
                 System.IO.Directory.CreateDirectory(setup.server.temporaryDirectory);
 
+            // clean the temporary dir
+            foreach (var file in System.IO.Directory.EnumerateFiles(setup.server.temporaryDirectory))
+                File.Delete(file);
+
             var logger = new Logger(setup.log, setup.mail);
 
             var server = new Server(setup.server.port, logger);
@@ -193,7 +197,7 @@ namespace Laclasse
 
             var blobs = new Blobs(setup.doc.url, Path.Combine(setup.server.storage, "blobs"), setup.server.temporaryDirectory);
             mapper.Add("/api/blobs", blobs);
-            mapper.Add("/api/docs", new Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory, blobs, setup.http.defaultCacheDuration, dbUrl));
+            mapper.Add("/api/docs", new Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory, blobs, setup.http.defaultCacheDuration, dbUrl, setup.doc));
 
             //mapper.Add("/api/icons", new Icons(dbUrl));
             mapper.Add("/api/icons", new StaticIcons(setup.server.publicIcons, setup.http.defaultCacheDuration));

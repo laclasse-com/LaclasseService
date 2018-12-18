@@ -40,10 +40,17 @@ namespace Laclasse
         public string url = "server=localhost;userid=user;password=password;database=annuairev3";
     }
 
+    public class EtherPadSetup
+    {
+        public string url = "/pads/";
+        public string apiKey = "notdefined";
+    }
+
     public class DocSetup
     {
         public string url = "server=localhost;userid=user;password=password;database=docsv3";
         public string path = "/var/lib/laclasse-docs/";
+        public EtherPadSetup etherpad = new EtherPadSetup();
     }
 
     public class LogSetup

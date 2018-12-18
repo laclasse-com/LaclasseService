@@ -1,15 +1,18 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Collections.Generic;
-using Laclasse.Authentication;
 using Erasme.Json;
+using Erasme.Http;
+using Laclasse.Authentication;
 
 namespace Laclasse.Doc
 {
     public class Context
     {
+        public DocSetup setup;
+        public string storageDir;
         public string tempDir;
         public string directoryDbUrl;
         public AuthenticatedUser user;
@@ -41,7 +44,7 @@ namespace Laclasse.Doc
         }
     }
 
-    public struct ItemRight
+    public class ItemRight
     {
         public bool Read;
         public bool Write;
@@ -102,39 +105,31 @@ namespace Laclasse.Doc
                     rights = await parent.RightsAsync();
                     rights.Locked = false;
                 }
-                rights = await ProcessAdvancedRightsAsync(rights);
+                await ProcessAdvancedRightsAsync(rights);
+                await ProcessAdvancedParentRightsAsync(rights);
             }
-            Console.WriteLine($"{this}.RightsAsync() {node.name}, read: {rights.Read}");
             return rights;
         }
 
-        public virtual async Task<ItemRight> ProcessAdvancedRightsAsync(ItemRight rights)
+        public virtual async Task ProcessAdvancedRightsAsync(ItemRight rights)
         {
             // handle advanced rights        
             // advanced right only supported for structure and free groups
             var root = await GetRootAsync();
 
-            if (!(root is Structure || root is GroupeLibre))
-                return rights;
-
             IEnumerable<Directory.UserProfile> profiles = new List<Directory.UserProfile>();
             if (root is Structure)
                 profiles = context.user.user.profiles.Where((p) => p.structure_id == root.node.etablissement_uai);
-            else if (root is GroupeLibre)
+            else
                 profiles = context.user.user.profiles;
 
             bool? advRead = null;
             bool? advWrite = null;
 
-            var profilesString = "";
-            profiles.ForEach((p) => profilesString += p.type + ",");
-            Console.WriteLine($"{this}.ProcessAdvancedRightsAsync user.profiles: {profilesString}");
-
             if (node.rights != null && node.rights.Count > 0)
             {
                 foreach (var advRight in node.rights)
                 {
-                    Console.WriteLine($"{this}.ProcessAdvancedRightsAsync {advRight.profile} advRight: {advRight.read}");
                     if (profiles.Any((p) => StringToRightProfile(p.type) == advRight.profile))
                     {
                         if (advRead != true || advRead == null)
@@ -149,17 +144,13 @@ namespace Laclasse.Doc
                 rights.Read = (bool)advRead;
             if (advWrite != null)
                 rights.Write = (bool)advWrite;
+        }
 
-            // handle special rights for the owner
-            if (node.owner != null && node.owner == context.user.user.id)
-            {
-                rights.Read = true;
-                rights.Write = true;
-            }
-            Console.WriteLine($"{this}.ProcessAdvancedRightsAsync advRead: {advRead}");
-            //r[:advanced_rights] = true
-            //r[:advanced_admin] = profiles.any ? { | p | p['type'] != 'ELV' && p['type'] != 'TUT' }
-            return rights;
+        public virtual async Task ProcessAdvancedParentRightsAsync(ItemRight rights)
+        {
+            var parent = await GetParentAsync();
+            if (parent != null)
+                await parent.ProcessAdvancedParentRightsAsync(rights);
         }
 
         public string SanitizeName()
@@ -167,9 +158,100 @@ namespace Laclasse.Doc
             return "";
         }
 
-        public virtual Task ChangeAsync()
+        public virtual Task<Stream> GetContentAsync()
         {
-            return Task.FromResult(0);
+            Stream stream = null;
+            if (node.content != null)
+            {
+                var fullPath = Path.GetFullPath(ContentToPath(node.content));
+                // check if full path is in the base directory
+                if (!fullPath.StartsWith(context.storageDir, StringComparison.InvariantCulture))
+                    throw new WebException(403, "Invalid file path");
+                if (!File.Exists(fullPath))
+                    throw new WebException(404, "Content not found");
+                stream = File.OpenRead(fullPath);
+            }
+            else if (node.blob_id != null)
+                stream = context.blobs.GetBlobStream(node.blob_id);
+            else
+                stream = new MemoryStream();
+            return Task.FromResult(stream);
+        }
+
+        public async virtual Task ChangeAsync(FileDefinition<Node> fileDefinition)
+        {
+            if (context.user.IsUser)
+            {
+                if (!(await RightsAsync()).Write)
+                    throw new WebException(403, "User dont have write right");
+            }
+
+            Blob blob = null; string tempFile = null;
+            if (fileDefinition.Stream != null)
+                (blob, tempFile) = await context.blobs.PrepareBlobAsync(fileDefinition);
+
+            string thumbnailTempFile = null;
+            Blob thumbnailBlob = null;
+
+            if (tempFile != null)
+                Docs.BuildThumbnail(context.tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
+
+            string oldBlobId = null;
+            if (blob != null)
+            {
+                oldBlobId = node.blob_id;
+                blob = await context.blobs.CreateBlobFromTempFileAsync(context.db, blob, tempFile);
+                node.blob_id = blob.id;
+                node.rev++;
+                if (context.user.IsUser)
+                {
+                    // update the last owner
+                    node.owner = context.user.user.id;
+                    node.owner_firstname = context.user.user.firstname;
+                    node.owner_lastname = context.user.user.lastname;
+                    node.mtime = (long)(DateTime.Now - DateTime.Parse("1970-01-01T00:00:00Z")).TotalSeconds;
+                }
+            }
+            if (fileDefinition.Define != null)
+            {
+                var define = fileDefinition.Define;
+                if (define.Fields.ContainsKey(nameof(Node.name)))
+                    node.name = define.name;
+                if (define.Fields.ContainsKey(nameof(Node.parent_id)))
+                {
+                    // check destination rights
+                    if (context.user.IsUser)
+                    {
+                        if ((define.parent_id == null || node.parent_id == null) && !context.user.IsSuperAdmin)
+                            throw new WebException(403, "User dont have write to modify root nodes");
+                        var oldParent = await context.GetByIdAsync((long)node.parent_id);
+                        if (!(await oldParent.RightsAsync()).Write)
+                            throw new WebException(403, "User dont have write right on the source folder");
+                        var parent = await context.GetByIdAsync((long)define.parent_id);
+                        if (!(await parent.RightsAsync()).Write)
+                            throw new WebException(403, "User dont have write right on the destination");
+                    }
+                    node.parent_id = define.parent_id;
+                }
+                if (define.Fields.ContainsKey(nameof(Node.rights)))
+                {
+                    node.rights = define.rights;
+                }
+            }
+
+            if (thumbnailTempFile != null)
+            {
+                thumbnailBlob.parent_id = blob.id;
+                thumbnailBlob = await context.blobs.CreateBlobFromTempFileAsync(context.db, thumbnailBlob, thumbnailTempFile);
+                node.has_tmb = true;
+            }
+
+            await node.UpdateAsync(context.db);
+            await node.LoadAsync(context.db, true);
+
+            // delete old blob if any
+            if (oldBlobId != null)
+                await context.blobs.DeleteBlobAsync(context.db, oldBlobId);
         }
 
         // Delete an Item
@@ -178,10 +260,24 @@ namespace Laclasse.Doc
             var rights = await RightsAsync();
             if (!rights.Write || rights.Locked)
                 throw new WebException(403, "Rights needed");
+            // check parent rights (write right need on the parent)
+            if (context.user.IsUser && !context.user.IsSuperAdmin)
+            {
+                if (node.parent_id == null)
+                    throw new WebException(403, "Rights needed");
+                var parent = await context.GetByIdAsync((long)node.parent_id);
+                if (!(await parent.RightsAsync()).Write)
+                    throw new WebException(403, "Rights needed");
+            }
             await node.DeleteAsync(context.db);
             context.items.Remove(node.id);
             if (node.blob_id != null)
-                await context.blobs.DeleteBlobAsync(context.db, node.blob_id);
+            {
+                // delete the blob if this is the last ref file
+                var blobRefCount = await context.db.ExecuteScalarAsync("SELECT COUNT(id) FROM `node` WHERE `blob_id` = ? AND `id` != ?", node.blob_id, node.id);
+                if ((long)blobRefCount == 0)
+                    await context.blobs.DeleteBlobAsync(context.db, node.blob_id);
+            }
         }
 
         public virtual async Task<JsonObject> ToJsonAsync(bool expand)
@@ -192,6 +288,11 @@ namespace Laclasse.Doc
             json["write"] = rights.Write;
             json["locked"] = rights.Locked;
             return json;
+        }
+
+        public virtual async Task CreateAsync(FileDefinition<Node> fileDefinition)
+        {
+            await node.SaveAsync(context.db, true);
         }
 
         public static Item ByNode(Context context, Node node)
@@ -213,7 +314,12 @@ namespace Laclasse.Doc
             if (node.name == null)
                 node.name = blob.name;
             if (node.mime == null)
-                node.mime = blob.mimetype;
+            {
+                var mime = FileNameToMimeType(node.name);
+                if (mime == "application/octet-stream")
+                    mime = blob.mimetype;
+                node.mime = mime;
+            }
             node.size = blob.size;
             node.rev = 0;
             node.mtime = (long)(DateTime.Now - DateTime.Parse("1970-01-01T00:00:00Z")).TotalSeconds;
@@ -223,27 +329,59 @@ namespace Laclasse.Doc
                 node.owner = context.user.user.id;
                 node.owner_firstname = context.user.user.firstname;
                 node.owner_lastname = context.user.user.lastname;
+
+                // check right for parent_id
+                if (!context.user.IsSuperAdmin)
+                {
+                    if (node.parent_id == null)
+                        throw new WebException(403, "User cant create root nodes");
+
+                    var parent = await context.GetByIdAsync((long)node.parent_id);
+                    if (!(await parent.RightsAsync()).Write)
+                        throw new WebException(403, "User dont have write right");
+                }
             }
-
-            string thumbnailTempFile = null;
-            Blob thumbnailBlob = null;
-
-            if (tempFile != null)
-                Docs.BuildThumbnail(context.tempDir, tempFile, node.mime, out thumbnailTempFile, out thumbnailBlob);
 
             if (tempFile != null)
             {
-                blob = await context.blobs.CreateBlobFromTempFileAsync(context.db, blob, tempFile);
-                node.blob_id = blob.id;
+                var sameBlob = await context.blobs.SearchSameBlobAsync(context.db, blob);
+                if (sameBlob != null)
+                {
+                    blob = sameBlob;
+                    node.blob_id = sameBlob.id;
+                    if (sameBlob.children.Any(b => b.name == "thumbnail"))
+                        node.has_tmb = true;
+                    // delete the temporary file if commit is done
+                    context.db.AddCommitAction(() =>
+                    {
+                        File.Delete(tempFile);
+                    });
+                }
+                else
+                {
+                    string thumbnailTempFile = null;
+                    Blob thumbnailBlob = null;
+
+                    if (tempFile != null)
+                        Docs.BuildThumbnail(context.tempDir, tempFile, node.mime, out thumbnailTempFile, out thumbnailBlob);
+
+                    if (tempFile != null)
+                    {
+                        blob = await context.blobs.CreateBlobFromTempFileAsync(context.db, blob, tempFile);
+                        node.blob_id = blob.id;
+                    }
+                    if (thumbnailTempFile != null)
+                    {
+                        thumbnailBlob.parent_id = blob.id;
+                        thumbnailBlob = await context.blobs.CreateBlobFromTempFileAsync(context.db, thumbnailBlob, thumbnailTempFile);
+                        node.has_tmb = true;
+                    }
+                }
             }
-            if (thumbnailTempFile != null)
-            {
-                thumbnailBlob.parent_id = blob.id;
-                thumbnailBlob = await context.blobs.CreateBlobFromTempFileAsync(context.db, thumbnailBlob, thumbnailTempFile);
-                node.has_tmb = true;
-            }
-            await node.SaveAsync(context.db, true);
-            return ByNode(context, node);
+
+            var item = ByNode(context, node);
+            await item.CreateAsync(fileDefinition);
+            return item;
         }
 
         static Dictionary<string, Func<Context, Node, Item>> types = new Dictionary<string, Func<Context, Node, Item>>();
@@ -265,21 +403,80 @@ namespace Laclasse.Doc
                 return RightProfile.TUT;
             if (profile == "ELV")
                 return RightProfile.ELV;
-            return RightProfile.TUT;
+            return RightProfile.ENS;
+        }
+
+        static readonly Dictionary<string, string> extensionToMimeTypes = new Dictionary<string, string>();
+
+        public static void RegisterFileExtension(string extension, string mimetype)
+        {
+            extensionToMimeTypes[extension.ToLowerInvariant()] = mimetype;
+        }
+
+        public static string FileNameToMimeType(string shortName)
+        {
+            var extension = Path.GetExtension(shortName);
+            if (extensionToMimeTypes.ContainsKey(extension))
+                return extensionToMimeTypes[extension];
+            var mimetype = FileContent.MimeType(shortName);
+            return mimetype;
+        }
+
+        string ContentToPath(string content)
+        {
+            string basePath = context.storageDir;
+            string filePath = null;
+            var tab = content.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (tab[0] == "users")
+            {
+                var userId = tab[1].ToLowerInvariant();
+                var userPath = $"{userId[0]}/{userId[1]}/{userId[2]}/{userId.Substring(3, 2)}/{userId.Substring(5)}";
+                var remainPath = String.Join("/", tab, 2, tab.Length - 2);
+                filePath = $"{basePath}users/{userPath}/{remainPath}";
+            }
+            else if (tab[0] == "etablissements")
+            {
+                var structureId = tab[1].ToLowerInvariant();
+                var remainPath = String.Join("/", tab, 2, tab.Length - 2);
+                filePath = $"{basePath}etablissements/{structureId}/{remainPath}";
+            }
+            else if (tab[0] == "groupes_libres")
+            {
+                var groupId = tab[1];
+                var remainPath = String.Join("/", tab, 2, tab.Length - 2);
+                filePath = $"{basePath}groupes_libres/{groupId}/{remainPath}";
+            }
+            return filePath;
         }
 
         static Item()
         {
             Register("classes", (context, node) => new Classes(context, node));
+
             Register("classe", (context, node) => new Classe(context, node));
+
             Register("groupes", (context, node) => new Groupes(context, node));
+
             Register("groupe", (context, node) => new Groupe(context, node));
+
             Register("ct", (context, node) => new CahierTexte(context, node));
+
             Register("etablissement", (context, node) => new Structure(context, node));
+
             Register("cartable", (context, node) => new Cartable(context, node));
+
             Register("groupe_libre", (context, node) => new GroupeLibre(context, node));
+
             Register("directory", (context, node) => new Folder(context, node));
+
+            RegisterFileExtension(".url", "text/uri-list");
             Register("text/uri-list", (context, node) => new WebLink(context, node));
+
+            RegisterFileExtension(".pad", "application/x-laclasse-pad");
+            Register("application/x-laclasse-pad", (context, node) => new Pad(context, node));
+
+            RegisterFileExtension(".webapp", "application/x-laclasse-webapp");
+
             Register("*", (context, node) => new Document(context, node));
         }
     }
@@ -300,13 +497,10 @@ namespace Laclasse.Doc
         public override async Task<JsonObject> ToJsonAsync(bool expand)
         {
             var json = await base.ToJsonAsync(expand);
-            if (node.blob_id != null)
+            using (var stream = await GetContentAsync())
+            using (var streamReader = new StreamReader(stream))
             {
-                using (var stream = context.blobs.GetBlobStream(node.blob_id))
-                using (var streamReader = new StreamReader(stream))
-                {
-                    json["url"] = await streamReader.ReadLineAsync();
-                }
+                json["url"] = await streamReader.ReadLineAsync();
             }
             return json;
         }
@@ -321,10 +515,12 @@ namespace Laclasse.Doc
         public override async Task DeleteAsync()
         {
             // delete children first
-            var children = await GetChildrenAsync();
+            var children = await GetFilteredChildrenAsync();
             foreach (var child in children)
                 await child.DeleteAsync();
-            await base.DeleteAsync();
+            var newChildren = await GetChildrenAsync();
+            if (newChildren.Count() == 0)
+                await base.DeleteAsync();
         }
 
         public virtual async Task<IEnumerable<Item>> GetChildrenAsync()
@@ -347,13 +543,11 @@ namespace Laclasse.Doc
 
         public override async Task<JsonObject> ToJsonAsync(bool expand)
         {
-            Console.WriteLine($"Folder.ToJsonAsync {node.name}");
             var json = await base.ToJsonAsync(expand);
             json.Remove("children");
             if (expand)
             {
                 var rights = await RightsAsync();
-                Console.WriteLine($"Folder.ToJsonAsync {node.name} Read: {rights.Read}");
                 JsonArray children = new JsonArray();
                 json["children"] = children;
                 if (rights.Read)
@@ -380,6 +574,31 @@ namespace Laclasse.Doc
             else if (context.user.IsUser && context.user.user.id == node.cartable_uid)
                 rights = new ItemRight { Read = true, Write = true, Locked = true };
             return Task.FromResult(rights);
+        }
+
+        public override async Task ProcessAdvancedParentRightsAsync(ItemRight rights)
+        {
+            if (context.user.IsSuperAdmin)
+            {
+                rights.Read = true;
+                rights.Write = true;
+            }
+            else
+            {
+                // if the Cartable is a root node and the current user is the owner
+                // ensure read and write rights are set
+                var parent = await GetParentAsync();
+                if (parent == null)
+                {
+                    if (context.user.user.id == node.cartable_uid)
+                    {
+                        rights.Read = true;
+                        rights.Write = true;
+                    }
+                }
+                else
+                    await parent.ProcessAdvancedParentRightsAsync(rights);
+            }
         }
 
         public override async Task<JsonObject> ToJsonAsync(bool expand)
@@ -438,6 +657,31 @@ namespace Laclasse.Doc
                     rights.Write = true;
             }
             return Task.FromResult(rights);
+        }
+
+        public override async Task ProcessAdvancedParentRightsAsync(ItemRight rights)
+        {
+            if (context.user.IsSuperAdmin)
+            {
+                rights.Read = true;
+                rights.Write = true;
+            }
+            else
+            {
+                // if the sturcture is a root node and the current user has ADM or DIR profile
+                // ensure read and write rights are set
+                var parent = await GetParentAsync();
+                if (parent == null)
+                {
+                    if (context.user.user.profiles.Any((p) => p.structure_id == node.etablissement_uai && (p.type == "ADM" || p.type == "DIR")))
+                    {
+                        rights.Read = true;
+                        rights.Write = true;
+                    }
+                }
+                else
+                    await parent.ProcessAdvancedParentRightsAsync(rights);
+            }
         }
 
         public override async Task<JsonObject> ToJsonAsync(bool expand)
@@ -631,9 +875,9 @@ namespace Laclasse.Doc
                     if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && allowedProfiles.Contains(p.type)))
                         rights.Write = true;
                 }
-                rights = await ProcessAdvancedRightsAsync(rights);
+                await ProcessAdvancedRightsAsync(rights);
+                await ProcessAdvancedParentRightsAsync(rights);
             }
-            Console.WriteLine($"Classe.RightsAsync Read: {rights.Read}");
             return rights;
         }
     }
@@ -745,6 +989,8 @@ namespace Laclasse.Doc
                     if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && allowedProfiles.Contains(p.type)))
                         rights.Write = true;
                 }
+                await ProcessAdvancedRightsAsync(rights);
+                await ProcessAdvancedParentRightsAsync(rights);
             }
             return rights;
         }
@@ -821,4 +1067,101 @@ namespace Laclasse.Doc
         }
     }
 
+    public class Pad : Folder
+    {
+        public Pad(Context context, Node node) : base(context, node)
+        {
+        }
+
+        public async override Task CreateAsync(FileDefinition<Node> fileDefinition)
+        {
+            // parent create before because we need the node id first
+            await base.CreateAsync(fileDefinition);
+
+            var html = await (new StreamReader(await base.GetContentAsync())).ReadToEndAsync();
+
+            // create the remote pad if possible
+            var url = new Uri(context.setup.etherpad.url);
+            using (var client = await HttpClient.CreateAsync(url))
+            {
+                var request = new HttpClientRequest
+                {
+                    Method = "GET",
+                    Path = $"{url.AbsolutePath}/api/1.2.1/createPad"
+                };
+                request.QueryString["padID"] = node.id.ToString();
+                request.QueryString["apikey"] = context.setup.etherpad.apiKey;
+                await client.SendRequestAsync(request);
+                var response = await client.GetResponseAsync();
+            }
+            // set the HTML content
+            using (var client = await HttpClient.CreateAsync(url))
+            {
+                var request = new HttpClientRequest
+                {
+                    Method = "GET",
+                    Path = $"{url.AbsolutePath}/api/1.2.1/setHTML"
+                };
+                request.QueryString["padID"] = node.id.ToString();
+                request.QueryString["apikey"] = context.setup.etherpad.apiKey;
+                request.QueryString["html"] = html;
+                await client.SendRequestAsync(request);
+                var response = await client.GetResponseAsync();
+            }
+        }
+
+        public override async Task DeleteAsync()
+        {
+            var id = node.id;
+            await base.DeleteAsync();
+            context.db.AddCommitAction(async () =>
+            {
+                // delete the remote pad if possible
+                var url = new Uri(context.setup.etherpad.url);
+                using (HttpClient client = await HttpClient.CreateAsync(url))
+                {
+                    HttpClientRequest request = new HttpClientRequest
+                    {
+                        Method = "GET",
+                        Path = $"{url.AbsolutePath}/api/1.2.1/deletePad"
+                    };
+                    request.QueryString["padID"] = id.ToString();
+                    request.QueryString["apikey"] = context.setup.etherpad.apiKey;
+                    await client.SendRequestAsync(request);
+                    HttpClientResponse response = await client.GetResponseAsync();
+                }
+            });
+        }
+
+        public override async Task<Stream> GetContentAsync()
+        {
+            var stream = new MemoryStream();
+            var url = new Uri(context.setup.etherpad.url);
+            using (HttpClient client = await HttpClient.CreateAsync(url))
+            {
+                HttpClientRequest request = new HttpClientRequest
+                {
+                    Method = "GET",
+                    Path = $"{url.AbsolutePath}/api/1.2.1/getHTML"
+                };
+                request.QueryString["padID"] = node.id.ToString();
+                request.QueryString["apikey"] = context.setup.etherpad.apiKey;
+                await client.SendRequestAsync(request);
+                HttpClientResponse response = await client.GetResponseAsync();
+                if (response.StatusCode == 200)
+                {
+                    var json = response.ReadAsJson();
+                    if (json.ContainsKey("data") && json["data"].ContainsKey("html"))
+                    {
+                        var bytes = System.Text.Encoding.UTF8.GetBytes((json["data"] as JsonObject)["html"]);
+                        stream.Write(bytes, 0, bytes.Length);
+                    }
+                    stream.Seek(0, SeekOrigin.Begin);
+                }
+                else
+                    throw new WebException(404, "Content not found");
+            }
+            return stream;
+        }
+    }
 }

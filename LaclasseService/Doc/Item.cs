@@ -508,6 +508,9 @@ namespace Laclasse.Doc
 
     public class Folder : Item
     {
+        private bool _childrenLoaded = false;
+        private readonly List<Item> _children = new List<Item>();
+
         public Folder(Context context, Node node) : base(context, node)
         {
         }
@@ -515,25 +518,30 @@ namespace Laclasse.Doc
         public override async Task DeleteAsync()
         {
             // delete children first
-            var children = await GetFilteredChildrenAsync();
+            var children = new List<Item>(await GetFilteredChildrenAsync());
             foreach (var child in children)
+            {
                 await child.DeleteAsync();
-            var newChildren = await GetChildrenAsync();
-            if (newChildren.Count() == 0)
+                _children.Remove(child);
+            }
+            if (!_children.Any())
                 await base.DeleteAsync();
         }
 
         public virtual async Task<IEnumerable<Item>> GetChildrenAsync()
         {
-            // load node children if needed
-            if (!node.Fields.ContainsKey(nameof(node.children)))
-                await node.LoadExpandFieldAsync(context.db, nameof(node.children));
-            var children = new List<Item>();
-            // get all children by their id because the node need to by
-            // fully loaded with the node's expanded field to have a valid Item
-            foreach (var child in node.children)
-                children.Add(await context.GetByIdAsync(child.id));
-            return children;
+            if (!_childrenLoaded)
+            {
+                // load node children if needed
+                if (!node.Fields.ContainsKey(nameof(node.children)))
+                    await node.LoadExpandFieldAsync(context.db, nameof(node.children));
+                // get all children by their id because the node need to by
+                // fully loaded with the node's expanded field to have a valid Item
+                foreach (var child in node.children)
+                    _children.Add(await context.GetByIdAsync(child.id));
+                _childrenLoaded = true;
+            }
+            return _children;
         }
 
         public virtual Task<IEnumerable<Item>> GetFilteredChildrenAsync()

@@ -194,6 +194,7 @@ namespace Laclasse
             mapper.Add("/api/manage", new Manage.ManageService());
 
             mapper.Add("/api/users", new Mail.ImapCheck(dbUrl));
+            mapper.Add("/api/emails", new Mail.UnusedEmailCheck(dbUrl,setup.mail.server.path));
 
             var blobs = new Blobs(setup.doc.url, Path.Combine(setup.server.storage, "blobs"), setup.server.temporaryDirectory);
             mapper.Add("/api/blobs", blobs);

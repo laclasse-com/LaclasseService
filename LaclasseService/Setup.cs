@@ -89,6 +89,7 @@ namespace Laclasse
     {
         public string host = "localhost";
         public int port = 25;
+        public string path = "/var/mail";
     }
 
     public class MailSetup

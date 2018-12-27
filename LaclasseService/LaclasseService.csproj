@@ -173,6 +173,7 @@
     </Compile>
     <Compile Include="Doc\Item.cs" />
     <Compile Include="BonApp\BonApp.cs" />
+    <Compile Include="Mail\UnusedEmailCheck.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

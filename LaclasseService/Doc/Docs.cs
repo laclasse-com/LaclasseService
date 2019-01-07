@@ -411,13 +411,27 @@ namespace Laclasse.Doc
             PostAsync["/"] = async (p, c) =>
             {
                 var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
-                using (var db = await DB.CreateAsync(dbUrl, true))
+                try
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                    var item = await Item.CreateAsync(context, fileDefinition);
-                    await db.CommitAsync();
-                    c.Response.StatusCode = 200;
-                    c.Response.Content = await item.ToJsonAsync(true);
+                    using (var db = await DB.CreateAsync(dbUrl, true))
+                    {
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var item = await Item.CreateAsync(context, fileDefinition);
+                        await db.CommitAsync();
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = await item.ToJsonAsync(true);
+                    }
+                }
+                // catch MySQL duplicate name exception
+                catch (MySql.Data.MySqlClient.MySqlException e)
+                {
+                    if (e.Number == 1062)
+                    {
+                        c.Response.StatusCode = 400;
+                        c.Response.Content = new JsonObject { ["error"] = "Duplicate name", ["code"] = 1 };
+                    }
+                    else
+                        throw;
                 }
             };
 
@@ -426,17 +440,31 @@ namespace Laclasse.Doc
                 var id = long.Parse((string)p["id"]);
                 var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
 
-                using (DB db = await DB.CreateAsync(dbUrl, true))
+                try
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                    var item = await context.GetByIdAsync(id);
-                    await item.ChangeAsync(fileDefinition);
-                    await db.CommitAsync();
-                    if (item != null)
+                    using (DB db = await DB.CreateAsync(dbUrl, true))
                     {
-                        c.Response.StatusCode = 200;
-                        c.Response.Content = await item.ToJsonAsync(true);
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var item = await context.GetByIdAsync(id);
+                        await item.ChangeAsync(fileDefinition);
+                        await db.CommitAsync();
+                        if (item != null)
+                        {
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = await item.ToJsonAsync(true);
+                        }
                     }
+                }
+                // catch MySQL duplicate name exception
+                catch (MySql.Data.MySqlClient.MySqlException e)
+                {
+                    if (e.Number == 1602)
+                    {
+                        c.Response.StatusCode = 400;
+                        c.Response.Content = new JsonObject { ["error"] = "Duplicate name", ["code"] = 1 };
+                    }
+                    else
+                        throw;
                 }
             };
 

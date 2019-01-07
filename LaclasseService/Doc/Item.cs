@@ -467,6 +467,8 @@ namespace Laclasse.Doc
 
             Register("groupe_libre", (context, node) => new GroupeLibre(context, node));
 
+            Register("rendu", (context, node) => new Rendu(context, node));
+
             Register("directory", (context, node) => new Folder(context, node));
 
             RegisterFileExtension(".url", "text/uri-list");
@@ -1172,4 +1174,62 @@ namespace Laclasse.Doc
             return stream;
         }
     }
+
+    public class Rendu : Folder
+    {
+        public Rendu(Context context, Node node) : base(context, node)
+        {
+        }
+
+        public override async Task<IEnumerable<Item>> GetFilteredChildrenAsync()
+        {
+            var children = await GetChildrenAsync();
+            if (context.user.IsSuperAdmin || await HasSeeAllRightAsync())
+                return children;
+            // the owner of the file and its parents are allowed to see
+            return children.Where(
+                child => child.node.owner == null ||
+                child.node.owner == context.user.user.id ||
+                context.user.user.children.Any(c => c.child_id == child.node.owner));
+        }
+
+        // Return true if the given user can view all files
+        async Task<bool> HasSeeAllRightAsync()
+        {
+            var allowedProfiles = new string[] { "ACA", "ETA", "EVS", "ENS", "DOC", "DIR", "ADM" };
+            var root = await GetRootAsync();
+            if (root is Structure)
+                return context.user.user.profiles.Where(p => p.structure_id == ((Structure)root).node.etablissement_uai).Any(p => allowedProfiles.Contains(p.type));
+            else if (root is GroupeLibre)
+                return context.user.user.profiles.Any(p => allowedProfiles.Contains(p.type));
+            return true;
+        }
+
+        // Return true if the given user is a student
+        async Task<bool> NeedForceWriteAsync()
+        {
+            var root = await GetRootAsync();
+            if (root is Structure)
+                return context.user.user.profiles.Where(p => p.structure_id == ((Structure)root).node.etablissement_uai).Any(p => p.type == "ELV");
+            else if (root is GroupeLibre)
+                return context.user.user.profiles.Any(p => p.type == "ELV");
+            return true;
+        }
+
+        public override async Task<ItemRight> RightsAsync()
+        {
+            var rights = await base.RightsAsync();
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else
+            {
+                if (!await HasSeeAllRightAsync())
+                    rights.Locked = true;
+                if (await NeedForceWriteAsync())
+                    rights.Write = node.return_date == null || node.return_date > DateTime.Now;
+            }
+            return rights;
+        }
+    }
+
 }

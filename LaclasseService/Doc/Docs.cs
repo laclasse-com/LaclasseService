@@ -991,26 +991,37 @@ namespace Laclasse.Doc
             var roots = new List<Item>();
             if (!context.user.IsUser)
                 return roots;
-            // ensure user has a "cartable"
-            var cartables = await context.db.SelectAsync<Node>("SELECT * FROM `node` WHERE `cartable_uid`=?", context.user.user.id);
-            if (cartables.Count == 0)
-                roots.Add(await Cartable.CreateAsync(context, context.user.user.id));
-            else
-                roots.Add(Item.ByNode(context, cartables[0]));
-            // ensure the structures exists
-            var structuresIds = context.user.user.profiles.Select((up) => up.structure_id).Distinct();
-            var exitsStructures = (await context.db.SelectAsync<Node>($"SELECT * FROM `node` WHERE {DB.InFilter("etablissement_uai", structuresIds)}"));
-            var exitsStructuresIds = exitsStructures.Select(s => s.etablissement_uai);
-            foreach (var structureId in structuresIds.Except(exitsStructuresIds))
-                roots.Add(await Structure.CreateAsync(context, structureId));
-            roots.AddRange(exitsStructures.Select((s) => Item.ByNode(context, s)));
-            // ensure the "groupe libre" exists
-            var allGplIds = context.user.user.groups.Select((g) => g.group_id).Concat(context.user.user.children_groups.Select((g) => g.group_id));
-            ModelList<Directory.Group> allGroups;
-            using (var db = await DB.CreateAsync(context.directoryDbUrl))
-                allGroups = await db.SelectAsync<Directory.Group>($"SELECT * FROM `group` WHERE {DB.InFilter("id", allGplIds)} AND `type`='GPL'");
-            foreach (var group in allGroups)
-                roots.Add(await GroupeLibre.GetOrCreateAsync(context, group.id, group.name));
+            // temporary allow user rights raise to allow creating the roots nodes
+            var currentUser = context.user;
+            var adminUser = new AuthenticatedUser() { application = new Directory.Application() };
+            context.user = adminUser;
+            try
+            {
+                // ensure user has a "cartable"
+                var cartables = await context.db.SelectAsync<Node>("SELECT * FROM `node` WHERE `cartable_uid`=?", currentUser.user.id);
+                if (cartables.Count == 0)
+                    roots.Add(await Cartable.CreateAsync(context, currentUser.user.id));
+                else
+                    roots.Add(Item.ByNode(context, cartables[0]));
+                // ensure the structures exists
+                var structuresIds = currentUser.user.profiles.Select((up) => up.structure_id).Distinct();
+                var exitsStructures = (await context.db.SelectAsync<Node>($"SELECT * FROM `node` WHERE {DB.InFilter("etablissement_uai", structuresIds)}"));
+                var exitsStructuresIds = exitsStructures.Select(s => s.etablissement_uai);
+                foreach (var structureId in structuresIds.Except(exitsStructuresIds))
+                    roots.Add(await Structure.CreateAsync(context, structureId));
+                roots.AddRange(exitsStructures.Select((s) => Item.ByNode(context, s)));
+                // ensure the "groupe libre" exists
+                var allGplIds = currentUser.user.groups.Select((g) => g.group_id).Concat(currentUser.user.children_groups.Select((g) => g.group_id));
+                ModelList<Directory.Group> allGroups;
+                using (var db = await DB.CreateAsync(context.directoryDbUrl))
+                    allGroups = await db.SelectAsync<Directory.Group>($"SELECT * FROM `group` WHERE {DB.InFilter("id", allGplIds)} AND `type`='GPL'");
+                foreach (var group in allGroups)
+                    roots.Add(await GroupeLibre.GetOrCreateAsync(context, group.id, group.name));
+            }
+            finally
+            {
+                context.user = currentUser;
+            }
             return roots;
         }
 

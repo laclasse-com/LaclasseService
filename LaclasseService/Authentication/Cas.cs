@@ -263,7 +263,11 @@ namespace Laclasse.Authentication
 
             GetAsync["/serviceValidate"] = async (p, c) => await ServiceValidateAsync(c);
 
+            GetAsync["/p3/serviceValidate"] = async (p, c) => await ServiceValidateAsync(c);
+
             GetAsync["/proxyValidate"] = async (p, c) => await ServiceValidateAsync(c);
+
+            GetAsync["/p3/proxyValidate"] = async (p, c) => await ServiceValidateAsync(c);
 
             PostAsync["/samlValidate"] = async (p, c) =>
             {

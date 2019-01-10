@@ -211,6 +211,8 @@ namespace Laclasse
 
             mapper.Add("/api/bonapp", new BonApp.BonAppService(setup.restaurant.bonApp));
 
+            mapper.Add("/api/edulib", new Textbook.EduLibService(setup.textbook.eduLib, dbUrl));
+
             // if the request is not already handled, try static files
             server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));
 

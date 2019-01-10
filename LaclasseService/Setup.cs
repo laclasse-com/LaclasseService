@@ -27,6 +27,17 @@ namespace Laclasse
         public BonAppSetup bonApp = new BonAppSetup();
     }
 
+    public class EduLibSetup
+    {
+        public string url = "https://test-service.edulib.fr/api/v1/catalog/laclasse";
+        public string apiKey = "password";
+    }
+
+    public class TextbookSetup
+    {
+        public EduLibSetup eduLib = new EduLibSetup();
+    }
+
     public class HttpSetup
     {
         public int defaultCacheDuration = 3600;
@@ -181,5 +192,6 @@ namespace Laclasse
         public AuthenticationSetup authentication = new AuthenticationSetup();
         public DocSetup doc = new DocSetup();
         public RestaurantSetup restaurant = new RestaurantSetup();
+        public TextbookSetup textbook = new TextbookSetup();
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using Erasme.Json;
 using Erasme.Http;
 using Laclasse.Authentication;
@@ -153,11 +154,6 @@ namespace Laclasse.Doc
                 await parent.ProcessAdvancedParentRightsAsync(rights);
         }
 
-        public string SanitizeName()
-        {
-            return "";
-        }
-
         public virtual Task<Stream> GetContentAsync()
         {
             Stream stream = null;
@@ -212,6 +208,10 @@ namespace Laclasse.Doc
                     node.mtime = (long)(DateTime.Now - DateTime.Parse("1970-01-01T00:00:00Z")).TotalSeconds;
                 }
             }
+
+            var oldParent = node.parent_id != null ? await context.GetByIdAsync((long)node.parent_id) : null;
+            var parent = oldParent;
+
             if (fileDefinition.Define != null)
             {
                 var define = fileDefinition.Define;
@@ -224,10 +224,9 @@ namespace Laclasse.Doc
                     {
                         if ((define.parent_id == null || node.parent_id == null) && !context.user.IsSuperAdmin)
                             throw new WebException(403, "User dont have write to modify root nodes");
-                        var oldParent = await context.GetByIdAsync((long)node.parent_id);
                         if (!(await oldParent.RightsAsync()).Write)
                             throw new WebException(403, "User dont have write right on the source folder");
-                        var parent = await context.GetByIdAsync((long)define.parent_id);
+                        parent = await context.GetByIdAsync((long)define.parent_id);
                         if (!(await parent.RightsAsync()).Write)
                             throw new WebException(403, "User dont have write right on the destination");
                     }
@@ -246,12 +245,34 @@ namespace Laclasse.Doc
                 node.has_tmb = true;
             }
 
+            if (oldParent != null)
+            {
+                if (oldParent != parent)
+                {
+                    await oldParent.OnBeforeChildChangedAsync(this, ChildAction.MoveOut, fileDefinition);
+                    await parent.OnBeforeChildChangedAsync(this, ChildAction.MoveIn, fileDefinition);
+                }
+                else
+                    await parent.OnBeforeChildChangedAsync(this, ChildAction.Update, fileDefinition);
+            }
+
             await node.UpdateAsync(context.db);
             await node.LoadAsync(context.db, true);
 
             // delete old blob if any
             if (oldBlobId != null)
                 await context.blobs.DeleteBlobAsync(context.db, oldBlobId);
+
+            if (oldParent != null)
+            {
+                if (oldParent != parent)
+                {
+                    await oldParent.OnChildChangedAsync(this, ChildAction.MoveOut);
+                    await parent.OnChildChangedAsync(this, ChildAction.MoveIn);
+                }
+                else
+                    await parent.OnChildChangedAsync(this, ChildAction.Update);
+            }
         }
 
         // Delete an Item
@@ -260,15 +281,19 @@ namespace Laclasse.Doc
             var rights = await RightsAsync();
             if (!rights.Write || rights.Locked)
                 throw new WebException(403, "Rights needed");
+            Item parent = null;
+            if (node.parent_id != null)
+                parent = await context.GetByIdAsync((long)node.parent_id);
             // check parent rights (write right need on the parent)
             if (context.user.IsUser && !context.user.IsSuperAdmin)
             {
-                if (node.parent_id == null)
+                if (parent == null)
                     throw new WebException(403, "Rights needed");
-                var parent = await context.GetByIdAsync((long)node.parent_id);
                 if (!(await parent.RightsAsync()).Write)
                     throw new WebException(403, "Rights needed");
             }
+            if (parent != null)
+                await parent.OnBeforeChildChangedAsync(this, ChildAction.Delete, null);
             await node.DeleteAsync(context.db);
             context.items.Remove(node.id);
             if (node.blob_id != null)
@@ -278,6 +303,8 @@ namespace Laclasse.Doc
                 if ((long)blobRefCount == 0)
                     await context.blobs.DeleteBlobAsync(context.db, node.blob_id);
             }
+            if (parent != null)
+                await parent.OnChildChangedAsync(this, ChildAction.Delete);
         }
 
         public virtual async Task<JsonObject> ToJsonAsync(bool expand)
@@ -292,7 +319,16 @@ namespace Laclasse.Doc
 
         public virtual async Task CreateAsync(FileDefinition<Node> fileDefinition)
         {
+            // ensure "name" dont have character '/'
+            if (node.name.IndexOf('/') != -1)
+                throw new WebException(400, "Character '/' not valid in name");
+
+            var parent = node.parent_id != null ? await context.GetByIdAsync((long)node.parent_id) : null;
+            if (parent != null)
+                await parent.OnBeforeChildChangedAsync(this, ChildAction.Create, fileDefinition);
             await node.SaveAsync(context.db, true);
+            if (parent != null)
+                await parent.OnChildChangedAsync(this, ChildAction.Create);
         }
 
         public static Item ByNode(Context context, Node node)
@@ -384,6 +420,27 @@ namespace Laclasse.Doc
             return item;
         }
 
+        protected enum ChildAction
+        {
+            Create,
+            Delete,
+            MoveIn,
+            MoveOut,
+            Update
+        }
+
+        protected virtual Task OnBeforeChildChangedAsync(Item child, ChildAction action, FileDefinition<Node> fileDefinition)
+        {
+            Console.WriteLine($"Item.BeforeOnChildChanged {action.ToString()}");
+            return Task.FromResult(true);
+        }
+
+        protected virtual Task OnChildChangedAsync(Item child, ChildAction action)
+        {
+            Console.WriteLine($"Item.OnChildChanged {action.ToString()}");
+            return Task.FromResult(true);
+        }
+
         static Dictionary<string, Func<Context, Node, Item>> types = new Dictionary<string, Func<Context, Node, Item>>();
 
         public static void Register(string mimetype, Func<Context, Node, Item> creator)
@@ -466,6 +523,10 @@ namespace Laclasse.Doc
             Register("cartable", (context, node) => new Cartable(context, node));
 
             Register("groupe_libre", (context, node) => new GroupeLibre(context, node));
+
+            Register("rendu", (context, node) => new Rendu(context, node));
+
+            Register("profs", (context, node) => new Profs(context, node));
 
             Register("directory", (context, node) => new Folder(context, node));
 
@@ -565,6 +626,45 @@ namespace Laclasse.Doc
                 }
             }
             return json;
+        }
+
+        //
+        // Return a new name for the given name. A name
+        // which avoid conflict with an existing child
+        // ex: test.txt => test 1.txt
+        //
+        protected async Task<string> ChildsConflictFreeNameAsync(string name, string renamePrefix = "")
+        {
+            var children = await GetChildrenAsync();
+
+            var extension = Path.GetExtension(name);
+            var prefix = name.Substring(0, name.Length - extension.Length);
+            var lastIndex = 0;
+
+            // test if the name is already a conflict free name
+            var match = Regex.Match(name, $"^(.*){renamePrefix} ([0-9]+){extension}$");
+            if (match.Success)
+            {
+                prefix = match.Groups[1].Value;
+                lastIndex = int.Parse(match.Groups[2].Value);
+            }
+
+            var renameNeeded = false;
+            // search for existing copies
+            foreach (var child in children)
+            {
+                var childName = child.node.name;
+                if (childName == name)
+                    renameNeeded = true;
+                var childMatch = Regex.Match(childName, $"^{prefix}{renamePrefix} ([0-9]+){extension}$");
+                if (childMatch.Success)
+                {
+                    var index = int.Parse(childMatch.Groups[1].Value);
+                    if (index > lastIndex)
+                        lastIndex = index;
+                }
+            }
+            return renameNeeded ? $"{prefix}{renamePrefix} {lastIndex + 1}{extension}" : name;
         }
     }
 
@@ -1172,4 +1272,126 @@ namespace Laclasse.Doc
             return stream;
         }
     }
+
+    public class Rendu : Folder
+    {
+        public Rendu(Context context, Node node) : base(context, node)
+        {
+        }
+
+        public override async Task<IEnumerable<Item>> GetFilteredChildrenAsync()
+        {
+            var children = await GetChildrenAsync();
+            if (context.user.IsSuperAdmin || await HasSeeAllRightAsync())
+                return children;
+            // the owner of the file and its parents are allowed to see
+            return children.Where(
+                child => child.node.owner == null ||
+                child.node.owner == context.user.user.id ||
+                context.user.user.children.Any(c => c.child_id == child.node.owner));
+        }
+
+        // Return true if the given user can view all files
+        async Task<bool> HasSeeAllRightAsync()
+        {
+            var allowedProfiles = new string[] { "ACA", "ETA", "EVS", "ENS", "DOC", "DIR", "ADM" };
+            var root = await GetRootAsync();
+            if (root is Structure)
+                return context.user.user.profiles.Where(p => p.structure_id == ((Structure)root).node.etablissement_uai).Any(p => allowedProfiles.Contains(p.type));
+            else if (root is GroupeLibre)
+                return context.user.user.profiles.Any(p => allowedProfiles.Contains(p.type));
+            return true;
+        }
+
+        // Return true if the given user is a student
+        async Task<bool> NeedForceWriteAsync()
+        {
+            var root = await GetRootAsync();
+            if (root is Structure)
+                return context.user.user.profiles.Where(p => p.structure_id == ((Structure)root).node.etablissement_uai).Any(p => p.type == "ELV");
+            else if (root is GroupeLibre)
+                return context.user.user.profiles.Any(p => p.type == "ELV");
+            return true;
+        }
+
+        public override async Task<ItemRight> RightsAsync()
+        {
+            var rights = await base.RightsAsync();
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else
+            {
+                if (!await HasSeeAllRightAsync())
+                    rights.Locked = true;
+                if (await NeedForceWriteAsync())
+                    rights.Write = node.return_date == null || node.return_date > DateTime.Now;
+            }
+            return rights;
+        }
+
+        static string CleanName(string name, string lastname, string firstname)
+        {
+            var match = Regex.Match(name, $"^{lastname} {firstname} \\- [0-9]{1,2}\\-[0-9]{1,2}\\-[0-9]{4} \\- (.*)$");
+            return match.Success ? match.Groups[1].Value : name;
+        }
+
+        static string BuildChildName(string name, string lastname, string firstname)
+        {
+            name = CleanName(name, lastname, firstname);
+            return $"{lastname} {firstname} - {DateTime.Now.ToString("dd-MM-yyyy")} - {name}";
+        }
+
+        protected override async Task OnBeforeChildChangedAsync(Item child, ChildAction action, FileDefinition<Node> fileDefinition)
+        {
+            await base.OnBeforeChildChangedAsync(child, action, fileDefinition);
+            var name = child.node.name;
+            if (action == ChildAction.Create || action == ChildAction.MoveIn || action == ChildAction.Update)
+            {
+                name = BuildChildName(name, context.user.user.lastname, context.user.user.firstname);
+                child.node.name = await ChildsConflictFreeNameAsync(name, " version");
+            }
+        }
+    }
+
+    public class Profs : Folder
+    {
+        public Profs(Context context, Node node) : base(context, node)
+        {
+        }
+
+        // Return true if the given user can view all files
+        async Task<bool> IsEnsAsync()
+        {
+            var allowedProfiles = new string[] { "ACA", "ETA", "EVS", "ENS", "DOC", "DIR", "ADM" };
+            var root = await GetRootAsync();
+            if (root is Structure)
+                return context.user.user.profiles.Where(p => p.structure_id == ((Structure)root).node.etablissement_uai).Any(p => allowedProfiles.Contains(p.type));
+            else if (root is GroupeLibre)
+                return context.user.user.profiles.Any(p => allowedProfiles.Contains(p.type));
+            return true;
+        }
+
+        public override async Task<ItemRight> RightsAsync()
+        {
+            var rights = await base.RightsAsync();
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else
+            {
+                if (await IsEnsAsync())
+                {
+                    rights.Read = true;
+                    rights.Write = true;
+                }
+                else
+                {
+                    rights.Read = false;
+                    rights.Write = false;
+                }
+            }
+            return rights;
+        }
+    }
+
+
 }

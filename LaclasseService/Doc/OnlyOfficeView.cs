@@ -93,9 +93,32 @@ var config = {
             #line hidden
             
             #line 33 ""
-            this.Write("\",\n        \"permissions\": {\n            \"comment\": false,\n            \"download\":" +
-                    " true,\n            \"edit\": true,\n            \"print\": true,\n            \"review\"" +
-                    ": true\n        },\n    },\n    \"documentType\": \"");
+            this.Write("\",\n        \"permissions\": {\n            \"comment\": true,\n            \"download\": " +
+                    "true,\n            \"edit\": ");
+            
+            #line default
+            #line hidden
+            
+            #line 37 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( edit ? "true" : "false" ));
+            
+            #line default
+            #line hidden
+            
+            #line 37 ""
+            this.Write(",\n            \"print\": true,\n            \"review\": ");
+            
+            #line default
+            #line hidden
+            
+            #line 39 ""
+            this.Write(this.ToStringHelper.ToStringWithCulture( edit ? "true" : "false" ));
+            
+            #line default
+            #line hidden
+            
+            #line 39 ""
+            this.Write("\n        },\n    },\n    \"documentType\": \"");
             
             #line default
             #line hidden

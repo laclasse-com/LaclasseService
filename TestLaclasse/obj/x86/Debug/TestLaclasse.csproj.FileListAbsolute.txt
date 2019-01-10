@@ -7,3 +7,12 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.pdb
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.csprojAssemblyReference.cache
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.csproj.CopyComplete
+/home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/bin/Debug/TestLaclasse.exe
+/home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/bin/Debug/TestLaclasse.pdb
+/home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/bin/Debug/Erasme.Http.dll
+/home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/bin/Debug/Erasme.Http.dll.mdb
+/home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.csprojAssemblyReference.cache
+/home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.csproj.CoreCompileInputs.cache
+/home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.csproj.CopyComplete
+/home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.exe
+/home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.pdb

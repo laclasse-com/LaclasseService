@@ -66,10 +66,6 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CopyComplete
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.pdb
-/home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csprojAssemblyReference.cache
-/home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CoreCompileInputs.cache
-/home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe
-/home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.pdb
 /home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/bin/Debug/LaclasseService.exe.config
 /home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/bin/Debug/LaclasseService.exe
 /home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/bin/Debug/LaclasseService.pdb
@@ -110,4 +106,7 @@
 /home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Threading.Tasks.Extensions.xml
 /home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MailKit.xml
 /home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MimeKit.xml
+/home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CoreCompileInputs.cache
 /home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CopyComplete
+/home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe
+/home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.pdb

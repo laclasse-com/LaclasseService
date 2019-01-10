@@ -263,7 +263,11 @@ namespace Laclasse.Authentication
 
             GetAsync["/serviceValidate"] = async (p, c) => await ServiceValidateAsync(c);
 
+            GetAsync["/p3/serviceValidate"] = async (p, c) => await ServiceValidateAsync(c);
+
             GetAsync["/proxyValidate"] = async (p, c) => await ServiceValidateAsync(c);
+
+            GetAsync["/p3/proxyValidate"] = async (p, c) => await ServiceValidateAsync(c);
 
             PostAsync["/samlValidate"] = async (p, c) =>
             {
@@ -1862,7 +1866,7 @@ namespace Laclasse.Authentication
 
         public async Task<User> CheckGrandLyonPasswordAsync(string login, string password)
         {
-            Console.WriteLine($"CheckGrandLyonPasswordAsync({login}, {password})");
+            Console.WriteLine($"CheckGrandLyonPasswordAsync({login})");
             JsonValue jsonToken = null;
             var uri = new Uri(grandLyonApiSetup.tokenUrl);
             using (HttpClient client = await HttpClient.CreateAsync(uri))
@@ -1912,7 +1916,7 @@ namespace Laclasse.Authentication
             var queryFields = new Dictionary<string, List<string>>();
             queryFields["emails.type"] = new List<string>(new string[] { "Autre" });
             queryFields["emails.address"] = new List<string>(new string[] { email });
-            return (await users.SearchUserAsync(queryFields)).Data.SingleOrDefault();
+            return (await users.SearchUserAsync(queryFields)).Data.FirstOrDefault();
         }
     }
 }

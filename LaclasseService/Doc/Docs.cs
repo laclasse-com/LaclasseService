@@ -86,6 +86,7 @@ namespace Laclasse.Doc
         public Directory.User user = null;
         public string downloadUrl = null;
         public string callbackUrl = null;
+        public bool edit = true;
     }
 
     public enum RightProfile
@@ -411,13 +412,27 @@ namespace Laclasse.Doc
             PostAsync["/"] = async (p, c) =>
             {
                 var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
-                using (var db = await DB.CreateAsync(dbUrl, true))
+                try
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                    var item = await Item.CreateAsync(context, fileDefinition);
-                    await db.CommitAsync();
-                    c.Response.StatusCode = 200;
-                    c.Response.Content = await item.ToJsonAsync(true);
+                    using (var db = await DB.CreateAsync(dbUrl, true))
+                    {
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var item = await Item.CreateAsync(context, fileDefinition);
+                        await db.CommitAsync();
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = await item.ToJsonAsync(true);
+                    }
+                }
+                // catch MySQL duplicate name exception
+                catch (MySql.Data.MySqlClient.MySqlException e)
+                {
+                    if (e.Number == 1062)
+                    {
+                        c.Response.StatusCode = 400;
+                        c.Response.Content = new JsonObject { ["error"] = "Duplicate name", ["code"] = 1 };
+                    }
+                    else
+                        throw;
                 }
             };
 
@@ -426,17 +441,31 @@ namespace Laclasse.Doc
                 var id = long.Parse((string)p["id"]);
                 var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
 
-                using (DB db = await DB.CreateAsync(dbUrl, true))
+                try
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                    var item = await context.GetByIdAsync(id);
-                    await item.ChangeAsync(fileDefinition);
-                    await db.CommitAsync();
-                    if (item != null)
+                    using (DB db = await DB.CreateAsync(dbUrl, true))
                     {
-                        c.Response.StatusCode = 200;
-                        c.Response.Content = await item.ToJsonAsync(true);
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var item = await context.GetByIdAsync(id);
+                        await item.ChangeAsync(fileDefinition);
+                        await db.CommitAsync();
+                        if (item != null)
+                        {
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = await item.ToJsonAsync(true);
+                        }
                     }
+                }
+                // catch MySQL duplicate name exception
+                catch (MySql.Data.MySqlClient.MySqlException e)
+                {
+                    if (e.Number == 1602)
+                    {
+                        c.Response.StatusCode = 400;
+                        c.Response.Content = new JsonObject { ["error"] = "Duplicate name", ["code"] = 1 };
+                    }
+                    else
+                        throw;
                 }
             };
 
@@ -444,10 +473,13 @@ namespace Laclasse.Doc
             {
                 var id = long.Parse((string)p["id"]);
                 Item item;
+                ItemRight rights = null;
                 using (DB db = await DB.CreateAsync(dbUrl))
                 {
                     var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     item = await context.GetByIdAsync(id);
+                    if (item != null)
+                        rights = await item.RightsAsync();
                 }
                 if (item != null)
                 {
@@ -459,7 +491,6 @@ namespace Laclasse.Doc
                     OnlyOfficeFileType fileType = OnlyOfficeFileType.docx;
                     NodeToFileType(item.node, out documentType, out fileType);
 
-                    var rights = await item.RightsAsync();
                     if (!rights.Read)
                         throw new WebException(403, "Rights needed");
 
@@ -475,6 +506,7 @@ namespace Laclasse.Doc
                         node = item.node,
                         session = session,
                         user = authUser.user,
+                        edit = rights.Write,
                         downloadUrl = $"{Regex.Replace(c.SelfURL(), "onlyoffice$", "content")}?rev={item.node.rev}&session={session.id}",
                         callbackUrl = $"{c.SelfURL()}?session={session.id}"
                     }.TransformText();
@@ -963,26 +995,37 @@ namespace Laclasse.Doc
             var roots = new List<Item>();
             if (!context.user.IsUser)
                 return roots;
-            // ensure user has a "cartable"
-            var cartables = await context.db.SelectAsync<Node>("SELECT * FROM `node` WHERE `cartable_uid`=?", context.user.user.id);
-            if (cartables.Count == 0)
-                roots.Add(await Cartable.CreateAsync(context, context.user.user.id));
-            else
-                roots.Add(Item.ByNode(context, cartables[0]));
-            // ensure the structures exists
-            var structuresIds = context.user.user.profiles.Select((up) => up.structure_id).Distinct();
-            var exitsStructures = (await context.db.SelectAsync<Node>($"SELECT * FROM `node` WHERE {DB.InFilter("etablissement_uai", structuresIds)}"));
-            var exitsStructuresIds = exitsStructures.Select(s => s.etablissement_uai);
-            foreach (var structureId in structuresIds.Except(exitsStructuresIds))
-                roots.Add(await Structure.CreateAsync(context, structureId));
-            roots.AddRange(exitsStructures.Select((s) => Item.ByNode(context, s)));
-            // ensure the "groupe libre" exists
-            var allGplIds = context.user.user.groups.Select((g) => g.group_id).Concat(context.user.user.children_groups.Select((g) => g.group_id));
-            ModelList<Directory.Group> allGroups;
-            using (var db = await DB.CreateAsync(context.directoryDbUrl))
-                allGroups = await db.SelectAsync<Directory.Group>($"SELECT * FROM `group` WHERE {DB.InFilter("id", allGplIds)} AND `type`='GPL'");
-            foreach (var group in allGroups)
-                roots.Add(await GroupeLibre.GetOrCreateAsync(context, group.id, group.name));
+            // temporary allow user rights raise to allow creating the roots nodes
+            var currentUser = context.user;
+            var adminUser = new AuthenticatedUser() { application = new Directory.Application() };
+            context.user = adminUser;
+            try
+            {
+                // ensure user has a "cartable"
+                var cartables = await context.db.SelectAsync<Node>("SELECT * FROM `node` WHERE `cartable_uid`=?", currentUser.user.id);
+                if (cartables.Count == 0)
+                    roots.Add(await Cartable.CreateAsync(context, currentUser.user.id));
+                else
+                    roots.Add(Item.ByNode(context, cartables[0]));
+                // ensure the structures exists
+                var structuresIds = currentUser.user.profiles.Select((up) => up.structure_id).Distinct();
+                var exitsStructures = (await context.db.SelectAsync<Node>($"SELECT * FROM `node` WHERE {DB.InFilter("etablissement_uai", structuresIds)}"));
+                var exitsStructuresIds = exitsStructures.Select(s => s.etablissement_uai);
+                foreach (var structureId in structuresIds.Except(exitsStructuresIds))
+                    roots.Add(await Structure.CreateAsync(context, structureId));
+                roots.AddRange(exitsStructures.Select((s) => Item.ByNode(context, s)));
+                // ensure the "groupe libre" exists
+                var allGplIds = currentUser.user.groups.Select((g) => g.group_id).Concat(currentUser.user.children_groups.Select((g) => g.group_id));
+                ModelList<Directory.Group> allGroups;
+                using (var db = await DB.CreateAsync(context.directoryDbUrl))
+                    allGroups = await db.SelectAsync<Directory.Group>($"SELECT * FROM `group` WHERE {DB.InFilter("id", allGplIds)} AND `type`='GPL'");
+                foreach (var group in allGroups)
+                    roots.Add(await GroupeLibre.GetOrCreateAsync(context, group.id, group.name));
+            }
+            finally
+            {
+                context.user = currentUser;
+            }
             return roots;
         }
 

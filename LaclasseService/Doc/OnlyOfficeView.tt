@@ -32,11 +32,11 @@ var config = {
         "title": "<#= node.name #>",
         "url": "<#= downloadUrl #>",
         "permissions": {
-            "comment": false,
+            "comment": true,
             "download": true,
-            "edit": true,
+            "edit": <#= edit ? "true" : "false" #>,
             "print": true,
-            "review": true
+            "review": <#= edit ? "true" : "false" #>
         },
     },
     "documentType": "<#= documentType #>",

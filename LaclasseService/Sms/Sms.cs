@@ -336,9 +336,10 @@ namespace Laclasse.Sms
             var uri = new Uri(smsSetup.url);
             using (var client = await HttpClient.CreateAsync(uri))
             {
+                var requestUri = new Uri(uri, "/api/sms");
                 var clientRequest = new HttpClientRequest();
                 clientRequest.Method = "POST";
-                clientRequest.Path = $"{uri.AbsolutePath}{(uri.AbsolutePath.EndsWith("/", StringComparison.InvariantCulture) ? "" : "/")}api/sms";
+                clientRequest.Path = requestUri.AbsolutePath;
                 clientRequest.Headers["authorization"] = "Bearer " + smsSetup.token;
                 clientRequest.Headers["content-type"] = "application/json";
                 var jsonData = new JsonObject
@@ -350,7 +351,11 @@ namespace Laclasse.Sms
                 await client.SendRequestAsync(clientRequest);
                 var response = await client.GetResponseAsync();
                 if (response.StatusCode != 200)
+                {
+                    logger.Log(LogLevel.Error, $"Send SMS service fails. HTTP fails (status: {response.StatusCode}, uri: {requestUri})");
                     throw new WebException(500, "Send SMS service fails. HTTP fails");
+                }
+
                 var json = await response.ReadAsJsonAsync();
                 if (!(json is JsonArray) || (json.Count == 0) ||
                     !(json[0] is JsonObject) || !json[0].ContainsKey("status") ||
@@ -360,14 +365,23 @@ namespace Laclasse.Sms
                     !json[0]["content"]["success"] ||
                     !json[0]["content"].ContainsKey("response") ||
                     !(json[0]["content"]["response"] is JsonArray))
+                {
+                    logger.Log(LogLevel.Error, $"Send SMS service fails. Invalid response (uri: {requestUri})");
                     throw new WebException(500, "Send SMS service fails. Invalid response");
+                }
                 if (json[0]["content"]["response"].Count != phones.Count)
+                {
+                    logger.Log(LogLevel.Error, $"Send SMS service fails. Only {json[0]["content"]["response"].Count} responses ids for {phones.Count} sent (uri: {requestUri})");
                     throw new WebException(500, $"Send SMS service fails. Only {json[0]["content"]["response"].Count} responses ids for {phones.Count} sent");
+                }
                 var i = 0;
                 foreach (JsonValue responseId in json[0]["content"]["response"] as JsonArray)
                 {
                     if (!(responseId is JsonPrimitive) || ((responseId as JsonPrimitive).JsonType != JsonType.String))
+                    {
+                        logger.Log(LogLevel.Error, $"Send SMS service fails. Invalid reponseId type (uri: {requestUri})");
                         throw new WebException(500, $"Send SMS service fails. Invalid reponseId type");
+                    }
                     targets[i].status_id = responseId.Value as string;
                     i++;
                 }

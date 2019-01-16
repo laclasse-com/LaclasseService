@@ -192,6 +192,7 @@ namespace Laclasse.Sms
             {
                 while (!stop)
                 {
+                    bool hasRunning = false;
                     try
                     {
                         ModelList<SmsUser> smsUsers;
@@ -219,13 +220,16 @@ namespace Laclasse.Sms
                                     updateTask.Wait();
                                 });
                             }
+                            hasRunning = diff.change.Any(c => c.status_state == SmsStatusState.RUNNING);
                         }
                     }
                     catch (Exception e)
                     {
                         logger.Log(LogLevel.Error, $"SMS Thread Exception: {e.ToString()}");
                     }
-                    Monitor.Wait(smsStatusLock, TimeSpan.FromHours(1));
+                    // if some delivery are in RUNNING state, re-check in 15 min. Else wait 1 hour
+                    // or to be waked up
+                    Monitor.Wait(smsStatusLock, hasRunning ? TimeSpan.FromMinutes(15) : TimeSpan.FromHours(1));
                     stop = smsStatusStop;
                 }
             }

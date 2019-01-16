@@ -194,7 +194,7 @@ namespace Laclasse
             mapper.Add("/api/manage", new Manage.ManageService());
 
             mapper.Add("/api/users", new Mail.ImapCheck(dbUrl));
-            mapper.Add("/api/emails", new Mail.UnusedEmailCheck(dbUrl,setup.mail.server.path));
+            mapper.Add("/api/emails", new Mail.UnusedEmailCheck(dbUrl, setup.mail.server.path));
 
             var blobs = new Blobs(setup.doc.url, Path.Combine(setup.server.storage, "blobs"), setup.server.temporaryDirectory);
             mapper.Add("/api/blobs", blobs);
@@ -207,7 +207,8 @@ namespace Laclasse
             mapper.Add("/api/sso_clients_urls", new SsoClientsUrls(dbUrl));
             mapper.Add("/api/sso_clients_attributes", new SsoClientsAttributes(dbUrl));
 
-            mapper.Add("/api/sms", new Sms.SmsService(dbUrl, setup.sms));
+            var smsService = new Sms.SmsService(logger, dbUrl, setup.sms);
+            mapper.Add("/api/sms", smsService);
 
             mapper.Add("/api/bonapp", new BonApp.BonAppService(setup.restaurant.bonApp));
 
@@ -279,6 +280,7 @@ namespace Laclasse
             server.Stop();
 
             dayScheduler.Dispose();
+            smsService.Dispose();
         }
     }
 }

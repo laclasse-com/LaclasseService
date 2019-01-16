@@ -16,3 +16,4 @@
 /home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.csproj.CopyComplete
 /home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.exe
 /home/nelson/Programmation/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.pdb
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/TestLaclasse/bin/Debug/Erasme.Http.pdb

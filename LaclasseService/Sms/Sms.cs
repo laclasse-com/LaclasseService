@@ -264,9 +264,10 @@ namespace Laclasse.Sms
             var uri = new Uri(smsSetup.url);
             using (var client = await HttpClient.CreateAsync(uri))
             {
+                var requestUri = new Uri(uri, "/api/smsStatus");
                 var clientRequest = new HttpClientRequest();
                 clientRequest.Method = "POST";
-                clientRequest.Path = $"{uri.AbsolutePath}{(uri.AbsolutePath.EndsWith("/", StringComparison.InvariantCulture) ? "" : "/")}api/smsStatus";
+                clientRequest.Path = requestUri.AbsolutePath;
                 clientRequest.Headers["authorization"] = "Bearer " + smsSetup.token;
                 clientRequest.Headers["content-type"] = "application/json";
                 var jsonData = new JsonObject
@@ -336,7 +337,7 @@ namespace Laclasse.Sms
             var uri = new Uri(smsSetup.url);
             using (var client = await HttpClient.CreateAsync(uri))
             {
-                var requestUri = new Uri(uri, "/api/sms");
+                var requestUri = new Uri(uri, "/api/send");
                 var clientRequest = new HttpClientRequest();
                 clientRequest.Method = "POST";
                 clientRequest.Path = requestUri.AbsolutePath;

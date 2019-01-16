@@ -1714,9 +1714,10 @@ namespace Laclasse.Authentication
                     var uri = new Uri(smsSetup.url);
                     using (var client = HttpClient.Create(uri))
                     {
+                        var requestUri = new Uri(uri, "/api/send");
                         var clientRequest = new HttpClientRequest();
                         clientRequest.Method = "POST";
-                        clientRequest.Path = uri.PathAndQuery;
+                        clientRequest.Path = requestUri.PathAndQuery;
                         clientRequest.Headers["authorization"] = "Bearer " + smsSetup.token;
                         clientRequest.Headers["content-type"] = "application/json";
                         var jsonData = new JsonObject

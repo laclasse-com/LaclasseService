@@ -97,7 +97,6 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Threading.Tasks.Extensions.dll
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/SharpZipLib.dll.mdb
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/Erasme.Http.pdb
-/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/Erasme.Http.dll.mdb
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/Erasme.Cloud.dll.mdb
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Buffers.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Memory.xml
@@ -106,7 +105,6 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Threading.Tasks.Extensions.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MailKit.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MimeKit.xml
-/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csprojAssemblyReference.cache
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CoreCompileInputs.cache
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CopyComplete
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe

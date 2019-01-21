@@ -923,6 +923,19 @@
             <paramref name="certificate"/> is <c>null</c>.
             </exception>
         </member>
+        <member name="M:MimeKit.Cryptography.BouncyCastleCertificateExtensions.GetPublicKeyAlgorithm(Org.BouncyCastle.X509.X509Certificate)">
+            <summary>
+            Gets the public key algorithm for the certificate.
+            </summary>
+            <remarks>
+            Gets the public key algorithm for the ceretificate.
+            </remarks>
+            <returns>The public key algorithm.</returns>
+            <param name="certificate">The certificate.</param>
+            <exception cref="T:System.ArgumentNullException">
+            <paramref name="certificate"/> is <c>null</c>.
+            </exception>
+        </member>
         <member name="M:MimeKit.Cryptography.BouncyCastleCertificateExtensions.GetKeyUsageFlags(Org.BouncyCastle.X509.X509Certificate)">
             <summary>
             Gets the key usage flags.
@@ -7679,6 +7692,19 @@
             An S/MIME digital signature.
             </remarks>
         </member>
+        <member name="M:MimeKit.Cryptography.SecureMimeDigitalSignature.#ctor(Org.BouncyCastle.Cms.SignerInformation,Org.BouncyCastle.X509.X509Certificate)">
+            <summary>
+            Initializes a new instance of the <see cref="T:MimeKit.Cryptography.SecureMimeDigitalSignature"/> class.
+            </summary>
+            <remarks>
+            Creates a new <see cref="T:MimeKit.Cryptography.SecureMimeDigitalSignature"/>.
+            </remarks>
+            <param name="signerInfo">The information about the signer.</param>
+            <param name="certificate">The signer's certificate.</param>
+            <exception cref="T:System.ArgumentNullException">
+            <paramref name="signerInfo"/> is <c>null</c>.
+            </exception>
+        </member>
         <member name="P:MimeKit.Cryptography.SecureMimeDigitalSignature.SignerInfo">
             <summary>
             Gets the signer info.
@@ -9040,6 +9066,19 @@
             Converts an X509Certificate2 into a BouncyCastle X509Certificate.
             </remarks>
             <returns>The bouncy castle certificate.</returns>
+            <param name="certificate">The certificate.</param>
+            <exception cref="T:System.ArgumentNullException">
+            <paramref name="certificate"/> is <c>null</c>.
+            </exception>
+        </member>
+        <member name="M:MimeKit.Cryptography.X509Certificate2Extensions.GetPublicKeyAlgorithm(System.Security.Cryptography.X509Certificates.X509Certificate2)">
+            <summary>
+            Gets the public key algorithm for the certificate.
+            </summary>
+            <remarks>
+            Gets the public key algorithm for the ceretificate.
+            </remarks>
+            <returns>The public key algorithm.</returns>
             <param name="certificate">The certificate.</param>
             <exception cref="T:System.ArgumentNullException">
             <paramref name="certificate"/> is <c>null</c>.

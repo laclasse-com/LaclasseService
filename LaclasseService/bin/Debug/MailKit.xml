@@ -22911,13 +22911,14 @@
             The results of a search.
             </remarks>
         </member>
-        <member name="M:MailKit.Search.SearchResults.#ctor">
+        <member name="M:MailKit.Search.SearchResults.#ctor(MailKit.Search.SortOrder)">
             <summary>
             Initializes a new instance of the <see cref="T:MailKit.Search.SearchResults"/> class.
             </summary>
             <remarks>
             Creates a new <see cref="T:MailKit.Search.SearchResults"/>.
             </remarks>
+            <param name="order">The sort-order to use for the unique identifiers.</param>
         </member>
         <member name="P:MailKit.Search.SearchResults.UniqueIds">
             <summary>
@@ -34947,10 +34948,10 @@
         </member>
         <member name="T:MailKit.IProtocolLogger">
             <summary>
-            An interface for logging protocols.
+            An interface for logging the communication between a client and server.
             </summary>
             <remarks>
-            An interface for logging protocols.
+            An interface for logging the communication between a client and server.
             </remarks>
             <example>
             <code language="c#" source="Examples\SmtpExamples.cs" region="ProtocolLogger" />
@@ -34979,7 +34980,10 @@
             Logs a sequence of bytes sent by the client.
             </summary>
             <remarks>
-            Logs a sequence of bytes sent by the client.
+            <para>Logs a sequence of bytes sent by the client.</para>
+            <para><see cref="M:MailKit.IProtocolLogger.LogClient(System.Byte[],System.Int32,System.Int32)"/> is called by the <see cref="T:MailKit.IMailService"/> upon every successful
+            write operation to its underlying network stream, passing the exact same <paramref name="buffer"/>,
+            <paramref name="offset"/>, and <paramref name="count"/> arguments to the logging function.</para>
             </remarks>
             <param name='buffer'>The buffer to log.</param>
             <param name='offset'>The offset of the first byte to log.</param>
@@ -35005,7 +35009,9 @@
             Logs a sequence of bytes sent by the server.
             </summary>
             <remarks>
-            Logs a sequence of bytes sent by the server.
+            <para>Logs a sequence of bytes sent by the server.</para>
+            <para><see cref="M:MailKit.IProtocolLogger.LogServer(System.Byte[],System.Int32,System.Int32)"/> is called by the <see cref="T:MailKit.IMailService"/> upon every successful
+            read of its underlying network stream with the exact buffer that was read.</para>
             </remarks>
             <param name='buffer'>The buffer to log.</param>
             <param name='offset'>The offset of the first byte to log.</param>
@@ -54705,10 +54711,10 @@
         </member>
         <member name="T:MailKit.ProtocolLogger">
             <summary>
-            A protocol logger.
+            A default protocol logger for logging the communication between a client and server.
             </summary>
             <remarks>
-            A protocol logger.
+            A default protocol logger for logging the communication between a client and server.
             </remarks>
             <example>
             <code language="c#" source="Examples\SmtpExamples.cs" region="ProtocolLogger" />
@@ -54721,6 +54727,9 @@
             <remarks>
             Creates a new <see cref="T:MailKit.ProtocolLogger"/> to log to a specified file. The file is created if it does not exist.
             </remarks>
+            <example>
+            <code language="c#" source="Examples\SmtpExamples.cs" region="ProtocolLogger" />
+            </example>
             <param name="fileName">The file name.</param>
             <param name="append"><c>true</c> if the file should be appended to; otherwise, <c>false</c>. Defaults to <c>true</c>.</param>
         </member>
@@ -54767,7 +54776,10 @@
             Logs a sequence of bytes sent by the client.
             </summary>
             <remarks>
-            Logs a sequence of bytes sent by the client.
+            <para>Logs a sequence of bytes sent by the client.</para>
+            <para><see cref="M:MailKit.ProtocolLogger.LogClient(System.Byte[],System.Int32,System.Int32)"/> is called by the <see cref="T:MailKit.IMailService"/> upon every successful
+            write operation to its underlying network stream, passing the exact same <paramref name="buffer"/>,
+            <paramref name="offset"/>, and <paramref name="count"/> arguments to the logging function.</para>
             </remarks>
             <param name='buffer'>The buffer to log.</param>
             <param name='offset'>The offset of the first byte to log.</param>
@@ -54793,7 +54805,9 @@
             Logs a sequence of bytes sent by the server.
             </summary>
             <remarks>
-            Logs a sequence of bytes sent by the server.
+            <para>Logs a sequence of bytes sent by the server.</para>
+            <para><see cref="M:MailKit.ProtocolLogger.LogServer(System.Byte[],System.Int32,System.Int32)"/> is called by the <see cref="T:MailKit.IMailService"/> upon every successful
+            read of its underlying network stream with the exact buffer that was read.</para>
             </remarks>
             <param name='buffer'>The buffer to log.</param>
             <param name='offset'>The offset of the first byte to log.</param>

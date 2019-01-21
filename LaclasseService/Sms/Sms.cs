@@ -135,6 +135,13 @@ namespace Laclasse.Sms
             // API only available to admin users
             BeforeAsync = async (p, c) => await c.EnsureIsNotRestrictedUserAsync();
 
+            PostAsync["/updateStatus"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                lock (smsStatusLock)
+                    Monitor.PulseAll(smsStatusLock);
+            };
+
             PostAsync["/"] = async (p, c) =>
             {
                 await RunBeforeAsync(null, c);
@@ -177,6 +184,10 @@ namespace Laclasse.Sms
                 }
                 c.Response.StatusCode = 200;
                 c.Response.Content = sms;
+                await c.SendResponseAsync();
+
+                // wait 10s before trying to get the SMS status
+                await Task.Delay(TimeSpan.FromSeconds(10));
 
                 // wake up the Thread that handle the SMS status
                 lock (smsStatusLock)
@@ -193,6 +204,7 @@ namespace Laclasse.Sms
                 while (!stop)
                 {
                     bool hasRunning = false;
+                    bool hasNull = false;
                     try
                     {
                         ModelList<SmsUser> smsUsers;
@@ -202,25 +214,30 @@ namespace Laclasse.Sms
                             task.Wait();
                             smsUsers = task.Result;
                         }
+
+                        logger.Log(LogLevel.Info, $"SMS Get status needed: {smsUsers.Count()}");
+
                         if (smsUsers.Count() > 0)
-                            logger.Log(LogLevel.Info, $"SMS Get status needed: {smsUsers.Count()}");
-
-                        var targetsTask = GetSmsResultAsync(smsUsers);
-                        targetsTask.Wait();
-                        var smsUsersResult = targetsTask.Result;
-
-                        var diff = Model.Diff(smsUsers, smsUsersResult, (a, b) => a.status_id == b.status_id);
-                        if (diff.change != null && diff.change.Count > 0)
                         {
-                            using (var db = DB.Create(dbUrl, false))
+                            var targetsTask = GetSmsResultAsync(smsUsers);
+                            targetsTask.Wait();
+                            ModelList<SmsUser> smsUsersResult;
+                            (smsUsersResult, hasNull) = targetsTask.Result;
+
+                            var diff = Model.Diff(smsUsers, smsUsersResult, (a, b) => a.status_id == b.status_id);
+                            if (diff.change != null && diff.change.Count > 0)
                             {
-                                diff.change.ForEach((c) =>
+                                using (var db = DB.Create(dbUrl, false))
                                 {
-                                    var updateTask = c.UpdateAsync(db);
-                                    updateTask.Wait();
-                                });
+                                    diff.change.ForEach((c) =>
+                                    {
+                                        var updateTask = c.UpdateAsync(db);
+                                        updateTask.Wait();
+                                    });
+                                }
+                                hasRunning = diff.change.Any(c => c.status_state == SmsStatusState.RUNNING);
                             }
-                            hasRunning = diff.change.Any(c => c.status_state == SmsStatusState.RUNNING);
+                            logger.Log(LogLevel.Info, $"SMS Get status res hasNull: {hasNull}, #res: {smsUsersResult.Count()}");
                         }
                     }
                     catch (Exception e)
@@ -229,18 +246,25 @@ namespace Laclasse.Sms
                     }
                     // if some delivery are in RUNNING state, re-check in 15 min. Else wait 1 hour
                     // or to be waked up
-                    Monitor.Wait(smsStatusLock, hasRunning ? TimeSpan.FromMinutes(15) : TimeSpan.FromHours(1));
+                    Monitor.Wait(smsStatusLock, hasNull ? TimeSpan.FromSeconds(30) :
+                        (hasRunning ? TimeSpan.FromMinutes(5) : TimeSpan.FromHours(1)));
                     stop = smsStatusStop;
                 }
             }
             logger.Log(LogLevel.Info, "SMS Thread STOP");
         }
 
-        async Task<ModelList<SmsUser>> GetSmsResultAsync(ModelList<SmsUser> targets)
+        async Task<(ModelList<SmsUser>, bool)> GetSmsResultAsync(ModelList<SmsUser> targets)
         {
+            var hasNull = false;
             var result = new ModelList<SmsUser>();
             if (targets.Count <= 50)
-                result.AddRange(await GetSmsResultMax50Async(targets));
+            {
+                var res = await GetSmsResultMax50Async(targets);
+                result.AddRange(res.Item1);
+                if (res.Item2)
+                    hasNull = true;
+            }
             else
             {
                 var pos = 0;
@@ -249,14 +273,18 @@ namespace Laclasse.Sms
                     var limitedTargets = new ModelList<SmsUser>();
                     for (var i = 0; i < 50 && (pos < targets.Count); i++, pos++)
                         limitedTargets.Add(targets[pos]);
-                    result.AddRange(await GetSmsResultMax50Async(limitedTargets));
+                    var res = await GetSmsResultMax50Async(limitedTargets);
+                    result.AddRange(res.Item1);
+                    if (res.Item2)
+                        hasNull = true;
                 }
             }
-            return result;
+            return (result, hasNull);
         }
 
-        async Task<ModelList<SmsUser>> GetSmsResultMax50Async(List<SmsUser> targets)
+        async Task<(ModelList<SmsUser>, bool)> GetSmsResultMax50Async(List<SmsUser> targets)
         {
+            var hasNull = false;
             var result = new ModelList<SmsUser>();
             var statusIds = new JsonArray();
             targets.ForEach((t) => statusIds.Add(t.status_id));
@@ -265,16 +293,17 @@ namespace Laclasse.Sms
             using (var client = await HttpClient.CreateAsync(uri))
             {
                 var requestUri = new Uri(uri, "/api/smsStatus");
-                var clientRequest = new HttpClientRequest();
-                clientRequest.Method = "POST";
-                clientRequest.Path = requestUri.AbsolutePath;
-                clientRequest.Headers["authorization"] = "Bearer " + smsSetup.token;
-                clientRequest.Headers["content-type"] = "application/json";
-                var jsonData = new JsonObject
+                var clientRequest = new HttpClientRequest
                 {
-                    ["cra"] = statusIds
+                    Method = "POST",
+                    Path = requestUri.AbsolutePath,
+                    Headers =
+                    {
+                        ["authorization"] = "Bearer " + smsSetup.token,
+                        ["content-type"] = "application/json"
+                    },
+                    Content = new JsonObject { ["cra"] = statusIds }
                 };
-                clientRequest.Content = jsonData.ToString();
                 await client.SendRequestAsync(clientRequest);
                 var response = await client.GetResponseAsync();
                 if (response.StatusCode != 200)
@@ -288,6 +317,8 @@ namespace Laclasse.Sms
                     {
                         foreach (var item in json as JsonArray)
                         {
+                            if (item == null)
+                                hasNull = true;
                             if (item is JsonObject && ((JsonObject)item).ContainsKey("ID") &&
                                 ((JsonObject)item).ContainsKey("STATUS") &&
                                 ((JsonObject)item).ContainsKey("CALLRESULT") &&
@@ -309,7 +340,7 @@ namespace Laclasse.Sms
                     }
                 }
             }
-            return result;
+            return (result, hasNull);
         }
 
         async Task SendSmsAsync(List<SmsUser> targets, string message)

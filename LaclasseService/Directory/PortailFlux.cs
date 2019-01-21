@@ -102,7 +102,7 @@ namespace Laclasse.Directory
                                 settings.IgnoreComments = true;
                                 settings.DtdProcessing = DtdProcessing.Ignore;
                                 var uri = new Uri(flux.url);
-                                using (var client = HttpClient.Create(uri))
+                                using (var client = HttpClient.Create(uri, 5000, 10000))
                                 {
                                     var clientRequest = new HttpClientRequest();
                                     clientRequest.Method = "GET";

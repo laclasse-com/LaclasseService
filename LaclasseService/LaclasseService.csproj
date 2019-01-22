@@ -175,6 +175,7 @@
     <Compile Include="BonApp\BonApp.cs" />
     <Compile Include="Mail\UnusedEmailCheck.cs" />
     <Compile Include="Textbook\EduLib.cs" />
+    <Compile Include="Utils\Cache.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -204,6 +205,7 @@
     <Folder Include="Storage\" />
     <Folder Include="BonApp\" />
     <Folder Include="Textbook\" />
+    <Folder Include="Utils\" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Doc\sample.docx" />

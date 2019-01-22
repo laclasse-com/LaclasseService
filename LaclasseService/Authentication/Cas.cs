@@ -219,7 +219,8 @@ namespace Laclasse.Authentication
                         }
                     }
                     else
-                        uid = await users.CheckPasswordAsync(formFields["username"], formFields["password"]);
+                        uid = await users.RateLimitedCheckPasswordAsync(c, formFields["username"], formFields["password"]);
+
                     if (uid == null)
                     {
                         c.Response.StatusCode = 200;

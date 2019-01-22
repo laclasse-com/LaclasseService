@@ -36,117 +36,117 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
-	public class Sso : HttpRouting
-	{
-		readonly string dbUrl;
+    public class Sso : HttpRouting
+    {
+        readonly string dbUrl;
 
-		public Sso(string dbUrl, Users users)
-		{
-			this.dbUrl = dbUrl;
+        public Sso(string dbUrl, Users users)
+        {
+            this.dbUrl = dbUrl;
 
-			GetAsync["/"] = async (p, c) =>
-			{
-				if (!c.Request.QueryString.ContainsKey("login") || !c.Request.QueryString.ContainsKey("password"))
-					throw new WebException(400, "Bad protocol. 'login' and 'password' are needed");
+            GetAsync["/"] = async (p, c) =>
+            {
+                if (!c.Request.QueryString.ContainsKey("login") || !c.Request.QueryString.ContainsKey("password"))
+                    throw new WebException(400, "Bad protocol. 'login' and 'password' are needed");
 
-				using (DB db = await DB.CreateAsync(dbUrl))
-				{
-					var uid = await users.CheckPasswordAsync(
-						db, c.Request.QueryString["login"], c.Request.QueryString["password"]);
-					if (uid == null)
-						c.Response.StatusCode = 403;
-					else
-					{
-						c.Response.StatusCode = 200;
-						c.Response.Content = await users.GetUserAsync(db, uid);
-					}
-				}
-			};
-         
-			GetAsync["/nginx"] = async (p, c) =>
-			{
-				// ensure super admin only
-				var authUser = await c.GetAuthenticatedUserAsync();
-				if ((authUser == null) || !authUser.IsSuperAdmin)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Headers["Auth-Status"] = "Invalid login or password";
-					return;
-				}
+                using (DB db = await DB.CreateAsync(dbUrl))
+                {
+                    var uid = await users.RateLimitedCheckPasswordAsync(
+                        c, db, c.Request.QueryString["login"], c.Request.QueryString["password"]);
+                    if (uid == null)
+                        c.Response.StatusCode = 403;
+                    else
+                    {
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = await users.GetUserAsync(db, uid);
+                    }
+                }
+            };
 
-				string userId = null;
-				// check for HTTP Basic authorization
-				if (c.Request.Headers.ContainsKey("auth-user") && c.Request.Headers.ContainsKey("auth-pass"))
-				{
-					var login = c.Request.Headers["auth-user"];
-					var password = c.Request.Headers["auth-pass"];
-					// check in the users
-					userId = await ((Users)c.Data["users"]).CheckPasswordAsync(login, password);
-				}
-				if (userId == null)
-				{
-					c.Response.StatusCode = 200;
-					c.Response.Headers["Auth-Status"] = "Invalid login or password";
-				}
-				else
-				{
-					using (DB db = await DB.CreateAsync(dbUrl))
-					{
-						var user = await users.GetUserAsync(userId);
+            GetAsync["/nginx"] = async (p, c) =>
+            {
+                // ensure super admin only
+                var authUser = await c.GetAuthenticatedUserAsync();
+                if ((authUser == null) || !authUser.IsSuperAdmin)
+                {
+                    c.Response.StatusCode = 200;
+                    c.Response.Headers["Auth-Status"] = "Invalid login or password";
+                    return;
+                }
 
-						// update the user atime field
-						var userDiff = new User { id = userId, atime = DateTime.Now };
-						await userDiff.UpdateAsync(db);
+                string userId = null;
+                // check for HTTP Basic authorization
+                if (c.Request.Headers.ContainsKey("auth-user") && c.Request.Headers.ContainsKey("auth-pass"))
+                {
+                    var login = c.Request.Headers["auth-user"];
+                    var password = c.Request.Headers["auth-pass"];
+                    // check in the users
+                    userId = await ((Users)c.Data["users"]).RateLimitedCheckPasswordAsync(c, login, password);
+                }
+                if (userId == null)
+                {
+                    c.Response.StatusCode = 200;
+                    c.Response.Headers["Auth-Status"] = "Invalid login or password";
+                }
+                else
+                {
+                    using (DB db = await DB.CreateAsync(dbUrl))
+                    {
+                        var user = await users.GetUserAsync(userId);
 
-						var emailBackend = (await db.SelectAsync("SELECT * FROM email_backend WHERE id=?", user.email_backend_id)).SingleOrDefault();
-						if (emailBackend == null)
-							throw new WebException(500, "email_backend not found");
+                        // update the user atime field
+                        var userDiff = new User { id = userId, atime = DateTime.Now };
+                        await userDiff.UpdateAsync(db);
 
-						c.Response.StatusCode = 200;
-						c.Response.Headers["Auth-User"] = user.id + "@" + emailBackend["address"];
-						c.Response.Headers["Auth-Status"] = "OK";
+                        var emailBackend = (await db.SelectAsync("SELECT * FROM email_backend WHERE id=?", user.email_backend_id)).SingleOrDefault();
+                        if (emailBackend == null)
+                            throw new WebException(500, "email_backend not found");
 
-						c.Response.Headers["Auth-Server"] = (string)emailBackend["ip_address"];
-						if (c.Request.Headers.ContainsKey("auth-protocol"))
-						{
-							switch (c.Request.Headers["auth-protocol"])
-							{
-								case "smtp":
-									c.Response.Headers["Auth-Port"] = "25";
-									break;
-								case "pop":
-									c.Response.Headers["Auth-Port"] = "110";
-									break;
-								case "pop3":
-									c.Response.Headers["Auth-Port"] = "110";
-									break;
-								case "imap":
-									c.Response.Headers["Auth-Port"] = "143";
-									break;
-								default:
-									c.Response.Headers["Auth-Port"] = "80";
-									break;
-							}
-						}
-						c.Response.Headers["Auth-Pass"] = (string)emailBackend["master_key"];
-					}
-				}
-			};
-		}
+                        c.Response.StatusCode = 200;
+                        c.Response.Headers["Auth-User"] = user.id + "@" + emailBackend["address"];
+                        c.Response.Headers["Auth-Status"] = "OK";
 
-		static Dictionary<string, string> ProfilIdToSdet3 = new Dictionary<string, string>
-		{
-			["CPE"] = "National_5",
-			["AED"] = "National_5",
-			["EVS"] = "National_5",
-			["ENS"] = "National_3",
-			["ELV"] = "National_1",
-			["ETA"] = "National_6",
-			["ACA"] = "National_7",
-			["DIR"] = "National_4",
-			["TUT"] = "National_2",
-			["COL"] = "National_4",
-			["DOC"] = "National_3"
-		};
-	}
+                        c.Response.Headers["Auth-Server"] = (string)emailBackend["ip_address"];
+                        if (c.Request.Headers.ContainsKey("auth-protocol"))
+                        {
+                            switch (c.Request.Headers["auth-protocol"])
+                            {
+                                case "smtp":
+                                    c.Response.Headers["Auth-Port"] = "25";
+                                    break;
+                                case "pop":
+                                    c.Response.Headers["Auth-Port"] = "110";
+                                    break;
+                                case "pop3":
+                                    c.Response.Headers["Auth-Port"] = "110";
+                                    break;
+                                case "imap":
+                                    c.Response.Headers["Auth-Port"] = "143";
+                                    break;
+                                default:
+                                    c.Response.Headers["Auth-Port"] = "80";
+                                    break;
+                            }
+                        }
+                        c.Response.Headers["Auth-Pass"] = (string)emailBackend["master_key"];
+                    }
+                }
+            };
+        }
+
+        static Dictionary<string, string> ProfilIdToSdet3 = new Dictionary<string, string>
+        {
+            ["CPE"] = "National_5",
+            ["AED"] = "National_5",
+            ["EVS"] = "National_5",
+            ["ENS"] = "National_3",
+            ["ELV"] = "National_1",
+            ["ETA"] = "National_6",
+            ["ACA"] = "National_7",
+            ["DIR"] = "National_4",
+            ["TUT"] = "National_2",
+            ["COL"] = "National_4",
+            ["DOC"] = "National_3"
+        };
+    }
 }

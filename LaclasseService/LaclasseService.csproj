@@ -176,6 +176,7 @@
     <Compile Include="Mail\UnusedEmailCheck.cs" />
     <Compile Include="Textbook\EduLib.cs" />
     <Compile Include="Utils\Cache.cs" />
+    <Compile Include="Utils\TimeLimiter.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

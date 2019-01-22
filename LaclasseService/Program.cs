@@ -171,7 +171,7 @@ namespace Laclasse
             mapper.Add("/api/ent", new Ents(dbUrl));
             mapper.Add("/api/publipostages", new Publipostages(dbUrl, setup.mail));
 
-            mapper.Add("/api/structures", new StructureRss(dbUrl));
+            mapper.Add("/api/structures", new StructureRss(logger, dbUrl));
 
             mapper.Add("/api/avatar/user", new StaticFiles(
                 Path.Combine(setup.server.storage, "avatar"),

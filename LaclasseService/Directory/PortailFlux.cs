@@ -78,14 +78,14 @@ namespace Laclasse.Directory
 
     public class StructureRss : HttpRouting
     {
-        public StructureRss(string dbUrl)
+        public StructureRss(Logger logger, string dbUrl)
         {
             // API only available to authenticated users
             BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
             var cache = new Utils.Cache<List<Rss>>(400, TimeSpan.FromMinutes(20), async (string key) =>
             {
-                Console.WriteLine($"Load RSS: {key}");
+                logger.Log(LogLevel.Info, $"Load RSS: {key}");
                 var items = new List<Rss>();
                 try
                 {
@@ -215,7 +215,7 @@ namespace Laclasse.Directory
                 }
                 catch (Exception)
                 {
-                    Console.WriteLine($"ERROR: invalid RSS feed '{key}'");
+                    logger.Log(LogLevel.Error, $"invalid RSS feed '{key}'");
                     items = null;
                 }
                 return items;

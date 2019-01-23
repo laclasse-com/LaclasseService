@@ -102,7 +102,7 @@ namespace Laclasse.Directory
                             Method = "GET",
                             Path = uri.PathAndQuery
                         };
-                        client.SendRequest(clientRequest);
+                        await client.SendRequestAsync(clientRequest);
 
                         var response = await client.GetResponseAsync();
 
@@ -219,7 +219,7 @@ namespace Laclasse.Directory
                     items = null;
                 }
                 return items;
-            });
+            }, true);
 
 
             GetAsync["/{uai}/rss"] = async (p, c) =>

@@ -39,6 +39,7 @@ namespace Laclasse.Utils
     {
         public delegate Task<T> CacheMissedHandlerAsync(string key);
 
+        readonly bool allowNullCaching;
         readonly int maxItems;
         readonly TimeSpan duration;
         readonly CacheMissedHandlerAsync cacheMissedHandlerAsync;
@@ -52,11 +53,12 @@ namespace Laclasse.Utils
             public T2 Data;
         }
 
-        public Cache(int maxItems, TimeSpan duration, CacheMissedHandlerAsync cacheMissedHandlerAsync)
+        public Cache(int maxItems, TimeSpan duration, CacheMissedHandlerAsync cacheMissedHandlerAsync, bool allowNullCaching = false)
         {
             this.maxItems = maxItems;
             this.duration = duration;
             this.cacheMissedHandlerAsync = cacheMissedHandlerAsync;
+            this.allowNullCaching = allowNullCaching;
         }
 
         void Clean()
@@ -100,7 +102,7 @@ namespace Laclasse.Utils
                     res = null;
                 }
                 // dont keep in cache loading failures
-                if (res == null)
+                if (!allowNullCaching && res == null)
                 {
                     lock (instanceLock)
                     {

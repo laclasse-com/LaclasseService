@@ -354,7 +354,7 @@ namespace Laclasse.Doc
             };
 
 
-            GetAsync["/"] = async (p, c) =>
+            /*GetAsync["/"] = async (p, c) =>
             {
                 bool expand = true;
                 if (c.Request.QueryString.ContainsKey("expand"))
@@ -372,6 +372,45 @@ namespace Laclasse.Doc
                     await db.CommitAsync();
                 }
                 c.Response.StatusCode = 200;
+            };*/
+
+            GetAsync["/"] = async (p, c) =>
+            {
+                // NAIVE ALGO. IMPROVE THIS
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    IEnumerable<Item> roots;
+                    if (c.Request.QueryStringArray.ContainsKey("roots"))
+                    {
+                        roots = new List<Item>();
+                        foreach (var rootId in c.Request.QueryStringArray["roots"])
+                        {
+                            var root = await context.GetByIdAsync(long.Parse(rootId));
+                            if (root != null)
+                            {
+                                var rights = await root.RightsAsync();
+                                Console.WriteLine($"Add root: {rootId} => {root}, read? {rights.Read}");
+                                if (rights.Read)
+                                    (roots as List<Item>).Add(root);
+                            }
+                        }
+                    }
+                    else
+                        roots = await GetRootsAsync(context);
+                    var result = new List<Item>();
+                    var filter = c.ToFilter();
+                    filter.Remove("roots");
+                    filter.Remove("expand");
+                    Console.WriteLine("Filter:");
+                    Console.WriteLine(filter.Dump());
+                    await SearchItemsAsync(context, roots, filter, result);
+                    var json = new JsonArray();
+                    foreach (var item in result)
+                        json.Add(await item.ToJsonAsync(false));
+                    c.Response.StatusCode = 200;
+                    c.Response.Content = json;
+                }
             };
 
             GetAsync["/{id}"] = async (p, c) =>
@@ -723,24 +762,32 @@ namespace Laclasse.Doc
                     var item = await context.GetByIdAsync(id);
                     if (item != null)
                     {
-                        if (item.node.rev != argRev)
+                        var rights = await item.RightsAsync();
+                        if (!rights.Read)
                         {
-                            string attachment = "";
-                            if (c.Request.QueryString.ContainsKey("attachment"))
-                                attachment = "&attachment";
-                            c.Response.StatusCode = 307;
-                            c.Response.Headers["location"] = $"content?rev={item.node.rev}{attachment}";
+                            c.Response.StatusCode = 403;
                         }
                         else
                         {
-                            c.Response.StatusCode = 200;
-                            c.Response.SupportRanges = true;
-                            c.Response.Headers["content-type"] = item.node.mime;
-                            if (!c.Request.QueryString.ContainsKey("nocache") && argRev == item.node.rev)
-                                c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
-                            if (c.Request.QueryString.ContainsKey("attachment"))
-                                c.Response.Headers["content-disposition"] = $"attachment; filename=\"{item.node.name.Replace('"', ' ')}\"";
-                            c.Response.Content = await item.GetContentAsync();
+                            if (item.node.rev != argRev)
+                            {
+                                string attachment = "";
+                                if (c.Request.QueryString.ContainsKey("attachment"))
+                                    attachment = "&attachment";
+                                c.Response.StatusCode = 307;
+                                c.Response.Headers["location"] = $"content?rev={item.node.rev}{attachment}";
+                            }
+                            else
+                            {
+                                c.Response.StatusCode = 200;
+                                c.Response.SupportRanges = true;
+                                c.Response.Headers["content-type"] = item.node.mime;
+                                if (!c.Request.QueryString.ContainsKey("nocache") && argRev == item.node.rev)
+                                    c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
+                                if (c.Request.QueryString.ContainsKey("attachment"))
+                                    c.Response.Headers["content-disposition"] = $"attachment; filename=\"{item.node.name.Replace('"', ' ')}\"";
+                                c.Response.Content = await item.GetContentAsync();
+                            }
                         }
                     }
                     await db.CommitAsync();
@@ -754,23 +801,30 @@ namespace Laclasse.Doc
                 if (c.Request.QueryString.ContainsKey("rev"))
                     argRev = Convert.ToInt64(c.Request.QueryString["rev"]);
 
-                var node = new Node { id = id };
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-                    if (await node.LoadAsync(db, true))
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var item = await context.GetByIdAsync(id);
+
+                    if (item != null)
                     {
-                        if (node.blob_id != null)
+                        var rights = await item.RightsAsync();
+                        if (!rights.Read)
                         {
-                            var blob = new Blob { id = node.blob_id };
+                            c.Response.StatusCode = 403;
+                        }
+                        else if (item.node.blob_id != null)
+                        {
+                            var blob = new Blob { id = item.node.blob_id };
                             if (await blob.LoadAsync(db, true))
                             {
                                 var thumbnailBlob = blob.children.SingleOrDefault((child) => child.name == "thumbnail");
                                 if (thumbnailBlob != null)
                                 {
-                                    if (argRev != node.rev)
+                                    if (argRev != item.node.rev)
                                     {
                                         c.Response.StatusCode = 307;
-                                        c.Response.Headers["location"] = $"tmb?rev={node.rev}";
+                                        c.Response.Headers["location"] = $"tmb?rev={item.node.rev}";
                                     }
                                     else
                                     {
@@ -787,6 +841,30 @@ namespace Laclasse.Doc
                     }
                 }
             };
+        }
+
+        async Task SearchItemsAsync(Context context, IEnumerable<Item> roots, Dictionary<string, List<string>> filter, List<Item> result)
+        {
+            foreach (var item in roots)
+            {
+                var rights = await item.RightsAsync();
+                if (rights.Read)
+                    await RecursiveSearchItemsAsync(context, item, filter, result);
+            }
+        }
+
+        async Task RecursiveSearchItemsAsync(Context context, Item item, Dictionary<string, List<string>> filter, List<Item> result)
+        {
+            Console.WriteLine($"RecursiveSearchItemsAsync item: {item.node.name}");
+            if (item is Folder)
+            {
+                var folder = item as Folder;
+                var children = await folder.GetFilteredChildrenAsync();
+                foreach (var child in children)
+                    await RecursiveSearchItemsAsync(context, child, filter, result);
+            }
+            if (item.node.IsFilterMatch(filter))
+                result.Add(item);
         }
 
         public override async Task ProcessRequestAsync(HttpContext context)

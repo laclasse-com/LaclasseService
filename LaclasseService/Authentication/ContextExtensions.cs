@@ -264,21 +264,22 @@ namespace Laclasse.Authentication
                     {
                         var login = authorization.Substring(0, pos);
                         var password = authorization.Substring(pos + 1);
-                        // check in the users
-                        userId = await ((Users)context.Data["users"]).RateLimitedCheckPasswordAsync(context, login, password);
-                        if (userId != null)
-                        {
-                            var user = await ((Users)context.Data["users"]).GetUserAsync(userId);
-                            if (user != null)
-                                authUser = new AuthenticatedUser { user = user };
-                        }
 
                         // check in the applications
+                        var app = await ((Applications)context.Data["applications"]).CheckPasswordAsync(login, password);
+                        if (app != null)
+                            authUser = new AuthenticatedUser { application = app };
+
+                        // check in the users
                         if (authUser == null)
                         {
-                            var app = await ((Applications)context.Data["applications"]).CheckPasswordAsync(login, password);
-                            if (app != null)
-                                authUser = new AuthenticatedUser { application = app };
+                            userId = await ((Users)context.Data["users"]).RateLimitedCheckPasswordAsync(context, login, password);
+                            if (userId != null)
+                            {
+                                var user = await ((Users)context.Data["users"]).GetUserAsync(userId);
+                                if (user != null)
+                                    authUser = new AuthenticatedUser { user = user };
+                            }
                         }
                     }
                 }

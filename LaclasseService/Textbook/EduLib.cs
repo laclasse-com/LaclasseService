@@ -22,19 +22,45 @@ namespace Laclasse.Textbook
         public string user_id { get => GetField<string>(nameof(user_id), null); set => SetField(nameof(user_id), value); }
         [ModelField(ForeignModel = typeof(Group))]
         public int? group_id { get => GetField<int?>(nameof(group_id), null); set => SetField(nameof(group_id), value); }
+
+        public override SqlFilter FilterAuthUser(AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+                return new SqlFilter();
+
+            // Teaching staff can see book_allocation for all the structures they're in
+            if (user.user.profiles.Exists((p) => (p.type != "ELV") && (p.type != "TUT")))
+            {
+                var structuresIds = user.user.profiles.Select((arg) => arg.structure_id).Distinct();
+                return new SqlFilter() { Where = $"({DB.InFilter(nameof(structure_id), structuresIds)})" };
+            }
+
+            // ELV (student) and TUT (parent) only sees book_allocation for groups they belongs to
+            // or if their user_id matches
+            var groupsIds = user.user.groups.Select((arg) => arg.group_id);
+            groupsIds = groupsIds.Distinct();
+            return new SqlFilter() { Where = $"({nameof(user_id)}={DB.EscapeString(user.user.id)} OR {DB.InFilter(nameof(group_id), groupsIds)})" };
+        }
+
+        public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
+        {
+            var user = await context.EnsureIsAuthenticatedAsync();
+            if (user.IsSuperAdmin)
+                return;
+
+            await context.EnsureHasRightsOnStructureAsync(new Structure() { id = structure_id },
+                true, false, (right == Right.Create) || (right == Right.Delete) || (right == Right.Update));
+        }
     }
 
     public class BookAllocations : ModelService<BookAllocation>
     {
         public BookAllocations(string dbUrl) : base(dbUrl)
         {
-
+            BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
         }
     }
-    public enum LicenseType
-    {
 
-    }
     public class EduLibService : HttpRouting
     {
         public EduLibService(EduLibSetup setup, string dbUrl)
@@ -72,7 +98,7 @@ namespace Laclasse.Textbook
                         using (var db = await DB.CreateAsync(dbUrl, false))
                         {
                             var json = await response.ReadAsJsonAsync();
-                            if(isAdmin)
+                            if (isAdmin)
                             {
                                 c.Response.Content = json;
                                 return;
@@ -88,22 +114,35 @@ namespace Laclasse.Textbook
                                 .First();
                             var licenseType = highestProfileInStructure.type == "ELV" ? "student" : "teacher";
                             var grade = await db.SelectRowAsync<Grade>(authUser.user.student_grade_id);
+                            var groupsId = authUser.user.groups.Select((arg) => arg.group_id).Distinct();
+                            var bookAllocations = await db.SelectAsync<BookAllocation>($"SELECT * FROM `book_allocation` WHERE `structure_id` = ? AND (`user_id` = ? OR { DB.InFilter("group_id", groupsId)})", uai, authUser.user.id);
+                            var groupByArticleId = bookAllocations.GroupBy((BookAllocation arg) => arg.article_id);
 
                             /*
                              * Books are filtered based on their licensing, and rights
-                             */ 
+                             */
                             var filteredJson = new JsonArray();
                             foreach (var jsonValue in json as JsonArray)
                             {
-                                if(jsonValue["license_type"].Value as string != licenseType) { continue; }
-                                //TODO Move this out of the loop to only do it once
-                                var result = await db.SelectAsync<BookAllocation>("SELECT * FROM `book_allocation` WHERE `article_id` = ? AND `structure_id` = ?", jsonValue["article_id"].Value, uai);
-                                if (result.Count > 0 && result.Any((bookUser) => bookUser.user_id == authUser.user.id))
-                                    filteredJson.Add(jsonValue);
-                                else if (grade != null && licenseType == "student" && (jsonValue["classrooms"] as JsonArray).Any((value) => grade.name.Contains((value.Value as string).ToUpper())))
-                                    filteredJson.Add(jsonValue);
-                                else if (licenseType == "teacher")
-                                    filteredJson.Add(jsonValue);
+                                // Checks type of book
+                                if (jsonValue["license_type"].Value as string != licenseType) { continue; }
+
+                                // Check if there is book_allocation for this book
+                                // If there is check it, else use either grade or profile 
+                                // to determine if user should have access
+                                var rights = groupByArticleId.FirstOrDefault((arg) => arg.Key == jsonValue["article_id"].Value as string);
+                                if (rights == null)
+                                {
+                                    if (licenseType == "student" && grade != null && (jsonValue["classrooms"] as JsonArray).Any((value) => grade.name.Contains((value.Value as string).ToUpper())))
+                                        filteredJson.Add(jsonValue);
+                                    else if (licenseType == "teacher")
+                                        filteredJson.Add(jsonValue);
+                                }
+                                else
+                                {
+                                    if (rights.Any((bookUser) => (bookUser.user_id != null && bookUser.user_id == authUser.user.id) || (bookUser.group_id != null && groupsId.Any(arg => arg == bookUser.group_id))))
+                                        filteredJson.Add(jsonValue);
+                                }
                             }
                             c.Response.Content = filteredJson;
                         }

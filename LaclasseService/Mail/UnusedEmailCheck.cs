@@ -1,22 +1,22 @@
 ﻿// UnusedEmailCheck.cs
-// 
+//
 //  API to check unused mailboxes from user that were deleted
 //
 // Author(s):
 //  Nelson Gonçalves <ngoncalves@erasme.org>
-// 
+//
 // Copyright (c) 2017 Metropole de Lyon
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in
 // all copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -57,10 +57,10 @@ namespace Laclasse.Mail
                         });
                     });
 
-                  
+
                     using (var db = await DB.CreateAsync(dbUrl, true))
                     {
-                        // Get users in database using the found users 
+                        // Get users in database using the found users
                         var res = await db.SelectAsync($"SELECT `{nameof(Directory.User.id)}` FROM `user` WHERE " + DB.InFilter(nameof(Directory.User.id), mailUsers));
                         // Compare them to extract the users with a mailbox that aren't a part of the database anymore
                         res.ForEach((line) =>

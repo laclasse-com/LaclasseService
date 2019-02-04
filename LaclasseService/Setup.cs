@@ -179,7 +179,7 @@ namespace Laclasse
         public string masterPassword = "masterPassword";
         public Saml2Setup saml2Server = new Saml2Setup
         {
-            cert = "base64 PK12 certificat public and private key"
+            cert = null
         };
         public AafSsoSetup aafSso = new AafSsoSetup();
         public CasSetup cas = new CasSetup();

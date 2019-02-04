@@ -107,7 +107,8 @@ namespace Laclasse.Authentication
             var agentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.agents.cert));
             var parentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.parents.cert));
             // the certificate MUST contains the RSA private key
-            saml2ServerCert = new X509Certificate2(Convert.FromBase64String(authenticationSetup.saml2Server.cert));
+            if (authenticationSetup.saml2Server.cert != null)
+                saml2ServerCert = new X509Certificate2(Convert.FromBase64String(authenticationSetup.saml2Server.cert));
 
             GetAsync["/login"] = async (p, c) =>
             {
@@ -356,6 +357,9 @@ namespace Laclasse.Authentication
 
             GetAsync["/samlAuthentication"] = async (p, c) =>
             {
+                if (saml2ServerCert == null)
+                    return;
+
                 var RelayState = c.Request.QueryString["RelayState"];
                 var SAMLRequest = c.Request.QueryString["SAMLRequest"];
                 var preTicket = HandleSamlRequest(SAMLRequest);
@@ -398,6 +402,9 @@ namespace Laclasse.Authentication
 
             Get["/samlMetadata"] = (p, c) =>
             {
+                if (saml2ServerCert == null)
+                    return;
+
                 c.Response.StatusCode = 200;
                 c.Response.Content = new XmlContent(SamlMetadata2(c));
             };

@@ -15,3 +15,4 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.csproj.CopyComplete
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.exe
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.pdb
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/TestLaclasse/obj/x86/Debug/TestLaclasse.csprojAssemblyReference.cache

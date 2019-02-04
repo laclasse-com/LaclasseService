@@ -82,25 +82,32 @@ namespace Laclasse.Authentication
         readonly MailSetup mailSetup;
         readonly SmsSetup smsSetup;
         readonly GrandLyonApiSetup grandLyonApiSetup;
+        readonly X509Certificate2 saml2ServerCert;
 
         public Cas(string dbUrl, Sessions sessions, Users users,
-                   string cookieName, double ticketTimeout, AafSsoSetup aafSsoSetup,
-                   CUTSsoSetup cutSsoSetup, GrandLyonApiSetup grandLyonApiSetup,
-                   MailSetup mailSetup, SmsSetup smsSetup, int rescueTicketTimeout)
+            AuthenticationSetup authenticationSetup,
+            MailSetup mailSetup, SmsSetup smsSetup)
         {
+            double ticketTimeout = authenticationSetup.cas.ticketTimeout;
+            AafSsoSetup aafSsoSetup = authenticationSetup.aafSso;
+            CUTSsoSetup cutSsoSetup = authenticationSetup.cutSso;
+            int rescueTicketTimeout = authenticationSetup.cas.rescueTicketTimeout;
+
             this.dbUrl = dbUrl;
             this.sessions = sessions;
             this.users = users;
-            this.cookieName = cookieName;
+            cookieName = authenticationSetup.session.cookie;
             this.mailSetup = mailSetup;
             this.smsSetup = smsSetup;
-            this.grandLyonApiSetup = grandLyonApiSetup;
+            grandLyonApiSetup = authenticationSetup.grandLyonApi;
             tickets = new Tickets(dbUrl, ticketTimeout);
             rescueTickets = new RescueTickets(dbUrl, rescueTicketTimeout);
             preTickets = new PreTickets(ticketTimeout);
 
             var agentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.agents.cert));
             var parentCert = new X509Certificate2(Convert.FromBase64String(aafSsoSetup.parents.cert));
+            // the certificate MUST contains the RSA private key
+            saml2ServerCert = new X509Certificate2(Convert.FromBase64String(authenticationSetup.saml2Server.cert));
 
             GetAsync["/login"] = async (p, c) =>
             {
@@ -236,7 +243,7 @@ namespace Laclasse.Authentication
                     {
                         preTicket.uid = uid;
                         // init the session and redirect to service
-                        await CasLoginAsync(c, preTicket, formFields.ContainsKey("keepconnected"));
+                        await LoginAsync(c, preTicket, formFields.ContainsKey("keepconnected"));
                     }
                 }
             };
@@ -345,6 +352,54 @@ namespace Laclasse.Authentication
                 c.Response.StatusCode = 200;
                 c.Response.Content = new XmlContent(SoapSamlResponse(
                     c.SelfURL(), doc, FilterAttributesFromClient(client, userAttributes), client.identity_attribute, service));
+            };
+
+            GetAsync["/samlAuthentication"] = async (p, c) =>
+            {
+                var RelayState = c.Request.QueryString["RelayState"];
+                var SAMLRequest = c.Request.QueryString["SAMLRequest"];
+                var preTicket = HandleSamlRequest(SAMLRequest);
+                preTicket.service = RelayState;
+
+                var client = await GetClientFromServiceAsync(RelayState);
+                if (client == null)
+                {
+                    c.Response.StatusCode = 200;
+                    c.Response.Headers["content-type"] = "text/html; charset=utf-8";
+                    c.Response.Content = (new CasView
+                    {
+                        error = "Le service vers lequel vous voulez vous authentifier n'est pas autorisé dans Laclasse.com. Contacter les administrateurs de Laclasse.com."
+                    }).TransformText();
+                    return;
+                }
+
+                var session = await c.GetSessionAsync();
+
+                if (session != null)
+                    await Saml2LoginAsync(c, preTicket, session);
+                else
+                {
+                    c.Response.StatusCode = 302;
+                    c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
+
+                    string service = null;
+                    if (preTicket != null)
+                        service = preTicket.service;
+                    if (c.Request.QueryString.ContainsKey("service"))
+                        service = c.Request.QueryString["service"];
+                    bool wantTicket = false;
+                    if (preTicket != null)
+                        wantTicket = preTicket.wantTicket;
+                    if (c.Request.QueryString.ContainsKey("ticket"))
+                        wantTicket = Convert.ToBoolean(c.Request.QueryString["ticket"]);
+                    c.Response.Headers["location"] = $"login?state={HttpUtility.UrlEncode(preTicket.id)}";
+                }
+            };
+
+            Get["/samlMetadata"] = (p, c) =>
+            {
+                c.Response.StatusCode = 200;
+                c.Response.Content = new XmlContent(SamlMetadata2(c));
             };
 
             Get["/parentPortalIdp"] = (p, c) =>
@@ -508,8 +563,7 @@ namespace Laclasse.Authentication
                 preTicket.idp = Idp.AAF;
 
                 // init the session and redirect to service
-                //await CasLoginAsync(c, userResult.id, service, Idp.AAF);
-                await CasLoginAsync(c, preTicket);
+                await LoginAsync(c, preTicket);
             };
 
             PostAsync["/parentPortalIdp"] = async (p, c) =>
@@ -597,8 +651,7 @@ namespace Laclasse.Authentication
                 preTicket.idp = Idp.AAF;
 
                 // init the session and redirect to service
-                //await CasLoginAsync(c, userResult["id"], service, Idp.AAF);
-                await CasLoginAsync(c, preTicket);
+                await LoginAsync(c, preTicket);
             };
 
             GetAsync["/cutIdp"] = async (p, c) =>
@@ -681,7 +734,7 @@ namespace Laclasse.Authentication
                     preTicket.uid = user.id;
                     preTicket.idp = Idp.CUT;
                     // init the session
-                    await CasLoginAsync(c, preTicket);
+                    await LoginAsync(c, preTicket);
                 }
                 // ask for CUT OIDC authentication
                 else
@@ -872,10 +925,9 @@ namespace Laclasse.Authentication
             return result;
         }
 
-        //async Task CasLoginAsync(HttpContext c, string uid, string service, Idp idp, bool wantTicket = true, string state = null)
-        async Task CasLoginAsync(HttpContext c, PreTicket preTicket, bool longSession = false)
+        async Task LoginAsync(HttpContext c, PreTicket preTicket, bool longSession = false)
         {
-            Console.WriteLine("CasLogin " + preTicket.Dump());
+            Console.WriteLine("Login " + preTicket.Dump());
             var session = await sessions.CreateSessionAsync(preTicket.uid, preTicket.idp, longSession);
             var sessionId = session.id;
             string cutId = preTicket.cutId;
@@ -929,21 +981,12 @@ namespace Laclasse.Authentication
 
             if (!ent.disable_student_parent || (user.profiles.Any((p) => p.type != "TUT" && p.type != "ELV")))
             {
-                c.Response.StatusCode = 302;
-                c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
                 c.Response.Headers["set-cookie"] = $"{cookieName}={sessionId};{((longSession) ? $" Max-Age={Math.Round(session.duration.TotalSeconds)}; Expires={DateTime.Now.AddSeconds(session.duration.TotalSeconds).ToString("r")};" : "")} Path=/";
 
-                string service = preTicket.service;
-                if (preTicket.wantTicket)
-                {
-                    var ticket = await tickets.CreateAsync(sessionId);
-                    if (service.IndexOf('?') >= 0)
-                        service += "&ticket=" + ticket.id;
-                    else
-                        service += "?ticket=" + ticket.id;
-                }
-                Console.WriteLine($"Location: '{service}'");
-                c.Response.Headers["location"] = service;
+                if (preTicket.SAMLRequest != null)
+                    await Saml2LoginAsync(c, preTicket, session);
+                else
+                    await CasLoginAsync(c, preTicket, session);
             }
             // student or parent disabled mode. Signal the error to the user
             else
@@ -958,6 +1001,24 @@ namespace Laclasse.Authentication
                 }).TransformText();
             }
             preTickets.Remove(preTicket.id);
+        }
+
+        async Task CasLoginAsync(HttpContext c, PreTicket preTicket, Session session)
+        {
+            c.Response.StatusCode = 302;
+            c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
+
+            string service = preTicket.service;
+            if (preTicket.wantTicket)
+            {
+                var ticket = await tickets.CreateAsync(session.id);
+                if (service.IndexOf('?') >= 0)
+                    service += "&ticket=" + ticket.id;
+                else
+                    service += "?ticket=" + ticket.id;
+            }
+            Console.WriteLine($"Location: '{service}'");
+            c.Response.Headers["location"] = service;
         }
 
         public async Task<Dictionary<string, object>> GetUserSsoAttributesAsync(string uid)
@@ -1138,6 +1199,205 @@ namespace Laclasse.Authentication
             return res;
         }
 
+        XmlDocument SamlResponse2(Dictionary<string, object> attributes, string inResponseTo, string issuer,
+                                  string nameIdentifier, string recipient)
+        {
+            var samlp = "urn:oasis:names:tc:SAML:2.0:protocol";
+            var saml = "urn:oasis:names:tc:SAML:2.0:assertion";
+            var xs = "http://www.w3.org/2001/XMLSchema";
+            var xsi = "http://www.w3.org/2001/XMLSchema-instance";
+
+            Console.WriteLine(attributes.Dump());
+
+            var issueInstant = DateTime.UtcNow.ToString("s") + "Z";
+
+            var notBefore = (DateTime.UtcNow - TimeSpan.FromHours(1)).ToString("s") + "Z";
+            var notOnOrAfter = (DateTime.UtcNow + TimeSpan.FromHours(1)).ToString("s") + "Z";
+
+            var doc = new XmlDocument();
+
+            var ns = new XmlNamespaceManager(doc.NameTable);
+            ns.AddNamespace("samlp", samlp);
+            ns.AddNamespace("saml", saml);
+            ns.AddNamespace("xs", xs);
+            ns.AddNamespace("xsi", xsi);
+
+            var response = doc.CreateElement("samlp:Response", samlp);
+            response.SetAttribute("xmlns:samlp", samlp);
+            response.SetAttribute("xmlns:saml", saml);
+            response.SetAttribute("Version", "2.0");
+            response.SetAttribute("ID", "_" + StringExt.RandomString(16, "0123456789abcdef"));
+            response.SetAttribute("InResponseTo", inResponseTo);
+            response.SetAttribute("IssueInstant", issueInstant);
+            response.SetAttribute("Destination", recipient);
+            doc.AppendChild(response);
+
+            var issuerElement = doc.CreateElement("saml:Issuer", saml);
+            issuerElement.InnerText = issuer;
+            response.AppendChild(issuerElement);
+
+            var status = doc.CreateElement("samlp:Status", samlp);
+            response.AppendChild(status);
+
+            var statusCode = doc.CreateElement("samlp:StatusCode", samlp);
+            statusCode.SetAttribute("Value", "urn:oasis:names:tc:SAML:2.0:status:Success");
+            status.AppendChild(statusCode);
+
+            var assertion = doc.CreateElement("saml:Assertion", saml);
+            assertion.SetAttribute("xmlns:xsi", xsi);
+            assertion.SetAttribute("xmlns:xs", xs);
+            assertion.SetAttribute("Version", "2.0");
+            assertion.SetAttribute("ID", "_" + StringExt.RandomString(16));
+            assertion.SetAttribute("IssueInstant", issueInstant);
+            response.AppendChild(assertion);
+
+            issuerElement = doc.CreateElement("saml:Issuer", saml);
+            issuerElement.InnerText = issuer;
+            assertion.AppendChild(issuerElement);
+
+            var subject = doc.CreateElement("saml:Subject", saml);
+            assertion.AppendChild(subject);
+            var nameIdentifierNode = doc.CreateElement("saml:NameID", saml);
+            nameIdentifierNode.SetAttribute("Format", "urn:oasis:names:tc:SAML:2.0:nameid-format:transient");
+            nameIdentifierNode.SetAttribute("SPNameQualifier", issuer);
+            nameIdentifierNode.InnerText = attributes[nameIdentifier] as string;
+            subject.AppendChild(nameIdentifierNode);
+            var subjectConfirmation = doc.CreateElement("saml:SubjectConfirmation", saml);
+            subjectConfirmation.SetAttribute("Method", "urn:oasis:names:tc:SAML:2.0:cm:bearer");
+            subject.AppendChild(subjectConfirmation);
+            var subjectConfirmationData = doc.CreateElement("saml:SubjectConfirmationData", saml);
+            subjectConfirmationData.SetAttribute("NotOnOrAfter", notOnOrAfter);
+            subjectConfirmationData.SetAttribute("Recipient", recipient);
+            subjectConfirmationData.SetAttribute("InResponseTo", inResponseTo);
+            subjectConfirmation.AppendChild(subjectConfirmationData);
+
+            var conditions = doc.CreateElement("saml:Conditions", saml);
+            conditions.SetAttribute("NotBefore", notBefore);
+            conditions.SetAttribute("NotOnOrAfter", notOnOrAfter);
+            assertion.AppendChild(conditions);
+
+            var audienceRestriction = doc.CreateElement("saml:AudienceRestriction", saml);
+            conditions.AppendChild(audienceRestriction);
+
+            var audience = doc.CreateElement("saml:Audience", saml);
+            audience.InnerText = recipient;
+            audienceRestriction.AppendChild(audience);
+
+            var authnStatement = doc.CreateElement("saml:AuthnStatement", saml);
+            // should be the time where the user really login
+            authnStatement.SetAttribute("AuthnInstant", issueInstant);
+            assertion.AppendChild(authnStatement);
+
+            var authnContext = doc.CreateElement("saml:AuthnContext", saml);
+            authnStatement.AppendChild(authnContext);
+
+            var authnContextClassRef = doc.CreateElement("saml:AuthnContextClassRef", saml);
+            authnContextClassRef.InnerText = "urn:oasis:names:tc:SAML:2.0:ac:classes:Password";
+            authnContext.AppendChild(authnContextClassRef);
+
+            var attributeStatement = doc.CreateElement("saml:AttributeStatement", saml);
+            assertion.AppendChild(attributeStatement);
+
+            foreach (KeyValuePair<string, object> keyValue in attributes)
+            {
+                var attribute = doc.CreateElement("saml:Attribute", saml);
+                attributeStatement.AppendChild(attribute);
+
+                attribute.SetAttribute("Name", keyValue.Key);
+                attribute.SetAttribute("NameFormat", "urn:oasis:names:tc:SAML:2.0:attrname-format:basic");
+                attributeStatement.AppendChild(attribute);
+
+                if (keyValue.Value is string)
+                {
+                    var attributeValue = doc.CreateElement("saml:AttributeValue", saml);
+                    //attributeValue.SetAttribute("xsi:type", "xs:string");
+                    attributeValue.SetAttribute("type", xsi, "xs:string");
+                    attributeValue.InnerText = keyValue.Value as string;
+                    attribute.AppendChild(attributeValue);
+                }
+                else if (keyValue.Value is List<string>)
+                {
+                    var list = keyValue.Value as List<string>;
+                    foreach (var value in list)
+                    {
+                        var attributeValue = doc.CreateElement("saml:AttributeValue", saml);
+                        attributeValue.SetAttribute("type", xsi, "xs:string");
+                        attributeValue.InnerText = value;
+                        attribute.AppendChild(attributeValue);
+                    }
+                }
+            }
+            return doc;
+        }
+
+        XmlDocument SamlMetadata2(HttpContext context)
+        {
+            var publicKey = Convert.ToBase64String(saml2ServerCert.Export(X509ContentType.Cert));
+
+            var md = "urn:oasis:names:tc:SAML:2.0:metadata";
+            var ds = "http://www.w3.org/2000/09/xmldsig#";
+
+            var issueInstant = DateTime.UtcNow.ToString("s") + "Z";
+            var validUntil = (DateTime.UtcNow + TimeSpan.FromHours(1)).ToString("s") + "Z";
+
+            var doc = new XmlDocument();
+
+            var ns = new XmlNamespaceManager(doc.NameTable);
+            ns.AddNamespace("md", md);
+            ns.AddNamespace("ds", ds);
+
+            var entityDescriptor = doc.CreateElement("md:EntityDescriptor", md);
+            entityDescriptor.SetAttribute("xmlns:md", md);
+            entityDescriptor.SetAttribute("validUntil", validUntil);
+            entityDescriptor.SetAttribute("entityId", new Uri(new Uri(context.SelfURL()), "samlMetadata").AbsoluteUri);
+            doc.AppendChild(entityDescriptor);
+
+            var IDPSSODescriptor = doc.CreateElement("md:IDPSSODescriptor", md);
+            IDPSSODescriptor.SetAttribute("WantAuthnRequestsSigned", "false");
+            IDPSSODescriptor.SetAttribute("protocolSupportEnumeration", "urn:oasis:names:tc:SAML:2.0:protocol");
+            entityDescriptor.AppendChild(IDPSSODescriptor);
+
+            var KeyDescriptor = doc.CreateElement("md:KeyDescriptor", md);
+            KeyDescriptor.SetAttribute("use", "signing");
+            IDPSSODescriptor.AppendChild(KeyDescriptor);
+
+            var KeyInfo = doc.CreateElement("ds:KeyInfo", ds);
+            KeyInfo.SetAttribute("xmlns:ds", ds);
+            KeyDescriptor.AppendChild(KeyInfo);
+
+            var X509Data = doc.CreateElement("ds:X509Data", ds);
+            KeyInfo.AppendChild(X509Data);
+
+            var X509Certificate = doc.CreateElement("ds:X509Certificate", ds);
+            X509Certificate.InnerText = publicKey;
+            X509Data.AppendChild(X509Certificate);
+
+            KeyDescriptor = doc.CreateElement("md:KeyDescriptor", md);
+            KeyDescriptor.SetAttribute("use", "encryption");
+            IDPSSODescriptor.AppendChild(KeyDescriptor);
+
+            KeyInfo = doc.CreateElement("ds:KeyInfo", ds);
+            KeyInfo.SetAttribute("xmlns:ds", ds);
+            KeyDescriptor.AppendChild(KeyInfo);
+
+            X509Data = doc.CreateElement("ds:X509Data", ds);
+            KeyInfo.AppendChild(X509Data);
+
+            X509Certificate = doc.CreateElement("ds:X509Certificate", ds);
+            X509Certificate.InnerText = publicKey;
+            X509Data.AppendChild(X509Certificate);
+
+            var NameIDFormat = doc.CreateElement("md:NameIDFormat", md);
+            NameIDFormat.InnerText = "urn:oasis:names:tc:SAML:2.0:nameid-format:transient";
+            IDPSSODescriptor.AppendChild(NameIDFormat);
+
+            var SingleSignOnService = doc.CreateElement("md:SingleSignOnService", md);
+            SingleSignOnService.SetAttribute("Binding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect");
+            SingleSignOnService.SetAttribute("Location", new Uri(new Uri(context.SelfURL()), "samlAuthentication").AbsoluteUri);
+            IDPSSODescriptor.AppendChild(SingleSignOnService);
+
+            return doc;
+        }
 
         XmlDocument SamlResponseError1(string inResponseTo, string recipient, string errorCode = "samlp:Responder")
         {
@@ -1216,7 +1476,7 @@ namespace Laclasse.Authentication
             var assertion = doc.CreateElement("saml:Assertion", saml);
             assertion.SetAttribute("MajorVersion", "1");
             assertion.SetAttribute("MinorVersion", "1");
-            assertion.SetAttribute("AssertionID", StringExt.RandomString(16));
+            assertion.SetAttribute("ID", StringExt.RandomString(16));
             assertion.SetAttribute("Issuer", issuer);
             assertion.SetAttribute("IssueInstant", issueInstant);
             response.AppendChild(assertion);
@@ -1472,6 +1732,220 @@ namespace Laclasse.Authentication
                 return signedInfoDoc;
             else
                 return null;
+        }
+
+        /// <summary>
+        /// Generate the digest of an XML Document
+        /// </summary>
+        /// <returns>
+        /// The base64 encode RSA-SHA1 digest
+        /// </returns>
+        /// <param name="node">The XML document</param>
+        public static string CalculateDigest(XmlNode node)
+        {
+            // create a document only with the reference part
+            var refNodeDoc = new XmlDocument();
+            refNodeDoc.PreserveWhitespace = true;
+            refNodeDoc.LoadXml(node.OuterXml);
+
+            // generate the SHA1 signature
+            var xmlTransform = (Transform)CryptoConfig.CreateFromName("http://www.w3.org/2001/10/xml-exc-c14n#");
+            xmlTransform.LoadInput(refNodeDoc);
+            var memStream = (MemoryStream)xmlTransform.GetOutput();
+            memStream.Seek(0, SeekOrigin.Begin);
+
+            var sha1 = SHA1.Create();
+            return Convert.ToBase64String(sha1.ComputeHash(memStream));
+        }
+
+        public static XmlDocument C14NTransform(XmlDocument doc)
+        {
+            // generate the SHA1 signature
+            var xmlTransform = (Transform)CryptoConfig.CreateFromName("http://www.w3.org/2001/10/xml-exc-c14n#");
+            xmlTransform.LoadInput(doc);
+            var memStream = (MemoryStream)xmlTransform.GetOutput();
+            memStream.Seek(0, SeekOrigin.Begin);
+
+            Console.WriteLine("C14NTransform");
+            Console.WriteLine(Encoding.UTF8.GetString(memStream.ToArray()));
+
+            memStream.Seek(0, SeekOrigin.Begin);
+
+            var c14nDoc = new XmlDocument();
+            c14nDoc.PreserveWhitespace = true;
+            c14nDoc.LoadXml(Encoding.UTF8.GetString(memStream.ToArray()));
+
+            return c14nDoc;
+        }
+
+        public static byte[] C14NTransformBytes(XmlDocument doc)
+        {
+            // generate the SHA1 signature
+            var xmlTransform = (Transform)CryptoConfig.CreateFromName("http://www.w3.org/2001/10/xml-exc-c14n#");
+            xmlTransform.LoadInput(doc);
+            var memStream = (MemoryStream)xmlTransform.GetOutput();
+            memStream.Seek(0, SeekOrigin.Begin);
+            return memStream.ToArray();
+        }
+
+        public static XmlDocument SignXml(XmlDocument doc, X509Certificate2 key)
+        {
+            doc = C14NTransform(doc);
+
+            var ds = "http://www.w3.org/2000/09/xmldsig#";
+            var saml = "urn:oasis:names:tc:SAML:2.0:assertion";
+
+            var ns = new XmlNamespaceManager(doc.NameTable);
+            ns.AddNamespace("saml", saml);
+            ns.AddNamespace("ds", ds);
+
+            var assertion = doc.DocumentElement.SelectSingleNode("//saml:Assertion", ns);
+
+            var refId = assertion.Attributes["ID"].Value;
+
+            var digestValue = CalculateDigest(assertion);
+            Console.WriteLine($"DIGEST: {digestValue}, ID: {refId}");
+
+            var signedInfoDom = new XmlDocument();
+
+            var signedInfo = signedInfoDom.CreateElement("ds:SignedInfo", ds);
+            signedInfoDom.AppendChild(signedInfo);
+
+            var canonicalizationMethod = signedInfoDom.CreateElement("ds:CanonicalizationMethod", ds);
+            canonicalizationMethod.SetAttribute("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#");
+            signedInfo.AppendChild(canonicalizationMethod);
+
+            var signatureMethod = signedInfoDom.CreateElement("ds:SignatureMethod", ds);
+            signatureMethod.SetAttribute("Algorithm", "http://www.w3.org/2000/09/xmldsig#rsa-sha1");
+            signedInfo.AppendChild(signatureMethod);
+
+            var reference = signedInfoDom.CreateElement("ds:Reference", ds);
+            reference.SetAttribute("URI", $"#{refId}");
+            signedInfo.AppendChild(reference);
+
+            var transforms = signedInfoDom.CreateElement("ds:Transforms", ds);
+            reference.AppendChild(transforms);
+
+            var transform = signedInfoDom.CreateElement("ds:Transform", ds);
+            transform.SetAttribute("Algorithm", "http://www.w3.org/2000/09/xmldsig#enveloped-signature");
+            transforms.AppendChild(transform);
+
+            transform = signedInfoDom.CreateElement("ds:Transform", ds);
+            transform.SetAttribute("Algorithm", "http://www.w3.org/2001/10/xml-exc-c14n#");
+            transforms.AppendChild(transform);
+
+            var digestMethod = signedInfoDom.CreateElement("ds:DigestMethod", ds);
+            digestMethod.SetAttribute("Algorithm", "http://www.w3.org/2000/09/xmldsig#sha1");
+            reference.AppendChild(digestMethod);
+
+            var digestValueNode = signedInfoDom.CreateElement("ds:DigestValue", ds);
+            digestValueNode.InnerText = digestValue;
+            reference.AppendChild(digestValueNode);
+
+            // generate the SHA1 RSA signature of the SignedInfo part
+            /*byte[] signedDoc;
+            using (var memStream = new MemoryStream())
+            {
+                var settings = new XmlWriterSettings();
+                settings.OmitXmlDeclaration = true;
+                // use UTF-8 but without the BOM (3 bytes at the beginning which give the byte order)
+                settings.Encoding = new UTF8Encoding(false);
+                using (var xmlTextWriter = XmlWriter.Create(memStream, settings))
+                {
+                    signedInfoDom.Save(xmlTextWriter);
+                }
+                signedDoc = memStream.ToArray();
+            }*/
+            byte[] signedDoc = C14NTransformBytes(signedInfoDom);
+
+            // check the signedInfo part signature using RSA key and SHA1
+            var rsa = (RSACryptoServiceProvider)key.PrivateKey;
+            var signatureBytes = rsa.SignData(signedDoc, CryptoConfig.MapNameToOID("SHA1"));
+            var signatureValue = Convert.ToBase64String(signatureBytes);
+
+            var signatureDom = new XmlDocument();
+            var signature = signatureDom.CreateElement("ds:Signature", ds);
+            signatureDom.AppendChild(signature);
+
+            signature.AppendChild(signatureDom.ImportNode(signedInfo, true));
+
+            var signatureValueNode = signatureDom.CreateElement("ds:SignatureValue", ds);
+            signatureValueNode.InnerText = signatureValue;
+            signature.AppendChild(signatureValueNode);
+
+            assertion.InsertAfter(doc.ImportNode(signatureDom.DocumentElement, true), assertion.FirstChild);
+
+            return doc;
+        }
+
+        // Sign an XML file and save the signature in a new file.
+        public static byte[] SignXml2(XmlDocument source, RSA Key)
+        {
+            // Create a new XML document.
+            XmlDocument doc = new XmlDocument();
+
+            // Format the document to ignore white spaces.
+            doc.PreserveWhitespace = false;
+
+            // Load the passed XML file using it's name.
+            doc.LoadXml(source.OuterXml);
+
+            // Create a SignedXml object.
+            SignedXml signedXml = new SignedXml(doc);
+
+            // Add the key to the SignedXml document. 
+            signedXml.SigningKey = Key;
+
+            // Specify a canonicalization method.
+            signedXml.SignedInfo.CanonicalizationMethod = SignedXml.XmlDsigExcC14NTransformUrl;
+
+            // Set the InclusiveNamespacesPrefixList property.        
+            XmlDsigExcC14NTransform canMethod = (XmlDsigExcC14NTransform)signedXml.SignedInfo.CanonicalizationMethodObject;
+            canMethod.InclusiveNamespacesPrefixList = "Sign";
+
+            // Create a reference to be signed.
+            Reference reference = new Reference();
+            reference.Uri = "";
+
+            // Add an enveloped transformation to the reference.
+            XmlDsigEnvelopedSignatureTransform env = new XmlDsigEnvelopedSignatureTransform();
+            reference.AddTransform(env);
+
+            // Add the reference to the SignedXml object.
+            signedXml.AddReference(reference);
+
+
+            // Add an RSAKeyValue KeyInfo (optional; helps recipient find key to validate).
+            KeyInfo keyInfo = new KeyInfo();
+            keyInfo.AddClause(new RSAKeyValue((RSA)Key));
+            signedXml.KeyInfo = keyInfo;
+
+            // Compute the signature.
+            signedXml.ComputeSignature();
+
+            // Get the XML representation of the signature and save
+            // it to an XmlElement object.
+            XmlElement xmlDigitalSignature = signedXml.GetXml();
+
+            // Append the element to the XML document.
+            doc.DocumentElement.AppendChild(doc.ImportNode(xmlDigitalSignature, true));
+
+
+            if (doc.FirstChild is XmlDeclaration)
+            {
+                doc.RemoveChild(doc.FirstChild);
+            }
+
+            byte[] res;
+            using (var memStream = new MemoryStream())
+            {
+                // Save the signed XML document to a file specified
+                // using the passed string.
+                XmlTextWriter xmltw = new XmlTextWriter(memStream, new UTF8Encoding(false));
+                doc.WriteTo(xmltw);
+                res = memStream.ToArray();
+            }
+            return res;
         }
 
         async Task<JsonValue> SearchFrEduVecteurAsync(string FrEduVecteur)
@@ -1795,8 +2269,7 @@ namespace Laclasse.Authentication
                 preTicket.idp = idp;
 
                 // init the session and redirect to service
-                //await CasLoginAsync(c, ticket.user_id, formFields.ContainsKey("service") ? formFields["service"] : null, idp);
-                await CasLoginAsync(c, preTicket);
+                await LoginAsync(c, preTicket);
             }
         }
 
@@ -1919,6 +2392,97 @@ namespace Laclasse.Authentication
             queryFields["emails.type"] = new List<string>(new string[] { "Autre" });
             queryFields["emails.address"] = new List<string>(new string[] { email });
             return (await users.SearchUserAsync(queryFields)).Data.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Decode a SAMLRequest and return the corresponding PreTicket
+        /// </summary>
+        /// <returns>The PreTicket</returns>
+        /// <param name="SAMLRequest">SAMLRequest.</param>
+        PreTicket HandleSamlRequest(string SAMLRequest)
+        {
+            Console.WriteLine(SAMLRequest);
+            using (var resStream = new MemoryStream())
+            using (var memStream = new MemoryStream(Convert.FromBase64String(SAMLRequest)))
+            using (var compressionStream = new DeflateStream(memStream, CompressionMode.Decompress))
+            {
+                compressionStream.CopyTo(resStream);
+                SAMLRequest = Encoding.UTF8.GetString(resStream.ToArray());
+            }
+            Console.WriteLine(SAMLRequest);
+
+            var dom = new XmlDocument();
+            dom.PreserveWhitespace = true;
+            dom.LoadXml(SAMLRequest);
+
+            var preTicket = new PreTicket
+            {
+                wantTicket = false,
+                SAMLRequest = dom
+            };
+            preTickets.Add(preTicket);
+            return preTicket;
+        }
+
+        /// <summary>
+        /// Generate the appropriate SAML2 response when login throw the SAML2
+        /// server Identity Provider
+        /// </summary>
+        /// <returns>The login async.</returns>
+        /// <param name="c">The HTTP request context</param>
+        /// <param name="preTicket">The Preticket</param>
+        /// <param name="session">The corresponding Session</param>
+        async Task Saml2LoginAsync(HttpContext c, PreTicket preTicket, Session session)
+        {
+            var client = await GetClientFromServiceAsync(preTicket.service);
+            var user = await users.GetUserAsync(session.user);
+
+            // filter the user's attributes and the nameIdentifier
+            var userAttributes = await GetUserSsoAttributesAsync(user.id);
+
+            var samlRequest = preTicket.SAMLRequest;
+            var ns = new XmlNamespaceManager(samlRequest.NameTable);
+            var samlp = "urn:oasis:names:tc:SAML:2.0:protocol";
+            ns.AddNamespace("samlp", samlp);
+            var authnRequest = samlRequest.DocumentElement.SelectSingleNode("//samlp:AuthnRequest", ns);
+            var inResponseTo = authnRequest.Attributes["ID"].Value;
+
+            string samlResponseBase64String;
+            var SAMLResponse = SamlResponse2(FilterAttributesFromClient(client, userAttributes), inResponseTo, new Uri(new Uri(c.SelfURL()), "samlMetadata").AbsoluteUri, client.identity_attribute, preTicket.service);
+            SAMLResponse = SignXml(SAMLResponse, saml2ServerCert);
+
+            using (var memStream = new MemoryStream())
+            {
+                var settings = new XmlWriterSettings();
+                settings.Indent = false;
+                settings.OmitXmlDeclaration = true;
+                // use UTF-8 but without the BOM (3 bytes at the beginning which give the byte order)
+                settings.Encoding = new UTF8Encoding(false);
+                using (var xmlTextWriter = XmlWriter.Create(memStream, settings))
+                {
+                    SAMLResponse.Save(xmlTextWriter);
+                }
+                memStream.Seek(0, SeekOrigin.Begin);
+                samlResponseBase64String = Convert.ToBase64String(memStream.ToArray());
+            }
+
+            c.Response.StatusCode = 200;
+            c.Response.Headers["content-type"] = "text/html; charset=utf8";
+            c.Response.Content = $@"<!DOCTYPE html>
+<html>
+    <center>
+        <form method=""POST"" action=""{preTicket.service}"">
+            <input type=""hidden"" name=""SAMLResponse"" value=""{samlResponseBase64String}"">
+            <input type=""hidden"" name=""RelayState"" value=""{preTicket.service}"">
+            <input type=""submit"" value=""redirection"">
+        </form>
+    </center>
+    <script>
+window.onload = function() {{
+        document.getElementsByTagName('form')[0].submit();
+}}
+    </script>
+</html>";
         }
     }
 }

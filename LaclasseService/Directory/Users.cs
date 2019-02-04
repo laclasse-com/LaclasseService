@@ -348,7 +348,7 @@ namespace Laclasse.Directory
     {
         readonly string dbUrl;
         readonly string masterPassword;
-        readonly Utils.TimeLimiter timeLimiter = new Utils.TimeLimiter(TimeSpan.FromSeconds(10), 5);
+        readonly Utils.TimeLimiter timeLimiter = new Utils.TimeLimiter(TimeSpan.FromSeconds(20), 5);
 
         public Users(string dbUrl, string storageDir, string masterPassword) : base(dbUrl)
         {

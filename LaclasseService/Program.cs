@@ -178,11 +178,9 @@ namespace Laclasse
                 setup.http.defaultCacheDuration));
 
             mapper.Add("/sso", new Cas(
-                dbUrl, sessions, users, setup.authentication.session.cookie,
-                setup.authentication.cas.ticketTimeout, setup.authentication.aafSso,
-                setup.authentication.cutSso, setup.authentication.grandLyonApi,
-                setup.mail, setup.sms, setup.authentication.cas.rescueTicketTimeout));
-
+                dbUrl, sessions, users, setup.authentication,
+                setup.mail, setup.sms));
+            
             //mapper.Add("/sso/oidc", new OidcSso(setup.authentication.oidcSso, users, cas));
 
             mapper.Add("/api/aaf/synchronizations", new AafSyncService(

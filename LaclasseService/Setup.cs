@@ -145,6 +145,11 @@ namespace Laclasse
         };
     }
 
+    public class Saml2Setup
+    {
+        public string cert;
+    }
+
     public class CasSetup
     {
         public int ticketTimeout = 60;
@@ -172,6 +177,10 @@ namespace Laclasse
     public class AuthenticationSetup
     {
         public string masterPassword = "masterPassword";
+        public Saml2Setup saml2Server = new Saml2Setup
+        {
+            cert = "base64 PK12 certificat public and private key"
+        };
         public AafSsoSetup aafSso = new AafSsoSetup();
         public CasSetup cas = new CasSetup();
         public SessionSetup session = new SessionSetup();

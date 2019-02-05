@@ -36,6 +36,31 @@ using Erasme.Json;
 
 namespace Laclasse.Mail
 {
+    public class UnusedEmailModel
+    {
+        public string user;
+        public DirectoryInfo info;
+         
+        public UnusedEmailModel(string rootPath, string user) 
+        {
+            this.user = user;
+            var subdir = user.Substring(user.Length - 3);
+            var path = Path.Combine(rootPath, subdir, user);
+            info = new DirectoryInfo(path);
+        }
+
+        public JsonObject ToJson()
+        {
+            return new JsonObject
+            {
+                ["user"] = user.ToUpper(),
+                ["ctime"] = info.CreationTime,
+                ["atime"] = info.LastAccessTime,
+                ["wtime"] = info.LastWriteTime
+            };
+        }
+    }
+
     public class UnusedEmailCheck : HttpRouting
     {
         public UnusedEmailCheck(string dbUrl, string rootPath)
@@ -74,7 +99,10 @@ namespace Laclasse.Mail
 
                         //Send report
                         var data = new JsonArray();
-                        mailUsers.ForEach(user => data.Add(user));
+                        mailUsers.ForEach(user => {
+                            var model = new UnusedEmailModel(rootPath, user.ToLower());
+                            data.Add(model.ToJson());
+                        });
 
                         c.Response.StatusCode = 200;
                         var responseContent = new JsonObject

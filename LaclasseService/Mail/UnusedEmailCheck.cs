@@ -130,8 +130,9 @@ namespace Laclasse.Mail
                 {
                     foreach(var jsonValue in jsonArray)
                     {
-                        if (jsonValue.Value is string value)
+                        if (jsonValue.Value is string value && value.All(char.IsLetterOrDigit))
                         {
+
                             var subdir = value.Substring(value.Length - 3);
                             string mailPath = $"{rootPath}/{subdir}/{value}".ToLower();
                             if (System.IO.Directory.Exists(mailPath))

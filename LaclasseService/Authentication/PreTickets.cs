@@ -18,7 +18,7 @@ namespace Laclasse.Authentication
 
         public PreTicket()
         {
-            id = Guid.NewGuid().ToString();
+            id = Guid.NewGuid().ToString() + "-" + StringExt.RandomString(12);
             start = DateTime.Now;
         }
 

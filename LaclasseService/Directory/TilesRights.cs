@@ -62,13 +62,4 @@ namespace Laclasse.Directory
 		[ModelField]
 		public bool read { get { return GetField(nameof(read), false); } set { SetField(nameof(read), value); } }
 	}
-
-	public class TilesRights : ModelService<TileRight>
-	{
-		public TilesRights(string dbUrl) : base(dbUrl)
-		{
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
-		}
-	}
 }

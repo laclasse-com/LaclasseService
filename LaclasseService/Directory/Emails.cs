@@ -31,6 +31,7 @@ using System;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Authentication;
 
@@ -57,7 +58,16 @@ namespace Laclasse.Directory
 		[ModelField]
 		public EmailType type { get { return GetField<EmailType>(nameof(type), EmailType.Autre); } set { SetField(nameof(type), value); } }
 
-		public async override Task<bool> InsertAsync(DB db)
+        public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
+        {
+            var user = new User { id = user_id };
+            using (var db = await DB.CreateAsync(context.GetSetup().database.url))
+                await user.LoadAsync(db, true);
+
+            await context.EnsureHasRightsOnUserAsync(user, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+        }
+
+        public async override Task<bool> InsertAsync(DB db)
 		{
 			var userEmails = (ModelList<Email>)await LoadExpandFieldAsync<User>(db, nameof(User.emails), user_id);
 			var primaryEmails = userEmails.FindAll((obj) => obj.primary);

@@ -50,6 +50,27 @@ namespace Laclasse.Directory
         public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
         [ModelField(Required = true, ForeignModel = typeof(Structure))]
         public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
+
+        public override SqlFilter FilterAuthUser(AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+                return new SqlFilter();
+            var structuresIds = user.user.profiles.Select((arg) => arg.structure_id).Distinct();
+            return new SqlFilter() { Where = DB.InFilter(nameof(structure_id), structuresIds) };
+        }
+
+        public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
+        {
+            bool loadDone = false;
+            var structure = new Structure { id = structure_id };
+            using (var db = await DB.CreateAsync(context.GetSetup().database.url))
+                loadDone = await structure.LoadAsync(db, true);
+            if (!loadDone)
+                throw new WebException(403, "Insufficient rights");
+            //context.EnsureHasRightsOnStructureAsync(
+            await context.EnsureHasRightsOnStructureAsync(
+                structure, true, (right == Right.Update), (right == Right.Delete | right == Right.Update | right == Right.Create));
+        }
     }
 
     public class PortailFlux : ModelService<FluxPortail>
@@ -229,6 +250,7 @@ namespace Laclasse.Directory
                 {
                     if (await structure.LoadAsync(db))
                     {
+                        await c.EnsureHasRightsOnStructureAsync(structure, true, false, false);
                         await structure.LoadExpandFieldAsync(db, nameof(structure.flux));
 
                         var infos = new ModelList<Rss>();

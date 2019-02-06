@@ -49,16 +49,29 @@ namespace Laclasse.Directory
 		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 		[ModelField]
 		public int? publipostage_id { get { return GetField<int?>(nameof(publipostage_id), null); } set { SetField(nameof(publipostage_id), value); } }
-	}
 
-	public class PortailNews : ModelService<News>
+        public override SqlFilter FilterAuthUser(AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+                return new SqlFilter();
+            return new SqlFilter() { Where = $"`{nameof(user_id)}` = '{DB.EscapeString(user.user.id)}'" };
+        }
+    }
+
+    public class PortailNews : ModelService<News>
 	{
 		public PortailNews(string dbUrl) : base(dbUrl)
 		{
-			// API only available to authenticated users
-			BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+            // create / delete / modify only available to super admin
+            // with this API
+            BeforeAsync = async (p, c) => {
+                if (c.Request.Method != "GET")
+                    await c.EnsureIsSuperAdminAsync();
+                else
+                    await c.EnsureIsAuthenticatedAsync();
+            };
 		}
-	}
+    }
 
 	public class PortailRss : HttpRouting
 	{

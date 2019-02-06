@@ -25,7 +25,9 @@
 //
 
 using System;
+using System.Linq;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using Erasme.Http;
 using Laclasse.Authentication;
 
@@ -38,7 +40,15 @@ namespace Laclasse.Directory
 		AUTO
 	}
 
-	[Model(Table = "tile", PrimaryKey = nameof(id))]
+    public enum TileRightType
+    {
+        None,
+        Read,
+        Write,
+        Admin
+    }
+
+    [Model(Table = "tile", PrimaryKey = nameof(id))]
 	public class Tile : Model
 	{
 		[ModelField]
@@ -76,15 +86,141 @@ namespace Laclasse.Directory
       
 		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
-			if (structure_id != null)
-			{
-				var structure = new Structure { id = structure_id };
-				await context.EnsureHasRightsOnStructureAsync(structure, true, right == Right.Update, right == Right.Create || right == Right.Delete);
-			}
+            if (right == Right.Create)
+            {
+                var parentRight = await GetParentRightsAsync(context);
+                if (parentRight == TileRightType.None || parentRight == TileRightType.Read)
+                    throw new WebException(403, "Insufficient rights");
+            }
+            else if (right == Right.Update || right == Right.Delete)
+            {
+                var tileRight = await GetRightsAsync(context);
+                if (tileRight == TileRightType.None || tileRight == TileRightType.Read)
+                    throw new WebException(403, "Insufficient rights");
+            }
+            else
+            {
+                var tileRight = await GetRightsAsync(context);
+                if (tileRight == TileRightType.None)
+                    throw new WebException(403, "Insufficient rights");
+            }
+
+//          if (structure_id != null)
+//			{
+//				var structure = new Structure { id = structure_id };
+//				await context.EnsureHasRightsOnStructureAsync(structure, true, right == Right.Update, right == Right.Create || right == Right.Delete);
+//			}
 		}
+
+        public async Task<List<Tile>> GetParentsAsync(HttpContext context)
+        {
+            var parents = new List<Tile>();
+            var parent = this;
+            while (parent != null)
+            {
+                parents.Add(parent);
+                parent = await GetParentAsync(context);
+            }
+            parents.Reverse();
+            return parents;
+        }
+
+        public async Task<Tile> GetParentAsync(HttpContext context)
+        {
+            if (parent_id == null)
+                return null;
+
+            var parent = new Tile { id = (int)parent_id };
+            using (var db = await DB.CreateAsync(context.GetSetup().database.url))
+                if (!await parent.LoadAsync(db, true))
+                    parent = null;
+            return parent;
+        }
+
+        public async Task<TileRightType> GetRightsAsync(HttpContext context)
+        {
+            var authUser = await context.GetAuthenticatedUserAsync();
+            if (authUser.IsSuperAdmin || authUser.IsApplication)
+                return TileRightType.Admin;
+
+            var parentRight = await GetParentRightsAsync(context);
+            if (parentRight == TileRightType.None)
+                return parentRight;
+
+            var right = TileRightType.None;
+            rights.ForEach(r =>
+            {
+                if (r.profile == TileRightProfile.ALL)
+                    right = ConvertRight(r.read, r.write, r.admin);
+                else if (r.profile == TileRightProfile.ELV && authUser.user.profiles.Exists((obj) => obj.type == "ELV"))
+                    right = ConvertRight(r.read, r.write, r.admin);
+                else if (r.profile == TileRightProfile.TUT && authUser.user.profiles.Exists((obj) => obj.type == "TUT"))
+                    right = ConvertRight(r.read, r.write, r.admin);
+                else if (r.profile == TileRightProfile.ENS && authUser.user.profiles.Exists((obj) => obj.type != "TUT" && obj.type != "ELV"))
+                    right = ConvertRight(r.read, r.write, r.admin);
+            });
+
+            return right;
+        }
+
+        TileRightType ConvertRight(bool read, bool write, bool admin)
+        {
+            if (admin)
+                return TileRightType.Admin;
+            if (write)
+                return TileRightType.Write;
+            if (read)
+                return TileRightType.Read;
+            return TileRightType.None;
+        }
+
+        public async Task<TileRightType> GetParentRightsAsync(HttpContext context)
+        {
+            var authUser = await context.GetAuthenticatedUserAsync();
+            if (authUser.IsSuperAdmin || authUser.IsApplication)
+                return TileRightType.Admin;
+
+            var right = TileRightType.None;
+
+            var parent = await GetParentAsync(context);
+            if (parent != null)
+            {
+                right = await parent.GetRightsAsync(context);
+            }
+            else if (structure_id != null)
+            {
+                if (authUser.user.profiles.Exists((obj) => (obj.structure_id == structure_id) && (obj.type == "ADM" || obj.type == "DIR")))
+                    right = TileRightType.Admin;
+                else if (authUser.user.profiles.Exists((obj) => obj.structure_id == structure_id))
+                    right = TileRightType.Read;
+            }
+            return right;
+        }
 	}
 
-	public class Tiles : ModelService<Tile>
+    public class Context
+    {
+        public AuthenticatedUser user;
+        public DB db;
+        public Dictionary<int, Tile> tiles = new Dictionary<int, Tile>();
+
+        public async Task<Tile> GetByIdAsync(int id)
+        {
+            if (tiles.ContainsKey(id))
+                return tiles[id];
+            var tile = new Tile { id = id };
+            if (!await tile.LoadAsync(db, true))
+                tile = null;
+            if (tile != null)
+            {
+                tiles[id] = tile;
+                return tile;
+            }
+            return null;
+        }
+    }
+
+    public class Tiles : ModelService<Tile>
 	{
 		public Tiles(string dbUrl) : base(dbUrl)
 		{

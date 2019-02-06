@@ -66,12 +66,42 @@ namespace Laclasse.Directory
 		[ModelExpandField(Name = nameof(users), ForeignModel = typeof(PublipostageUser))]
 		public ModelList<PublipostageUser> users { get { return GetField<ModelList<PublipostageUser>>(nameof(users), null); } set { SetField(nameof(users), value); } }
 
-		public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
+        public override void FromJson(JsonObject json, string[] filterFields = null, HttpContext context = null)
+        {
+            base.FromJson(json, filterFields, context);
+            // cleanup HTML
+            if (message != null)
+                message = Utils.Html.RemoveScriptFromHtml(message);
+        }
+
+        public override SqlFilter FilterAuthUser(AuthenticatedUser user)
+        {
+            if (user.IsSuperAdmin || user.IsApplication)
+                return new SqlFilter();
+
+            var groupIds = user.user.groups.Select((g) => g.group_id);
+
+            var filter = $"INNER JOIN(" +
+                    $"SELECT `{nameof(Publipostage.id)}` AS `allow_id` FROM `publipostage` WHERE `user_id`= '{DB.EscapeString(user.user.id)}' " +
+                    $" UNION SELECT `{nameof(PublipostageUser.publipostage_id)}` AS `allow_id` FROM `publipostage_user` WHERE `{nameof(PublipostageUser.user_id)}`='{DB.EscapeString(user.user.id)}' ";
+            if (groupIds.Count() > 0)
+                filter += $" UNION SELECT `{nameof(PublipostageGroup.publipostage_id)}` AS `allow_id` FROM `publipostage_group` WHERE {DB.InFilter(nameof(PublipostageGroup.group_id), groupIds)}";
+            filter += ") `allow` ON (`id` = `allow_id`)";
+
+            return new SqlFilter { Inner = filter };
+        }
+
+        public override async Task EnsureRightAsync(HttpContext context, Right right, Model diff)
 		{
-			if(right == Right.Update)
+            await context.EnsureIsAuthenticatedAsync();
+            var authUser = await context.GetAuthenticatedUserAsync();
+            if (authUser.IsApplication || authUser.IsSuperAdmin)
+                return;
+
+            if (right == Right.Create && user_id != authUser.user.id)
+                throw new WebException(403, "Not allowed publipostage user_id");
+            if (right == Right.Update)
 				throw new WebException(403, "Publipostage update not allowed");
-			// TODO: improve this
-			await context.EnsureIsAuthenticatedAsync();
 		}
 	}
 

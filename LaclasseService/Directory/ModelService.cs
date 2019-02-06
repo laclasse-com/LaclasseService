@@ -173,8 +173,10 @@ namespace Laclasse.Directory
 								if (context.Request.QueryString.ContainsKey("expand"))
 									expand = Convert.ToBoolean(context.Request.QueryString["expand"]);
 								T item = null;
-								using (DB db = await DB.CreateAsync(dbUrl))
-									item = await db.SelectRowAsync<T>(id, expand);
+                                var authUser = await context.GetAuthenticatedUserAsync();
+                                var filterAuth = (new T()).FilterAuthUser(authUser);
+                                using (DB db = await DB.CreateAsync(dbUrl))
+									item = await db.SelectRowAsync<T>(id, expand, filterAuth);
 								if (item != null)
 								{
 									await item.EnsureRightAsync(c, Right.Read, null);
@@ -234,9 +236,11 @@ namespace Laclasse.Directory
 								{
 									await RunBeforeAsync(null, context);
 									T item = null;
-									using (DB db = await DB.CreateAsync(dbUrl))
+                                    var authUser = await context.GetAuthenticatedUserAsync();
+                                    var filterAuth = (new T()).FilterAuthUser(authUser);
+                                    using (DB db = await DB.CreateAsync(dbUrl))
 									{
-										item = await db.SelectRowAsync<T>(id, true);
+										item = await db.SelectRowAsync<T>(id, true, filterAuth);
 										if (item != null)
 											await item.LoadExpandFieldAsync(db, parts[1]);
 									}
@@ -340,7 +344,9 @@ namespace Laclasse.Directory
 								{
 									var oldItem = new T();
 									oldItem.Fields[details.PrimaryKeyName] = id;
-									await oldItem.LoadAsync(db, true);
+                                    var authUser = await context.GetAuthenticatedUserAsync();
+                                    var filterAuth = oldItem.FilterAuthUser(authUser);
+                                    await oldItem.LoadAsync(db, true, filterAuth);
 									// need a loaded user to check the rights
 									await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
 
@@ -371,13 +377,18 @@ namespace Laclasse.Directory
 										item.FromJson((JsonObject)jsonItem, null, c);
 										var oldItem = new T();
 										oldItem.Fields[details.PrimaryKeyName] = item.Fields[details.PrimaryKeyName];
-										await oldItem.LoadAsync(db, true);
-										// need a loaded user to check the rights
-										await oldItem.EnsureRightAsync(c, Right.Update, item);
-										await item.UpdateAsync(db);
-										await item.LoadAsync(db, true);
-										await OnChangedAsync(db, item);
-										result.Add(item);
+
+                                        var authUser = await context.GetAuthenticatedUserAsync();
+                                        var filterAuth = oldItem.FilterAuthUser(authUser);
+                                        if (await oldItem.LoadAsync(db, true, filterAuth))
+                                        {
+                                            // need a loaded user to check the rights
+                                            await oldItem.EnsureRightAsync(c, Right.Update, item);
+                                            await item.UpdateAsync(db);
+                                            await item.LoadAsync(db, true);
+                                            await OnChangedAsync(db, item);
+                                            result.Add(item);
+                                        }
 									}
 									await db.CommitAsync();
 								}
@@ -410,17 +421,22 @@ namespace Laclasse.Directory
 									{
 										var oldItem = new T();
 										oldItem.Fields[details.PrimaryKeyName] = id;
-										await oldItem.LoadAsync(db, true);
-										// need a loaded user to check the rights
-										await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
 
-										await itemDiff.UpdateAsync(db);
-										await itemDiff.LoadAsync(db, true);
-										await OnChangedAsync(db, itemDiff);
-										await db.CommitAsync();
+                                        var authUser = await context.GetAuthenticatedUserAsync();
+                                        var filterAuth = oldItem.FilterAuthUser(authUser);
+                                        if (await oldItem.LoadAsync(db, true, filterAuth))
+                                        {
+                                            // need a loaded user to check the rights
+                                            await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
+
+                                            await itemDiff.UpdateAsync(db);
+                                            await itemDiff.LoadAsync(db, true);
+                                            await OnChangedAsync(db, itemDiff);
+                                            await db.CommitAsync();
+                                            c.Response.StatusCode = 200;
+                                            c.Response.Content = itemDiff;
+                                        }
 									}
-									c.Response.StatusCode = 200;
-									c.Response.Content = itemDiff;
 								}
 							}
 						}
@@ -483,14 +499,19 @@ namespace Laclasse.Directory
 								{
 									var oldItem = new T();
 									oldItem.Fields[details.PrimaryKeyName] = id;
-									await oldItem.LoadAsync(db, true);
-									// need a loaded user to check the rights
-									await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
 
-									await itemDiff.UpdateAsync(db);
-									await itemDiff.LoadAsync(db, true);
-									await OnChangedAsync(db, itemDiff);
-									await db.CommitAsync();
+                                    var authUser = await context.GetAuthenticatedUserAsync();
+                                    var filterAuth = oldItem.FilterAuthUser(authUser);
+                                    if (await oldItem.LoadAsync(db, true, filterAuth))
+                                    {
+                                        // need a loaded user to check the rights
+                                        await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
+
+                                        await itemDiff.UpdateAsync(db);
+                                        await itemDiff.LoadAsync(db, true);
+                                        await OnChangedAsync(db, itemDiff);
+                                        await db.CommitAsync();
+                                    }
 								}
 								c.Response.StatusCode = 200;
 								c.Response.Content = itemDiff;
@@ -507,11 +528,15 @@ namespace Laclasse.Directory
 							if (jsonArray != null)
 							{
 								var ids = ((JsonArray)json).Select((arg) => Convert.ChangeType(arg.Value, details.PrimaryKeyType));
-								using (DB db = await DB.CreateAsync(dbUrl, true))
+
+                                var authUser = await context.GetAuthenticatedUserAsync();
+                                var filterAuth = (new T()).FilterAuthUser(authUser);
+
+                                using (DB db = await DB.CreateAsync(dbUrl, true))
 								{
 									foreach (var id in ids)
 									{
-										var item = await db.SelectRowAsync<T>(id, true);
+										var item = await db.SelectRowAsync<T>(id, true, filterAuth);
 										if (item != null)
 										{
 											await item.EnsureRightAsync(c, Right.Delete, null);
@@ -539,9 +564,11 @@ namespace Laclasse.Directory
 							if (id != null)
 							{
 								T item = null;
-								using (DB db = await DB.CreateAsync(dbUrl, true))
+                                var authUser = await context.GetAuthenticatedUserAsync();
+                                var filterAuth = (new T()).FilterAuthUser(authUser);
+                                using (DB db = await DB.CreateAsync(dbUrl, true))
 								{
-									item = await db.SelectRowAsync<T>(id, true);
+									item = await db.SelectRowAsync<T>(id, true, filterAuth);
 									if (item != null)
 									{
 										await item.EnsureRightAsync(c, Right.Delete, null);
@@ -617,14 +644,20 @@ namespace Laclasse.Directory
 								{
 									var oldItem = new T();
 									oldItem.Fields[details.PrimaryKeyName] = id;
-									await oldItem.LoadAsync(db, true);
-									// need a loaded user to check the rights
-									await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
 
-									await itemDiff.UpdateAsync(db);
-									await itemDiff.LoadAsync(db, true);
-									await OnChangedAsync(db, itemDiff);
-									await db.CommitAsync();
+                                    var authUser = await context.GetAuthenticatedUserAsync();
+                                    var filterAuth = oldItem.FilterAuthUser(authUser);
+
+                                    if (await oldItem.LoadAsync(db, true, filterAuth))
+                                    {
+                                        // need a loaded user to check the rights
+                                        await oldItem.EnsureRightAsync(c, Right.Update, itemDiff);
+
+                                        await itemDiff.UpdateAsync(db);
+                                        await itemDiff.LoadAsync(db, true);
+                                        await OnChangedAsync(db, itemDiff);
+                                        await db.CommitAsync();
+                                    }
 								}
 								c.Response.StatusCode = 200;
 								c.Response.Content = itemDiff;

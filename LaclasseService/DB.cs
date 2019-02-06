@@ -457,11 +457,11 @@ namespace Laclasse
 			return new ModelContent(model);
 		}
 
-		public async virtual Task<bool> LoadAsync(DB db, bool expand = false)
+		public async virtual Task<bool> LoadAsync(DB db, bool expand = false, SqlFilter sqlFilter = new SqlFilter())
 		{
 			var attrs = GetType().GetCustomAttributes(typeof(ModelAttribute), true);
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
-			return await db.LoadRowAsync(GetType(), Fields[primaryKey], expand, this);
+			return await db.LoadRowAsync(GetType(), Fields[primaryKey], expand, this, sqlFilter);
 		}
 
 		internal static PropertyInfo FindForeignProperty(Type sourceModel, Type foreignModel, string foreignField)
@@ -1546,20 +1546,27 @@ namespace Laclasse
 			return result;
 		}
 
-		public async Task<T> SelectRowAsync<T>(object idValue, bool expand = false) where T : Model, new()
+		public async Task<T> SelectRowAsync<T>(object idValue, bool expand = false, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
 		{
 			T result = new T();
-			return await LoadRowAsync(typeof(T), idValue, expand, result) ? result : null;
+			return await LoadRowAsync(typeof(T), idValue, expand, result, sqlFilter) ? result : null;
 		}
 
-		internal async Task<bool> LoadRowAsync(Type modelType, object idValue, bool expand, Model result)
+		internal async Task<bool> LoadRowAsync(Type modelType, object idValue, bool expand, Model result, SqlFilter sqlFilter = new SqlFilter())
 		{
 			bool found = false;
 			var attrs = modelType.GetCustomAttributes(typeof(ModelAttribute), true);
 			string tableName = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).Table : modelType.Name;
 			string primaryKey = (attrs.Length > 0) ? ((ModelAttribute)attrs[0]).PrimaryKey : "id";
 
-			var cmd = new MySqlCommand($"SELECT * FROM `{tableName}` WHERE `{primaryKey}`=?", connection);
+            var sqlInnerFilter = "";
+            if (sqlFilter.Inner != null)
+                sqlInnerFilter = sqlFilter.Inner;
+            var sqlWhereFilter = "";
+            if (sqlFilter.Where != null)
+                sqlWhereFilter = " AND " + sqlFilter.Where;
+
+            var cmd = new MySqlCommand($"SELECT * FROM `{tableName}` {sqlInnerFilter} WHERE `{primaryKey}`=? {sqlWhereFilter}", connection);
 			if (transaction != null)
 				cmd.Transaction = transaction;
 			cmd.Parameters.Add(new MySqlParameter(string.Empty, idValue));

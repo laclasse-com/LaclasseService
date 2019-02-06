@@ -84,14 +84,14 @@
     <Reference Include="System.Memory">
       <HintPath>..\packages\System.Memory.4.5.2\lib\netstandard2.0\System.Memory.dll</HintPath>
     </Reference>
-    <Reference Include="MySqlConnector">
-      <HintPath>..\packages\MySqlConnector.0.49.2\lib\net471\MySqlConnector.dll</HintPath>
-    </Reference>
     <Reference Include="MimeKit">
       <HintPath>..\packages\MimeKit.2.1.2\lib\net45\MimeKit.dll</HintPath>
     </Reference>
     <Reference Include="MailKit">
       <HintPath>..\packages\MailKit.2.1.2\lib\net45\MailKit.dll</HintPath>
+    </Reference>
+    <Reference Include="MySqlConnector">
+      <HintPath>..\packages\MySqlConnector.0.49.3\lib\net471\MySqlConnector.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

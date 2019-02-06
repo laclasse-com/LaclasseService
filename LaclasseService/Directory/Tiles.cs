@@ -159,6 +159,8 @@ namespace Laclasse.Directory
                 else if (r.profile == TileRightProfile.ENS && authUser.user.profiles.Exists((obj) => obj.type != "TUT" && obj.type != "ELV"))
                     right = ConvertRight(r.read, r.write, r.admin);
             });
+            if (authUser.user.profiles.Exists((obj) => obj.type == "ADM" || obj.type == "DIR"))
+                right = ConvertRight(true, true, true);
 
             return right;
         }
@@ -224,6 +226,23 @@ namespace Laclasse.Directory
 	{
 		public Tiles(string dbUrl) : base(dbUrl)
 		{
+            GetAsync["/"] = async (p, c) =>
+            {
+                var res = new ModelList<Tile>();
+                var authUser = await c.GetAuthenticatedUserAsync();
+                var filterAuth = (new Tile()).FilterAuthUser(authUser);
+                using (DB db = await DB.CreateAsync(dbUrl))
+                {
+                    var result = await Model.SearchAsync<Tile>(db, c, filterAuth);
+                    foreach (var tile in result.Data)
+                    {
+                        if (await tile.GetRightsAsync(c) != TileRightType.None)
+                            res.Add(tile);
+                    }
+                }
+                c.Response.StatusCode = 200;
+                c.Response.Content = res.ToJson();
+            };
 		}
 	}
 }

@@ -1616,7 +1616,7 @@ namespace Laclasse
 								var foreignFieldProperty = Model.FindForeignProperty(attr.ForeignModel, modelType, attr.ForeignField);
 								if (foreignFieldProperty != null && result.Fields.ContainsKey(foreignFieldProperty.Name))
 								{                           
-									var task = GetType().GetMethod(nameof(SelectRowAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { result.Fields[foreignFieldProperty.Name], false }) as Task;
+									var task = GetType().GetMethod(nameof(SelectRowAsync)).MakeGenericMethod(attr.ForeignModel).Invoke(this, new object[] { result.Fields[foreignFieldProperty.Name], false, new SqlFilter() }) as Task;
 									await task;
 									var resultProperty = typeof(Task<>).MakeGenericType(attr.ForeignModel).GetProperty("Result");
 									result.Fields[attr.Name] = resultProperty.GetValue(task);

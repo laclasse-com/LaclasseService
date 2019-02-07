@@ -409,6 +409,33 @@ namespace Laclasse.Authentication
                 c.Response.Content = new XmlContent(SamlMetadata2(c));
             };
 
+            GetAsync["/samlSimulate"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                if (!c.Request.QueryString.ContainsKey("user_id") || !c.Request.QueryString.ContainsKey("resource_id"))
+                    throw new WebException(400, "Invalid protocol");
+
+                var userId = c.Request.QueryString["user_id"];
+                var resourceId = int.Parse(c.Request.QueryString["resource_id"]);
+
+                var user = await users.GetUserAsync(userId);
+                var resource = new Resource { id = resourceId };
+                using (DB db = await DB.CreateAsync(dbUrl, false))
+                    await resource.LoadAsync(db, true);
+
+                var client = await GetClientFromServiceAsync(resource.url);
+                // filter the user's attributes and the nameIdentifier
+                var userAttributes = await GetUserSsoAttributesAsync(user.id);
+                // generate false InResponseTo
+                var inResponseTo = "_" + StringExt.RandomString();
+
+                var SAMLResponse = SamlResponse2(FilterAttributesFromClient(client, userAttributes), inResponseTo, new Uri(new Uri(c.SelfURL()), "samlMetadata").AbsoluteUri, client.identity_attribute, resource.url);
+                SAMLResponse = SignXml(SAMLResponse, saml2ServerCert);
+
+                c.Response.StatusCode = 200;
+                c.Response.Content = new XmlContent(SAMLResponse);
+            };
+
             Get["/parentPortalIdp"] = (p, c) =>
             {
                 var url = aafSsoSetup.parents.url;

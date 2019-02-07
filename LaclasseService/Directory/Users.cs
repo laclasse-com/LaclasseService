@@ -320,11 +320,18 @@ namespace Laclasse.Directory
                     Fields.Remove(nameof(password));
             }
 
+            // only super admin can create super admins
+            if (right == Right.Create && IsSet(nameof(super_admin)))
+                throw new WebException(403, "Insufficient rights");
+                
             var onlyAddProfiles = false;
             if (right == Right.Update)
             {
                 onlyAddProfiles = true;
                 var userDiff = diff as User;
+                // only super admin can change super admin rights
+                if (userDiff.Fields.ContainsKey(nameof(userDiff.super_admin)))
+                    throw new WebException(403, "Insufficient rights");
                 onlyAddProfiles = onlyAddProfiles && (userDiff.Fields.Keys.Any((k) => k != nameof(User.id) || k != nameof(User.profiles)));
                 onlyAddProfiles = onlyAddProfiles && (userDiff.Fields.Keys.Contains(nameof(User.profiles)));
                 onlyAddProfiles = onlyAddProfiles && (userDiff.profiles.diff != null);

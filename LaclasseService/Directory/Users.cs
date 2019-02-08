@@ -54,7 +54,7 @@ namespace Laclasse.Directory
         public long? aaf_jointure_id { get { return GetField<long?>(nameof(aaf_jointure_id), null); } set { SetField(nameof(aaf_jointure_id), value); } }
         [ModelField]
         public string login { get { return GetField<string>(nameof(login), null); } set { SetField(nameof(login), value); } }
-        [ModelField]
+        [ModelField(Search = false)]
         public string password
         {
             get { return GetField<string>(nameof(password), null); }

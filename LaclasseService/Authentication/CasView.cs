@@ -41,68 +41,68 @@ namespace Laclasse.Authentication {
                     "256\" />\n            <link rel=\"apple-touch-icon\" href=\"images/icon-72.png\" sizes" +
                     "=\"72x72\" />\n            <link rel=\"apple-touch-icon\" href=\"images/icon-114.png\" " +
                     "sizes=\"114x114\" />\n            <link rel=\"manifest\" href=\"manifest.json\" />\n    " +
-                    "        <link href=\"https://fonts.googleapis.com/css?family=Muli\" rel=\"styleshee" +
-                    "t\">\n\t\t\t<style>\nbody {\n\tcolor: #444;\n\tbackground-color: #f5f5f5;\n\tfont-family: \"M" +
-                    "uli\", sans-serif;\n\tfont-size: 16px;\n\tline-height: 1.3;\n    margin: 0px;\n    padd" +
-                    "ing: 0px;\n}\n\n* {\n\tbox-sizing: border-box;\n}\n\na {\n\tcolor: #444;\n}\n\nimg {\n    bord" +
-                    "er: none;\n}\n\nli {\n\tpadding-top: 5px;\n    padding-bottom: 5px;\n}\n\n.logo {\n\twidth:" +
-                    " 60%;\n\topacity: 0.6;\n\tposition: absolute;\n\tleft: -5%;\n\ttop: -15%;\n\t-webkit-user-" +
-                    "select: none;\n}\n\n.footer {\n\twidth: 100%;\n    max-width: 1000px;\n\tdisplay: block;" +
-                    "\n    padding: 0px;\n\ttext-align: left;\n    margin-bottom: 40px;\n    margin-top: 1" +
-                    "0px;\n    position: relative;\n    top: 0px;\n}\n\n.btn {\n    -webkit-appearance: non" +
-                    "e;\n\tdisplay: inline-block;\n\tfont-size: 14px;\n\ttext-transform: uppercase;\n\tpaddin" +
-                    "g: 10px 20px;\n\tborder: 0px solid white;\n\tborder-radius: 0;\n\tbackground-color: #4" +
-                    "44;\n\tmargin: 5px;\n    color: white;\n\ttext-decoration: none;\n\tcursor: pointer;\n\tt" +
-                    "ext-align: center;\n}\n\n.btn:hover {\n\tbackground-color: #555;\n}\n\n.box {\n    backgr" +
-                    "ound: #f2efef;\n    padding: 20px;\n}\n\n.boxHeader {\n    font-size: 18px;\n    text-" +
-                    "transform: uppercase;\n    text-align: center;\n    margin-bottom: 10px;\n    color" +
-                    ": #444;\n    font-weight: bold;\n}\n\ninput[type=text], input[type=password] {\n    -" +
-                    "webkit-appearance: none;\n    width: calc(100% - 10px);\n    height: 30px;\n    bor" +
-                    "der: 1px solid #cccccc;\n    background-color: #f7f7f7;\n    margin: 5px;\n    colo" +
-                    "r: #444;\n    font-size: 18px;\n    padding-left: 10px;\n    padding-right: 10px;\n " +
-                    "   border-radius: 0;\n}\n\ninput:-webkit-autofill {\n    -webkit-box-shadow: 0 0 0 3" +
-                    "0px #f9f194 inset;\n}\n\n.title {\n    font-weight: bold;\n    font-size: 18px;\n    m" +
-                    "argin-bottom: 20px;\n}\n\n.authBox {\n    display: flex;\n    flex-direction: row;\n  " +
-                    "  flex-wrap: nowrap;\n    justify-content: stretch;\n    margin-bottom: 20px;\n}\n\n." +
-                    "authSeparator {\n    position: absolute;\n    left: calc(50% - 1px);\n    top: 0px;" +
-                    "\n    width: 2px;\n    height: 100%;\n    background-color: #444;\n}\n\n.authOr {\n    " +
-                    "width: 30px;\n    height: 20px; \n    text-align: center;\n    position: absolute;\n" +
-                    "    left: calc(50% - 15px);\n    top: calc(50% - 10px);\n    background-color: #f2" +
-                    "efef;\n    font-weight: bold;\n}\n\n@media screen and (max-width: 600px) {\n    .auth" +
-                    "Box {\n        display: block;\n        flex-direction: column;\n    }\n\n    .authSe" +
-                    "parator {\n        left: 0px;\n        top: calc(50% - 1px);\n        width: 100%;\n" +
-                    "        height: 2px;\n    }\n}\n\n.checkbox {\n    user-select: none;\n    margin: 5px" +
-                    ";\n}\n\n.checkbox div {\n    border: 2px solid #444;\n    border-radius: 4px;\n}\n\n.che" +
-                    "ckbox input {\n    width: 0px;\n    height: 0px;\n    opacity: 0;\n}\n\n.checkbox svg " +
-                    "{\n    opacity: 0;\n}\n\n.checkbox input:checked ~ div {\n    background: #444;\n}\n\n.c" +
-                    "heckbox input:checked ~ div > svg {\n    fill: #ffffff;\n    opacity: 1;\n}\n\n\t\t</st" +
-                    "yle>\n\t\t<script>\nfunction onRescue()\n{\n\tvar errorContent = document.getElementByI" +
-                    "d(\"error-content\");\n\tif (errorContent != null)\n\t\terrorContent.style.display = \"n" +
-                    "one\";\n\tdocument.getElementById(\"authentication-content\").style.display = \"none\";" +
-                    "\n\tdocument.getElementById(\"rescue-content\").style.display = \"inherit\";\n}\n\nfuncti" +
-                    "on onContact() {\n\tvar contactContent = document.getElementById(\"contact-content\"" +
-                    ");\n\tif (contactContent != null)\n\t\tcontactContent.style.display = \"none\";\n\tdocume" +
-                    "nt.getElementById(\"authentication-content\").style.display = \"none\";\n\tdocument.ge" +
-                    "tElementById(\"contact-content\").style.display = \"inherit\";\n}\n\nfunction onRescueB" +
-                    "ack(e)\n{\n\tdocument.getElementById(\"authentication-content\").style.display = \"inh" +
-                    "erit\";\n\tdocument.getElementById(\"rescue-content\").style.display = \"none\";\n}\n\nfun" +
-                    "ction onContactBack(e) {\n\tdocument.getElementById(\"authentication-content\").styl" +
-                    "e.display = \"inherit\";\n\tdocument.getElementById(\"contact-content\").style.display" +
-                    " = \"none\";\n}\n\t\t</script>\n\t</head>\n<body>\n            <div style=\"width: 100%; he" +
-                    "ight: 20px; background-color: #e10000; margin: 0px; position: relative; top: 0px" +
-                    "; z-index: 2;\"></div>\n\t\t\t<img draggable=\"false\" class=\"logo\" src=\"images/logolac" +
-                    "lasse.svg\" alt=\"Logo ENT\">\n\t\t\t<div style=\"position: absolute; top: 20px; left: 0" +
-                    "px; right: 0px; bottom: 0px;\">\n\t\t\t<center>\n\t\t\t\t<div style=\"max-width: 1000px;\">\n" +
-                    "                    <div style=\"display: flex; flex-direction: row; flex-wrap: w" +
-                    "rap; padding: 20px;\">\n                        <div style=\"font-weight: bold; fon" +
-                    "t-size: 40px; flex-grow: 1; text-align: left;\"><span style=\"color: #da0100\">la</" +
-                    "span>classe<span style=\"color: #da0100\">.</span>com</div>\n                      " +
-                    "  <a href=\"http://www.ac-lyon.fr/\" style=\"margin-right: 20px;\"><img draggable=\"f" +
-                    "alse\" style=\"width: 74px; height: 46px\" src=\"images/logo-academie2.svg\" alt=\"Log" +
-                    "o Académie de Lyon\" /></a>\n                        <a href=\"https://www.grandlyo" +
-                    "n.com/\"><img draggable=\"false\" style=\"width: 200px; height: 46px;\" src=\"images/g" +
-                    "randlyon-logo.svg\" alt=\"Logo Métropole du Grand Lyon\"></a>\n                    <" +
-                    "/div>\n\n                    ");
+                    "        <link rel=\"stylesheet\" href=\"/portail/fonts/muli.css\" />\n\t\t\t<style>\nbody" +
+                    " {\n\tcolor: #444;\n\tbackground-color: #f5f5f5;\n\tfont-family: \"Muli\", sans-serif;\n\t" +
+                    "font-size: 16px;\n\tline-height: 1.3;\n    margin: 0px;\n    padding: 0px;\n}\n\n* {\n\tb" +
+                    "ox-sizing: border-box;\n}\n\na {\n\tcolor: #444;\n}\n\nimg {\n    border: none;\n}\n\nli {\n\t" +
+                    "padding-top: 5px;\n    padding-bottom: 5px;\n}\n\n.logo {\n\twidth: 60%;\n\topacity: 0.6" +
+                    ";\n\tposition: absolute;\n\tleft: -5%;\n\ttop: -15%;\n\t-webkit-user-select: none;\n}\n\n.f" +
+                    "ooter {\n\twidth: 100%;\n    max-width: 1000px;\n\tdisplay: block;\n    padding: 0px;\n" +
+                    "\ttext-align: left;\n    margin-bottom: 40px;\n    margin-top: 10px;\n    position: " +
+                    "relative;\n    top: 0px;\n}\n\n.btn {\n    -webkit-appearance: none;\n\tdisplay: inline" +
+                    "-block;\n\tfont-size: 14px;\n\ttext-transform: uppercase;\n\tpadding: 10px 20px;\n\tbord" +
+                    "er: 0px solid white;\n\tborder-radius: 0;\n\tbackground-color: #444;\n\tmargin: 5px;\n " +
+                    "   color: white;\n\ttext-decoration: none;\n\tcursor: pointer;\n\ttext-align: center;\n" +
+                    "}\n\n.btn:hover {\n\tbackground-color: #555;\n}\n\n.box {\n    background: #f2efef;\n    " +
+                    "padding: 20px;\n}\n\n.boxHeader {\n    font-size: 18px;\n    text-transform: uppercas" +
+                    "e;\n    text-align: center;\n    margin-bottom: 10px;\n    color: #444;\n    font-we" +
+                    "ight: bold;\n}\n\ninput[type=text], input[type=password] {\n    -webkit-appearance: " +
+                    "none;\n    width: calc(100% - 10px);\n    height: 30px;\n    border: 1px solid #ccc" +
+                    "ccc;\n    background-color: #f7f7f7;\n    margin: 5px;\n    color: #444;\n    font-s" +
+                    "ize: 18px;\n    padding-left: 10px;\n    padding-right: 10px;\n    border-radius: 0" +
+                    ";\n}\n\ninput:-webkit-autofill {\n    -webkit-box-shadow: 0 0 0 30px #f9f194 inset;\n" +
+                    "}\n\n.title {\n    font-weight: bold;\n    font-size: 18px;\n    margin-bottom: 20px;" +
+                    "\n}\n\n.authBox {\n    display: flex;\n    flex-direction: row;\n    flex-wrap: nowrap" +
+                    ";\n    justify-content: stretch;\n    margin-bottom: 20px;\n}\n\n.authSeparator {\n   " +
+                    " position: absolute;\n    left: calc(50% - 1px);\n    top: 0px;\n    width: 2px;\n  " +
+                    "  height: 100%;\n    background-color: #444;\n}\n\n.authOr {\n    width: 30px;\n    he" +
+                    "ight: 20px; \n    text-align: center;\n    position: absolute;\n    left: calc(50% " +
+                    "- 15px);\n    top: calc(50% - 10px);\n    background-color: #f2efef;\n    font-weig" +
+                    "ht: bold;\n}\n\n@media screen and (max-width: 600px) {\n    .authBox {\n        displ" +
+                    "ay: block;\n        flex-direction: column;\n    }\n\n    .authSeparator {\n        l" +
+                    "eft: 0px;\n        top: calc(50% - 1px);\n        width: 100%;\n        height: 2px" +
+                    ";\n    }\n}\n\n.checkbox {\n    user-select: none;\n    margin: 5px;\n}\n\n.checkbox div " +
+                    "{\n    border: 2px solid #444;\n    border-radius: 4px;\n}\n\n.checkbox input {\n    w" +
+                    "idth: 0px;\n    height: 0px;\n    opacity: 0;\n}\n\n.checkbox svg {\n    opacity: 0;\n}" +
+                    "\n\n.checkbox input:checked ~ div {\n    background: #444;\n}\n\n.checkbox input:check" +
+                    "ed ~ div > svg {\n    fill: #ffffff;\n    opacity: 1;\n}\n\n\t\t</style>\n\t\t<script>\nfun" +
+                    "ction onRescue()\n{\n\tvar errorContent = document.getElementById(\"error-content\");" +
+                    "\n\tif (errorContent != null)\n\t\terrorContent.style.display = \"none\";\n\tdocument.get" +
+                    "ElementById(\"authentication-content\").style.display = \"none\";\n\tdocument.getEleme" +
+                    "ntById(\"rescue-content\").style.display = \"inherit\";\n}\n\nfunction onContact() {\n\tv" +
+                    "ar contactContent = document.getElementById(\"contact-content\");\n\tif (contactCont" +
+                    "ent != null)\n\t\tcontactContent.style.display = \"none\";\n\tdocument.getElementById(\"" +
+                    "authentication-content\").style.display = \"none\";\n\tdocument.getElementById(\"conta" +
+                    "ct-content\").style.display = \"inherit\";\n}\n\nfunction onRescueBack(e)\n{\n\tdocument." +
+                    "getElementById(\"authentication-content\").style.display = \"inherit\";\n\tdocument.ge" +
+                    "tElementById(\"rescue-content\").style.display = \"none\";\n}\n\nfunction onContactBack" +
+                    "(e) {\n\tdocument.getElementById(\"authentication-content\").style.display = \"inheri" +
+                    "t\";\n\tdocument.getElementById(\"contact-content\").style.display = \"none\";\n}\n\t\t</sc" +
+                    "ript>\n\t</head>\n<body>\n            <div style=\"width: 100%; height: 20px; backgro" +
+                    "und-color: #e10000; margin: 0px; position: relative; top: 0px; z-index: 2;\"></di" +
+                    "v>\n\t\t\t<img draggable=\"false\" class=\"logo\" src=\"images/logolaclasse.svg\" alt=\"Log" +
+                    "o ENT\">\n\t\t\t<div style=\"position: absolute; top: 20px; left: 0px; right: 0px; bot" +
+                    "tom: 0px;\">\n\t\t\t<center>\n\t\t\t\t<div style=\"max-width: 1000px;\">\n                   " +
+                    " <div style=\"display: flex; flex-direction: row; flex-wrap: wrap; padding: 20px;" +
+                    "\">\n                        <div style=\"font-weight: bold; font-size: 40px; flex-" +
+                    "grow: 1; text-align: left;\"><span style=\"color: #da0100\">la</span>classe<span st" +
+                    "yle=\"color: #da0100\">.</span>com</div>\n                        <a href=\"http://w" +
+                    "ww.ac-lyon.fr/\" style=\"margin-right: 20px;\"><img draggable=\"false\" style=\"width:" +
+                    " 74px; height: 46px\" src=\"images/logo-academie2.svg\" alt=\"Logo Académie de Lyon\"" +
+                    " /></a>\n                        <a href=\"https://www.grandlyon.com/\"><img dragga" +
+                    "ble=\"false\" style=\"width: 200px; height: 46px;\" src=\"images/grandlyon-logo.svg\" " +
+                    "alt=\"Logo Métropole du Grand Lyon\"></a>\n                    </div>\n\n            " +
+                    "        ");
             
             #line default
             #line hidden

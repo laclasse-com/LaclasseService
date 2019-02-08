@@ -2143,7 +2143,7 @@ namespace Laclasse.Authentication
                             userIds.Add(email.user_id);
                 }
                 // search for mobile phone
-                else
+                else if (Regex.IsMatch(rescue, @"^\s*\+{0,1}\s*[0-9\s]+$"))
                 {
                     rescueMode = RescueMode.SMS;
                     bool frenchTel = false;

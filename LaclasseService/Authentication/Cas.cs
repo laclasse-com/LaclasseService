@@ -2197,7 +2197,7 @@ namespace Laclasse.Authentication
                 {
                     state = preTicket.id,
                     service = formFields.ContainsKey("service") ? formFields["service"] : "/",
-                    error = $"Récupération impossible. '{rescue}' n'est pas connu dans Laclasse"
+                    error = $"Récupération impossible. '{System.Web.HttpUtility.HtmlEncode(rescue)}' n'est pas connu dans Laclasse"
                 }).TransformText();
             }
             // 1 user found, create a temporary code, send it a ask it to the user 

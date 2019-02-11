@@ -385,6 +385,15 @@ namespace Laclasse.Directory
                 }
             };
 
+            GetAsync["/current/isauthenticated"] = async (p, c) =>
+            {
+                var user = await c.GetAuthenticatedUserAsync();
+                if (user == null)
+                    c.Response.StatusCode = 403;
+                else
+                    c.Response.StatusCode = 200;
+            };
+
             PostAsync["/{uid:uid}/upload/avatar"] = async (p, c) =>
             {
                 var uid = (string)p["uid"];

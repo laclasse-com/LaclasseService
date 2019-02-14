@@ -160,26 +160,30 @@ namespace Laclasse
                     return false;
                 object value;
                 var nullableType = Nullable.GetUnderlyingType(property.PropertyType);
-                if (nullableType == null)
-                    value = Convert.ChangeType(values[0], property.PropertyType);
-                else
-                    value = Convert.ChangeType(values[0], nullableType);
 
-                if ((op == CompareOperator.Equal) && (value.Equals(item.Fields[field])))
-                    return true;
-                else if ((op == CompareOperator.NotEqual) && (!value.Equals(item.Fields[field])))
-                    return true;
-                else if (value is IComparable)
+                foreach (var oneValue in values)
                 {
-                    var comp = ((IComparable)value).CompareTo(item.Fields[field]);
-                    if ((op == CompareOperator.Greater) && (comp < 0))
+                    if (nullableType == null)
+                        value = Convert.ChangeType(oneValue, property.PropertyType);
+                    else
+                        value = Convert.ChangeType(oneValue, nullableType);
+
+                    if ((op == CompareOperator.Equal) && (value.Equals(item.Fields[field])))
                         return true;
-                    if ((op == CompareOperator.GreaterOrEqual) && (comp <= 0))
+                    else if ((op == CompareOperator.NotEqual) && (!value.Equals(item.Fields[field])))
                         return true;
-                    if ((op == CompareOperator.Less) && (comp > 0))
-                        return true;
-                    if ((op == CompareOperator.LessOrEqual) && (comp >= 0))
-                        return true;
+                    else if (value is IComparable)
+                    {
+                        var comp = ((IComparable)value).CompareTo(item.Fields[field]);
+                        if ((op == CompareOperator.Greater) && (comp < 0))
+                            return true;
+                        if ((op == CompareOperator.GreaterOrEqual) && (comp <= 0))
+                            return true;
+                        if ((op == CompareOperator.Less) && (comp > 0))
+                            return true;
+                        if ((op == CompareOperator.LessOrEqual) && (comp >= 0))
+                            return true;
+                    }
                 }
                 return false;
             }

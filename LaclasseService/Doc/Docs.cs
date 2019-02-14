@@ -531,6 +531,28 @@ namespace Laclasse.Doc
                 c.Response.Content = "";
             };
 
+            DeleteAsync["/"] = async (p, c) =>
+            {
+                var json = await c.Request.ReadAsJsonAsync();
+                if (json is JsonArray)
+                {
+                    using (var db = await DB.CreateAsync(dbUrl, true))
+                    {
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        foreach (var idValue in json as JsonArray)
+                        {
+                            var id = long.Parse(idValue);
+                            var item = await context.GetByIdAsync(id);
+                            if (item != null)
+                                await item.DeleteAsync();
+                        }
+                        await db.CommitAsync();
+                    }
+                    c.Response.StatusCode = 200;
+                    c.Response.Content = "";
+                }
+            };
+
             PostAsync["/"] = async (p, c) =>
             {
                 var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);

@@ -37,7 +37,7 @@ var config = {
             "edit": <#= edit ? "true" : "false" #>,
             "print": true,
             "review": <#= edit ? "true" : "false" #>
-        },
+        }
     },
     "documentType": "<#= documentType #>",
     "editorConfig": {

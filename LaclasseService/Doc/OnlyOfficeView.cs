@@ -118,7 +118,7 @@ var config = {
             #line hidden
             
             #line 39 ""
-            this.Write("\n        },\n    },\n    \"documentType\": \"");
+            this.Write("\n        }\n    },\n    \"documentType\": \"");
             
             #line default
             #line hidden

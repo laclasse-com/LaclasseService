@@ -25,18 +25,17 @@
 //
 
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Net;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using Erasme.Http;
 using Erasme.Json;
-using Laclasse.Authentication;
 using ICSharpCode.SharpZipLib.Zip;
+using Laclasse.Authentication;
 
 namespace Laclasse.Doc
 {
@@ -322,27 +321,116 @@ namespace Laclasse.Doc
         string path;
         string tempDir;
         string directoryDbUrl;
+        Setup globalSetup;
         DocSetup setup;
         Blobs blobs;
         Dictionary<string, List<IFilePlugin>> mimePlugins = new Dictionary<string, List<IFilePlugin>>();
         List<IFilePlugin> allPlugins = new List<IFilePlugin>();
 
-        public Docs(string dbUrl, string path, string tempDir, Blobs blobs, int cacheDuration, string directoryDbUrl, DocSetup setup)
+        class TempFile
+        {
+            public string Id;
+            public Stream Stream;
+            public string Mime;
+        }
+
+        object tempFilesLock = new object();
+        Dictionary<string, TempFile> tempFiles = new Dictionary<string, TempFile>();
+
+        public static Dictionary<string, OnlyOfficeFileType> OnlyOfficeMimes = new Dictionary<string, OnlyOfficeFileType>
+        {
+            // text
+            ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] = OnlyOfficeFileType.docx,
+            ["application/msword"] = OnlyOfficeFileType.doc,
+            ["application/epub+zip"] = OnlyOfficeFileType.epub,
+            ["application/vnd.oasis.opendocument.text"] = OnlyOfficeFileType.odt,
+            ["application/rtf"] = OnlyOfficeFileType.rtf,
+            ["text/plain"] = OnlyOfficeFileType.txt,
+            ["application/vnd.ms-xpsdocument"] = OnlyOfficeFileType.xps,
+
+            // spreadsheet
+            ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] = OnlyOfficeFileType.xlsx,
+            ["application/vnd.ms-excel"] = OnlyOfficeFileType.xls,
+            ["application/vnd.oasis.opendocument.spreadsheet"] = OnlyOfficeFileType.ods,
+            ["text/csv"] = OnlyOfficeFileType.csv,
+
+            // presentation
+            ["application/vnd.openxmlformats-officedocument.presentationml.presentation"] = OnlyOfficeFileType.pptx,
+            ["application/vnd.ms-powerpoint"] = OnlyOfficeFileType.ppt,
+            ["application/vnd.oasis.opendocument.presentation"] = OnlyOfficeFileType.odp
+        };
+
+
+        public Docs(string dbUrl, string path, string tempDir, Blobs blobs, int cacheDuration, string directoryDbUrl, Setup globalSetup)
         {
             this.dbUrl = dbUrl;
             this.path = path;
             this.tempDir = tempDir;
             this.blobs = blobs;
-            this.setup = setup;
+            this.globalSetup = globalSetup;
+            this.setup = globalSetup.doc;
             this.directoryDbUrl = directoryDbUrl;
 
-            BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+            BeforeAsync = async (p, c) =>
+            {
+                // not authentication needed for tempFile
+                if (!c.Request.Path.StartsWith("/tempFile/", StringComparison.InvariantCulture))
+                    await c.EnsureIsAuthenticatedAsync();
+            };
+
+            GetAsync["/migration3to4"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                await Migration3To4Async(c);
+            };
+
+            GetAsync["/generatemissingtmb"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                await GenerateMissingThumbnails(c);
+            };
+
+            PostAsync["/generatetmb"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                var json = await c.Request.ReadAsJsonAsync();
+
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    foreach (var id in json as JsonArray)
+                    {
+                        var item = await context.GetByIdAsync(id);
+                        if (item != null)
+                            await item.GenerateThumbnailAsync();
+                    }
+                    await db.CommitAsync();
+                }
+                c.Response.StatusCode = 200;
+            };
+
+            Get["/tempFile/{id}"] = (p, c) =>
+            {
+                string id = (string)p["id"];
+                TempFile file = null;
+                lock (tempFilesLock)
+                {
+                    if (tempFiles.ContainsKey(id))
+                        file = tempFiles[id];
+                }
+                if (file != null)
+                {
+                    c.Response.StatusCode = 200;
+                    c.Response.Headers["content-type"] = file.Mime;
+                    c.Response.Content = file.Stream;
+                }
+            };
 
             GetAsync["/roots"] = async (p, c) =>
             {
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var roots = await GetRootsAsync(context);
                     var jsonArray = new JsonArray();
                     foreach (var r in roots)
@@ -354,32 +442,27 @@ namespace Laclasse.Doc
             };
 
 
-            /*GetAsync["/"] = async (p, c) =>
+            GetAsync["/nodes"] = async (p, c) =>
             {
+                await c.EnsureIsSuperAdminAsync();
                 bool expand = true;
                 if (c.Request.QueryString.ContainsKey("expand"))
                     expand = Convert.ToBoolean(c.Request.QueryString["expand"]);
-                var authUser = await c.GetAuthenticatedUserAsync();
-                var filterAuth = (new Node()).FilterAuthUser(authUser);
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
                     var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                    var result = await Model.SearchAsync<Node>(db, c, filterAuth);
-                    var jsonArray = new JsonArray();
-                    foreach (var item in result.Data)
-                        jsonArray.Add(await context.GetByNode(item).ToJsonAsync(expand));
-                    c.Response.Content = jsonArray;
-                    await db.CommitAsync();
+                    var result = await Model.SearchAsync<Node>(db, c);
+                    c.Response.Content = result;
                 }
                 c.Response.StatusCode = 200;
-            };*/
+            };
 
             GetAsync["/"] = async (p, c) =>
             {
                 // NAIVE ALGO. IMPROVE THIS
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     IEnumerable<Item> roots;
                     if (c.Request.QueryStringArray.ContainsKey("roots"))
                     {
@@ -422,7 +505,7 @@ namespace Laclasse.Doc
 
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var item = await context.GetByIdAsync(id);
                     await db.CommitAsync();
                     if (item != null)
@@ -438,7 +521,7 @@ namespace Laclasse.Doc
                 var id = long.Parse((string)p["id"]);
                 using (var db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var item = await context.GetByIdAsync(id);
                     if (item != null)
                         await item.DeleteAsync();
@@ -455,7 +538,7 @@ namespace Laclasse.Doc
                 {
                     using (var db = await DB.CreateAsync(dbUrl, true))
                     {
-                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                         var item = await Item.CreateAsync(context, fileDefinition);
                         await db.CommitAsync();
                         c.Response.StatusCode = 200;
@@ -484,7 +567,7 @@ namespace Laclasse.Doc
                 {
                     using (DB db = await DB.CreateAsync(dbUrl, true))
                     {
-                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                         var item = await context.GetByIdAsync(id);
                         await item.ChangeAsync(fileDefinition);
                         await db.CommitAsync();
@@ -515,7 +598,7 @@ namespace Laclasse.Doc
                 ItemRight rights = null;
                 using (DB db = await DB.CreateAsync(dbUrl))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     item = await context.GetByIdAsync(id);
                     if (item != null)
                         rights = await item.RightsAsync();
@@ -559,61 +642,100 @@ namespace Laclasse.Doc
                 if (json.ContainsKey("status") && json.ContainsKey("url") && json["status"] == 2)
                 {
                     Console.WriteLine("SAVE NEEDED");
+                    Node node = null;
+                    using (var db = await DB.CreateAsync(dbUrl, true))
+                    {
+                        node = new Node { id = id };
+                        if (!await node.LoadAsync(db))
+                            return;
+                    }
 
+                    HttpClient client;
+                    HttpClientResponse response;
                     var uri = new Uri(json["url"]);
-                    using (HttpClient client = await HttpClient.CreateAsync(uri))
+                    client = await HttpClient.CreateAsync(uri);
+                    try
                     {
                         HttpClientRequest request = new HttpClientRequest();
                         request.Method = "GET";
                         request.Path = uri.PathAndQuery;
-                        client.SendRequest(request);
-                        HttpClientResponse response = await client.GetResponseAsync();
-                        if (response.StatusCode == 200)
+                        await client.SendRequestAsync(request);
+                        response = await client.GetResponseAsync();
+                        if (response.StatusCode != 200)
+                            return;
+                        // check if convert is needed
+                        if (node.mime != response.Headers["content-type"])
                         {
-                            var fileDefinition = new FileDefinition
-                            {
-                                Name = "content",
-                                Mimetype = response.Headers["content-type"],
-                                Stream = response.InputStream
-                            };
-
-                            Blob blob; string tempFile;
-                            (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
-
-                            string thumbnailTempFile = null;
-                            Blob thumbnailBlob = null;
-
-                            if (tempFile != null)
-                                BuildThumbnail(tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
-
-                            using (var db = await DB.CreateAsync(dbUrl, true))
-                            {
-                                var node = new Node { id = id };
-                                if (await node.LoadAsync(db))
-                                {
-                                    var oldBlobId = node.blob_id;
-                                    blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
-                                    node.blob_id = blob.id;
-                                    node.rev++;
-                                    await node.UpdateAsync(db);
-
-                                    if (thumbnailTempFile != null)
-                                    {
-                                        thumbnailBlob.parent_id = blob.id;
-                                        thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
-                                        node.has_tmb = true;
-                                    }
-
-                                    // delete old blob if any
-                                    if (oldBlobId != null)
-                                        await blobs.DeleteBlobAsync(db, oldBlobId);
-                                }
-                                await db.CommitAsync();
-                            }
+                            OnlyOfficeFileType fromFileType;
+                            OnlyOfficeDocumentType fromDocumentType;
+                            MimeToFileType(response.Headers["content-type"], out fromDocumentType, out fromFileType);
+                            OnlyOfficeFileType toFileType;
+                            OnlyOfficeDocumentType toDocumentType;
+                            MimeToFileType(node.mime, out toDocumentType, out toFileType);
+                            var convertUrl = await OnlyOfficeConvertAsync(c, json["url"], fromFileType, toFileType);
+                            if (convertUrl == null)
+                                return;
+                            client.Dispose();
+                            uri = new Uri(convertUrl);
+                            client = await HttpClient.CreateAsync(uri);
+                            request = new HttpClientRequest();
+                            request.Method = "GET";
+                            request.Path = uri.PathAndQuery;
+                            await client.SendRequestAsync(request);
+                            response = await client.GetResponseAsync();
+                            if (response.StatusCode != 200)
+                                return;
                         }
+
+                        // update the file
+                        var fileDefinition = new FileDefinition
+                        {
+                            Name = "content",
+                            Mimetype = response.Headers["content-type"],
+                            Stream = response.InputStream
+                        };
+
+                        Blob blob; string tempFile;
+                        (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
+
+                        string thumbnailTempFile = null;
+                        Blob thumbnailBlob = null;
+
+                        if (tempFile != null)
+                            BuildThumbnail(tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
+
+                        using (var db = await DB.CreateAsync(dbUrl, true))
+                        {
+                            node = new Node { id = id };
+                            if (await node.LoadAsync(db))
+                            {
+                                var oldBlobId = node.blob_id;
+                                blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
+                                node.blob_id = blob.id;
+                                node.has_tmb = thumbnailTempFile != null;
+                                node.rev++;
+                                await node.UpdateAsync(db);
+
+                                if (thumbnailTempFile != null)
+                                {
+                                    thumbnailBlob.parent_id = blob.id;
+                                    thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
+                                    node.has_tmb = true;
+                                }
+
+                                // delete old blob if any
+                                if (oldBlobId != null)
+                                    await blobs.DeleteBlobAsync(db, oldBlobId);
+                            }
+                            await db.CommitAsync();
+                        }
+
+                    }
+                    finally
+                    {
+                        client.Dispose();
                     }
                 }
-
                 c.Response.StatusCode = 200;
                 c.Response.Content = new JsonObject { ["error"] = 0 };
             };
@@ -758,7 +880,7 @@ namespace Laclasse.Doc
 
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var item = await context.GetByIdAsync(id);
                     if (item != null)
                     {
@@ -803,7 +925,7 @@ namespace Laclasse.Doc
 
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var item = await context.GetByIdAsync(id);
 
                     if (item != null)
@@ -843,6 +965,81 @@ namespace Laclasse.Doc
             };
         }
 
+        //# Thumbnail avec OnlyOffice
+        //        curl -X POST http://daniel.erasme.lan/onlyoffice/ConvertService.ashx
+        // -H "Content-Type: application/json" -d
+        // '{"async": false, "outputtype":"jpg","thumbnail":{"aspect": 0, "width": 64, "height": 64 },"filetype":"docx","url": "http://admin:masterPassword@daniel.erasme.lan/api/docs/3180/content"}'
+        async Task<string> OnlyOfficeConvertAsync(HttpContext c, string fileUrl, OnlyOfficeFileType fileType, OnlyOfficeFileType destFileType)
+        {
+            string resFileUrl = null;
+            var uri = new Uri(new Uri(c.SelfURL()), "/onlyoffice/ConvertService.ashx");
+            using (HttpClient client = await HttpClient.CreateAsync(uri))
+            {
+                HttpClientRequest request = new HttpClientRequest();
+                request.Method = "POST";
+                request.Path = uri.PathAndQuery;
+                request.Headers["accept"] = "application/json";
+                request.Content = new JsonObject
+                {
+                    ["key"] = Guid.NewGuid().ToString(),
+                    ["async"] = false,
+                    ["codePage"] = 65001,
+                    ["filetype"] = fileType.ToString(),
+                    ["outputtype"] = destFileType.ToString(),
+                    ["url"] = fileUrl
+                };
+                await client.SendRequestAsync(request);
+                HttpClientResponse response = await client.GetResponseAsync();
+                if (response.StatusCode == 200)
+                {
+                    var json = await response.ReadAsJsonAsync();
+                    if (json.ContainsKey("fileUrl"))
+                        resFileUrl = json["fileUrl"];
+                }
+            }
+            return resFileUrl;
+        }
+
+        async Task<string> OnlyOfficeGenerateThumbAsync(string fileUrl, OnlyOfficeFileType fileType)
+        {
+            string resFileUrl = null;
+
+            var uri = new Uri(new Uri(globalSetup.server.publicUrl), "/onlyoffice/ConvertService.ashx");
+            using (HttpClient client = await HttpClient.CreateAsync(uri))
+            {
+                HttpClientRequest request = new HttpClientRequest();
+                request.Method = "POST";
+                request.Path = uri.PathAndQuery;
+                request.Headers["accept"] = "application/json";
+                request.Content = new JsonObject
+                {
+                    ["async"] = false,
+                    ["codePage"] = 65001,
+                    ["filetype"] = fileType.ToString(),
+                    ["key"] = Guid.NewGuid().ToString(),
+                    ["outputtype"] = "jpg",
+                    ["url"] = fileUrl,
+                    ["thumbnail"] = new JsonObject
+                    {
+                        ["first"] = true,
+                        ["aspect"] = 1,
+                        ["width"] = 128,
+                        ["height"] = 128,
+                    }
+                };
+                await client.SendRequestAsync(request);
+                HttpClientResponse response = await client.GetResponseAsync();
+                if (response.StatusCode == 200)
+                {
+                    var json = await response.ReadAsJsonAsync();
+                    if (json.ContainsKey("fileUrl"))
+                        resFileUrl = json["fileUrl"];
+                }
+            }
+            return resFileUrl;
+        }
+
+
         async Task SearchItemsAsync(Context context, IEnumerable<Item> roots, Dictionary<string, List<string>> filter, List<Item> result)
         {
             foreach (var item in roots)
@@ -855,7 +1052,6 @@ namespace Laclasse.Doc
 
         async Task RecursiveSearchItemsAsync(Context context, Item item, Dictionary<string, List<string>> filter, List<Item> result)
         {
-            Console.WriteLine($"RecursiveSearchItemsAsync item: {item.node.name}");
             if (item is Folder)
             {
                 var folder = item as Folder;
@@ -869,18 +1065,18 @@ namespace Laclasse.Doc
 
         public override async Task ProcessRequestAsync(HttpContext context)
         {
-            await context.EnsureIsAuthenticatedAsync();
-
             var match = Regex.Match(context.Request.Path, @"^/zip/(\d+)/content/(.*)$");
             if (match.Success)
             {
+                await context.EnsureIsAuthenticatedAsync();
+
                 string fileId = match.Groups[1].Value;
                 string remainPath = match.Groups[2].Value;
 
                 //                string filePath = null;
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-                    var ctx = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await context.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var ctx = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await context.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var item = await ctx.GetByIdAsync(long.Parse(fileId));
 
                     if (item != null)
@@ -926,28 +1122,91 @@ namespace Laclasse.Doc
                 await base.ProcessRequestAsync(context);
         }
 
-        public static void BuildThumbnail(string tempDir, string tempFile, string mimetype, out string thumbnailTempFile, out Blob thumbnailBlob)
+        public void BuildThumbnail(string tempDir, string tempFile, string mimetype, out string thumbnailTempFile, out Blob thumbnailBlob)
         {
+            Console.WriteLine($"BuildThumbnail FOR {tempFile}");
+
             thumbnailTempFile = null;
             thumbnailBlob = null;
             // build the thumbnail
             try
             {
-                string previewMimetype;
-                string previewPath;
-                string error;
-
-                if (Erasme.Cloud.Preview.PreviewService.BuildPreview(
-                    tempDir, tempFile, mimetype,
-                    128, 128, out previewMimetype, out previewPath, out error))
+                // use onlyoffice for thumbnail
+                if (OnlyOfficeMimes.ContainsKey(mimetype))
                 {
-                    thumbnailBlob = new Blob
+                    Console.WriteLine($"GENERATE THUMB WITH OFFICE FOR {tempFile}");
+                    using (var fileStream = File.OpenRead(tempFile))
                     {
-                        id = Guid.NewGuid().ToString(),
-                        name = "thumbnail",
-                        mimetype = previewMimetype
-                    };
-                    thumbnailTempFile = previewPath;
+                        var file = new TempFile
+                        {
+                            Id = Guid.NewGuid() + "-" + StringExt.RandomString(),
+                            Mime = mimetype,
+                            Stream = fileStream
+                        };
+                        lock (tempFilesLock)
+                        {
+                            tempFiles[file.Id] = file;
+                        }
+                        try
+                        {
+                            var fileUri = new Uri(new Uri(globalSetup.server.publicUrl), $"/api/docs/tempFile/{file.Id}");
+                            var task = OnlyOfficeGenerateThumbAsync(fileUri.AbsoluteUri, OnlyOfficeMimes[mimetype]);
+                            task.Wait();
+                            Console.WriteLine($"THUMB URL: {task.Result}");
+                            // TODO: dowload the file
+
+                            var thumbUri = new Uri(task.Result);
+                            using (var client = HttpClient.Create(thumbUri))
+                            {
+                                HttpClientResponse response;
+                                HttpClientRequest request = new HttpClientRequest();
+                                request.Method = "GET";
+                                request.Path = thumbUri.PathAndQuery;
+                                client.SendRequest(request);
+                                response = client.GetResponse();
+                                if (response.StatusCode == 200)
+                                {
+                                    thumbnailTempFile = Path.Combine(tempDir, file.Id);
+                                    using (var fileWriteStream = System.IO.File.OpenWrite(thumbnailTempFile))
+                                    {
+                                        response.InputStream.CopyTo(fileWriteStream);
+                                    }
+                                    thumbnailBlob = new Blob
+                                    {
+                                        id = Guid.NewGuid().ToString(),
+                                        name = "thumbnail",
+                                        mimetype = "image/jpeg"
+                                    };
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            lock (tempFilesLock)
+                            {
+                                tempFiles.Remove(file.Id);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    string previewMimetype;
+                    string previewPath;
+                    string error;
+
+                    if (Erasme.Cloud.Preview.PreviewService.BuildPreview(
+                        tempDir, tempFile, mimetype,
+                        128, 128, out previewMimetype, out previewPath, out error))
+                    {
+                        thumbnailBlob = new Blob
+                        {
+                            id = Guid.NewGuid().ToString(),
+                            name = "thumbnail",
+                            mimetype = previewMimetype
+                        };
+                        thumbnailTempFile = previewPath;
+                    }
                 }
             }
             catch (Exception e)
@@ -960,7 +1219,11 @@ namespace Laclasse.Doc
 
         static void NodeToFileType(Node node, out OnlyOfficeDocumentType documentType, out OnlyOfficeFileType fileType)
         {
-            var mime = node.mime;
+            MimeToFileType(node.mime, out documentType, out fileType);
+        }
+
+        static void MimeToFileType(string mime, out OnlyOfficeDocumentType documentType, out OnlyOfficeFileType fileType)
+        {
             documentType = OnlyOfficeDocumentType.text;
             fileType = OnlyOfficeFileType.docx;
 
@@ -1122,6 +1385,128 @@ namespace Laclasse.Doc
                 plugins.Add(plugin);
             }
             allPlugins.Add(plugin);
+        }
+
+        /// <summary>
+        /// MIGRATION TOOLS FOR V3 TO V4
+        /// </summary>
+        public async Task Migration3To4Async(HttpContext c)
+        {
+            var limit = 1000;
+            using (DB db = await DB.CreateAsync(dbUrl, true))
+            {
+                var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                var nodes = await db.SelectAsync<Node>("SELECT SQL_CALC_FOUND_ROWS * FROM `node` WHERE content IS NOT NULL LIMIT ?", limit);
+
+                var folderCount = 0;
+                var fileCount = 0;
+                var fileContentFails = 0;
+
+                foreach (var node in nodes)
+                {
+                    var item = Item.ByNode(context, node);
+                    if (item is Folder)
+                    {
+                        await (new Node { id = node.id, content = null }).UpdateAsync(db);
+                        folderCount++;
+                    }
+                    else
+                    {
+                        try
+                        {
+                            using (var stream = await item.GetContentAsync())
+                            {
+                                var fileDefinition = new FileDefinition<Node>();
+                                fileDefinition.Stream = stream;
+                                fileDefinition.Name = item.node.name;
+                                fileDefinition.Mimetype = item.node.mime;
+                                await item.ChangeAsync(fileDefinition);
+                                // remove the content string
+                                await (new Node { id = item.node.id, content = null }).UpdateAsync(db);
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine($"File: {item.node.name} CONTENT NOT FOUND");
+                            Console.WriteLine(e);
+                            fileContentFails++;
+                        }
+                        fileCount++;
+                    }
+                }
+
+                var total = await db.FoundRowsAsync();
+                c.Response.Content = nodes;
+                c.Response.Content = new JsonObject
+                {
+                    ["total"] = total,
+                    ["limit"] = limit,
+                    ["done"] = nodes.Count(),
+                    ["folders"] = folderCount,
+                    ["files"] = new JsonObject
+                    {
+                        ["total"] = fileCount,
+                        ["contentfails"] = fileContentFails
+                    }
+                };
+                await db.CommitAsync();
+            }
+            c.Response.StatusCode = 200;
+        }
+
+        public async Task GenerateMissingThumbnails(HttpContext c)
+        {
+            var limit = 1000;
+            var supportedMimes = OnlyOfficeMimes.Keys.ToList();
+            supportedMimes.Add("image/jpeg");
+            supportedMimes.Add("image/png");
+            supportedMimes.Add("image/gif");
+            supportedMimes.Add("image/bmp");
+            supportedMimes.Add("video/mp4");
+            supportedMimes.Add("video/mpeg");
+            supportedMimes.Add("video/ogg");
+            supportedMimes.Add("video/webm");
+            supportedMimes.Add("video/x-flv");
+            supportedMimes.Add("video/3gpp");
+            supportedMimes.Add("video/3gpp2");
+            supportedMimes.Add("video/quicktime");
+            supportedMimes.Add("video/x-msvideo");
+            supportedMimes.Add("video/x-ms-wmv");
+
+            using (DB db = await DB.CreateAsync(dbUrl, true))
+            {
+                var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                var nodes = await db.SelectAsync<Node>($"SELECT SQL_CALC_FOUND_ROWS * FROM `node` WHERE `blob_id` IS NOT NULL AND `has_tmb` = FALSE AND {DB.InFilter("mime", supportedMimes)} LIMIT ?", limit);
+                var total = await db.FoundRowsAsync();
+                var done = 0;
+                var fails = 0;
+
+                foreach (var node in nodes)
+                {
+                    var item = Item.ByNode(context, node);
+                    try
+                    {
+                        if (await item.GenerateThumbnailAsync())
+                            done++;
+                        else
+                            fails++;
+                    }
+                    catch
+                    {
+                        fails++;
+                    }
+                }
+                await db.CommitAsync();
+
+                c.Response.StatusCode = 200;
+                c.Response.Content = new JsonObject
+                {
+                    ["total"] = total,
+                    ["done"] = done,
+                    ["fails"] = fails,
+                    ["nodes"] = nodes.ToJson()
+                };
+            }
         }
     }
 }

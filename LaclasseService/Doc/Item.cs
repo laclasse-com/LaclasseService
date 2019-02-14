@@ -19,6 +19,7 @@ namespace Laclasse.Doc
         public AuthenticatedUser user;
         public DB db;
         public Blobs blobs;
+        public Docs docs;
         public Dictionary<long, Item> items = new Dictionary<long, Item>();
 
         public async Task<Item> GetByIdAsync(long id)
@@ -190,7 +191,7 @@ namespace Laclasse.Doc
             Blob thumbnailBlob = null;
 
             if (tempFile != null)
-                Docs.BuildThumbnail(context.tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
+                context.docs.BuildThumbnail(context.tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
 
             string oldBlobId = null;
             if (blob != null)
@@ -215,9 +216,9 @@ namespace Laclasse.Doc
             if (fileDefinition.Define != null)
             {
                 var define = fileDefinition.Define;
-                if (define.Fields.ContainsKey(nameof(Node.name)))
+                if (define.IsSet(nameof(Node.name)))
                     node.name = define.name;
-                if (define.Fields.ContainsKey(nameof(Node.parent_id)))
+                if (define.IsSet(nameof(Node.parent_id)))
                 {
                     // check destination rights
                     if (context.user.IsUser)
@@ -232,9 +233,16 @@ namespace Laclasse.Doc
                     }
                     node.parent_id = define.parent_id;
                 }
-                if (define.Fields.ContainsKey(nameof(Node.rights)))
+                if (define.IsSet(nameof(Node.rights)))
                 {
                     node.rights = define.rights;
+                }
+                if (define.IsSet(nameof(Node.return_date)) && node.mime == "rendu")
+                {
+                    // restricted user can change this
+                    if (context.user.IsRestrictedUser)
+                        throw new WebException(403, "Insufficient rights");
+                    node.return_date = define.return_date;
                 }
             }
 
@@ -261,7 +269,12 @@ namespace Laclasse.Doc
 
             // delete old blob if any
             if (oldBlobId != null)
-                await context.blobs.DeleteBlobAsync(context.db, oldBlobId);
+            {
+                // delete the blob if this is the last ref file
+                var blobRefCount = await context.db.ExecuteScalarAsync("SELECT COUNT(id) FROM `node` WHERE `blob_id` = ?", oldBlobId);
+                if ((long)blobRefCount == 0)
+                    await context.blobs.DeleteBlobAsync(context.db, oldBlobId);
+            }
 
             if (oldParent != null)
             {
@@ -305,6 +318,48 @@ namespace Laclasse.Doc
             }
             if (parent != null)
                 await parent.OnChildChangedAsync(this, ChildAction.Delete);
+        }
+
+        public async virtual Task<bool> GenerateThumbnailAsync()
+        {
+            var done = false;
+            if (node.blob_id == null)
+                return done;
+            if (context.user.IsUser)
+            {
+                if (!(await RightsAsync()).Write)
+                    throw new WebException(403, "User dont have write right");
+            }
+            var stream = await GetContentAsync();
+            if (stream != null)
+            {
+                using (stream)
+                {
+                    var tempFile = Path.Combine(context.tempDir, Guid.NewGuid().ToString());
+                    using (var tmpStream = File.OpenWrite(tempFile))
+                        await stream.CopyToAsync(tmpStream);
+                    try
+                    {
+                        string thumbnailTempFile = null;
+                        Blob thumbnailBlob = null;
+                        context.docs.BuildThumbnail(context.tempDir, tempFile, node.mime, out thumbnailTempFile, out thumbnailBlob);
+
+                        if (thumbnailTempFile != null)
+                        {
+                            thumbnailBlob.parent_id = node.blob_id;
+                            thumbnailBlob = await context.blobs.CreateBlobFromTempFileAsync(context.db, thumbnailBlob, thumbnailTempFile);
+                            node.has_tmb = true;
+                            await (new Node { id = node.id, has_tmb = true }).UpdateAsync(context.db);
+                            done = true;
+                        }
+                    }
+                    finally
+                    {
+                        File.Delete(tempFile);
+                    }
+                }
+            }
+            return done;
         }
 
         public virtual async Task<JsonObject> ToJsonAsync(bool expand)
@@ -399,7 +454,7 @@ namespace Laclasse.Doc
                     Blob thumbnailBlob = null;
 
                     if (tempFile != null)
-                        Docs.BuildThumbnail(context.tempDir, tempFile, node.mime, out thumbnailTempFile, out thumbnailBlob);
+                        context.docs.BuildThumbnail(context.tempDir, tempFile, node.mime, out thumbnailTempFile, out thumbnailBlob);
 
                     if (tempFile != null)
                     {

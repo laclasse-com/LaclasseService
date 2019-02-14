@@ -57,11 +57,17 @@ namespace Laclasse
         public string apiKey = "notdefined";
     }
 
+    public class OnlyOfficeSetup
+    {
+        public string url = "/onlyoffice/";
+    }
+
     public class DocSetup
     {
         public string url = "server=localhost;userid=user;password=password;database=docsv3";
         public string path = "/var/lib/laclasse-docs/";
         public EtherPadSetup etherpad = new EtherPadSetup();
+        public OnlyOfficeSetup onlyoffice = new OnlyOfficeSetup();
     }
 
     public class LogSetup

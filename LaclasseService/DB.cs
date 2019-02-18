@@ -1242,6 +1242,8 @@ namespace Laclasse
 
         public void Sort(string[] orderBy, SortDirection[] orderDir)
         {
+            if (orderBy == null)
+                return;
             Func<object, object, int> cmp = (object a, object b) =>
             {
                 if (a == null)

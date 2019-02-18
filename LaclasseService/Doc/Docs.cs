@@ -174,7 +174,6 @@ namespace Laclasse.Doc
         public Blob blob { get { return GetField<Blob>(nameof(blob), null); } set { SetField(nameof(blob), value); } }
     }
 
-
     public class DocStructure : Model
     {
         [ModelField]
@@ -183,6 +182,20 @@ namespace Laclasse.Doc
         public long node_id { get { return GetField(nameof(node_id), 0L); } set { SetField(nameof(node_id), value); } }
         [ModelField]
         public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
+        [ModelField]
+        public bool is_deleted { get { return GetField(nameof(is_deleted), false); } set { SetField(nameof(is_deleted), value); } }
+    }
+
+    public class DocUser : Model
+    {
+        [ModelField]
+        public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
+        [ModelField]
+        public long node_id { get { return GetField(nameof(node_id), 0L); } set { SetField(nameof(node_id), value); } }
+        [ModelField]
+        public string firstname { get { return GetField<string>(nameof(firstname), null); } set { SetField(nameof(firstname), value); } }
+        [ModelField]
+        public string lastname { get { return GetField<string>(nameof(lastname), null); } set { SetField(nameof(lastname), value); } }
         [ModelField]
         public bool is_deleted { get { return GetField(nameof(is_deleted), false); } set { SetField(nameof(is_deleted), value); } }
     }
@@ -508,6 +521,50 @@ namespace Laclasse.Doc
                 }
                 c.Response.StatusCode = 200;
                 c.Response.Content = result.Search(c).ToJson(c);
+            };
+
+            GetAsync["/users"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                var result = new ModelList<DocUser>();
+                ModelList<Node> nodes;
+                using (DB db = await DB.CreateAsync(dbUrl, false))
+                {
+                    nodes = await db.SelectAsync<Node>($"SELECT * FROM `node` WHERE {nameof(Node.parent_id)} IS NULL AND {nameof(Node.cartable_uid)} IS NOT NULL");
+                }
+                var userIds = nodes.Select(s => s.cartable_uid);
+                ModelList<Directory.User> users;
+                using (DB db = await DB.CreateAsync(directoryDbUrl, false))
+                {
+                    users = await db.SelectAsync<Directory.User>($"SELECT * FROM `user` WHERE {DB.InFilter(nameof(Directory.User.id), userIds)}");
+                }
+                var usersDict = new Dictionary<string, Directory.User>();
+                foreach (var user in users)
+                {
+                    usersDict[user.id] = user;
+                }
+                foreach (var node in nodes)
+                {
+                    var docUser = new DocUser
+                    {
+                        user_id = node.cartable_uid,
+                        node_id = node.id,
+                        firstname = node.owner_firstname,
+                        lastname = node.owner_lastname,
+                        is_deleted = true
+                    };
+                    if (usersDict.ContainsKey(node.cartable_uid))
+                    {
+                        var user = usersDict[node.cartable_uid];
+                        docUser.firstname = user.firstname;
+                        docUser.lastname = user.lastname;
+                        docUser.is_deleted = false;
+                    }
+                    result.Add(docUser);
+                }
+                c.Response.StatusCode = 200;
+                c.Response.Content = result.Search(c).ToJson(c);
+
             };
 
             GetAsync["/"] = async (p, c) =>

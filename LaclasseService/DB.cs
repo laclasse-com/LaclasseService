@@ -655,7 +655,7 @@ namespace Laclasse
         public static void ParseSearch<T>(
             HttpContext c,
             out Dictionary<string, List<string>> parsedQuery, out string[] orderBy,
-            out SortDirection[] orderDir, out bool expand, out int offset, out int count) where T : Model, new()
+            out SortDirection[] orderDir, out bool expand, out int offset, out int count) where T : Model
         {
             expand = true;
             offset = 0;
@@ -691,13 +691,22 @@ namespace Laclasse
             if (c.Request.QueryString.ContainsKey("expand"))
                 expand = Convert.ToBoolean(c.Request.QueryString["expand"]);
 
+            var keywords = new string[] { "expand", "sort_dir", "sort_col", "page", "limit", "query" };
             parsedQuery = query.QueryParser();
             foreach (var key in c.Request.QueryString.Keys)
+            {
+                if (keywords.Contains(key))
+                    continue;
                 if (!parsedQuery.ContainsKey(key))
                     parsedQuery[key] = new List<string> { c.Request.QueryString[key] };
+            }
             foreach (var key in c.Request.QueryStringArray.Keys)
+            {
+                if (keywords.Contains(key))
+                    continue;
                 if (!parsedQuery.ContainsKey(key))
                     parsedQuery[key] = c.Request.QueryStringArray[key];
+            }
         }
 
         static string CompareOperatorToSql(CompareOperator op)
@@ -1202,10 +1211,59 @@ namespace Laclasse
             return res;
         }
 
+        public SearchResult<T> Search(HttpContext c)
+        {
+            Dictionary<string, List<string>> parsedQuery;
+            string[] orderBy;
+            SortDirection[] orderDir;
+            bool expand;
+            int offset;
+            int count;
+            Model.ParseSearch<T>(c, out parsedQuery, out orderBy, out orderDir,
+                out expand, out offset, out count);
+            var result = new SearchResult<T>();
+            var data = Filter(parsedQuery);
+            data.Sort(orderBy, orderDir);
+            var dataLength = data.Count();
+            result.Limit = count;
+            result.Offset = offset;
+            result.Total = dataLength;
+            if (count != -1)
+                data = new ModelList<T>(data.GetRange(Math.Min(offset, dataLength), Math.Max(0, Math.Min(dataLength-offset, count))));
+            result.Data = data;
+            return result;
+        }
+
         public async Task ApplyAsync(DB db)
         {
             if (diff != null)
                 await diff.ApplyAsync(db);
+        }
+
+        public void Sort(string[] orderBy, SortDirection[] orderDir)
+        {
+            Func<object, object, int> cmp = (object a, object b) =>
+            {
+                if (a == null)
+                    return 0;
+                if (a is IComparable)
+                    return ((IComparable)a).CompareTo(b);
+                return 0;
+            };
+            Sort((T x, T y) =>
+            {
+                var res = 0;
+                for (var i = 0; i < orderBy.Length && res == 0; i++)
+                {
+                    if (x.IsSet(orderBy[i]) && y.IsSet(orderBy[i]))
+                    {
+                        res = cmp(x.Fields[orderBy[i]], y.Fields[orderBy[i]]);
+                        if (orderDir != null && i < orderDir.Length)
+                            res = orderDir[i] == SortDirection.Ascending ? res : -res;
+                    }
+                }
+                return res;
+            });             
         }
     }
 

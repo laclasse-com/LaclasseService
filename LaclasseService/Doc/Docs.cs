@@ -174,6 +174,19 @@ namespace Laclasse.Doc
         public Blob blob { get { return GetField<Blob>(nameof(blob), null); } set { SetField(nameof(blob), value); } }
     }
 
+
+    public class DocStructure : Model
+    {
+        [ModelField]
+        public string structure_id { get { return GetField<string>(nameof(structure_id), null); } set { SetField(nameof(structure_id), value); } }
+        [ModelField]
+        public long node_id { get { return GetField(nameof(node_id), 0L); } set { SetField(nameof(node_id), value); } }
+        [ModelField]
+        public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
+        [ModelField]
+        public bool is_deleted { get { return GetField(nameof(is_deleted), false); } set { SetField(nameof(is_deleted), value); } }
+    }
+
     /// <summary>
     /// Create a Seekable Stream from a ZIP Entry. This allow support
     /// for bytes ranges.
@@ -455,6 +468,46 @@ namespace Laclasse.Doc
                     c.Response.Content = result;
                 }
                 c.Response.StatusCode = 200;
+            };
+
+            GetAsync["/structures"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                var result = new ModelList<DocStructure>();
+                ModelList<Node> nodes;
+                using (DB db = await DB.CreateAsync(dbUrl, false))
+                {
+                    nodes = await db.SelectAsync<Node>($"SELECT * FROM `node` WHERE {nameof(Node.parent_id)} IS NULL AND {nameof(Node.etablissement_uai)} IS NOT NULL");
+                }
+                var structureIds = nodes.Select(s => s.etablissement_uai);
+                ModelList<Directory.Structure> structures;
+                using (DB db = await DB.CreateAsync(directoryDbUrl, false))
+                {
+                    structures = await db.SelectAsync<Directory.Structure>($"SELECT * FROM `structure` WHERE {DB.InFilter(nameof(Directory.Structure.id), structureIds)}");
+                }
+                var structuresDict = new Dictionary<string, Directory.Structure>();
+                foreach (var structure in structures)
+                {
+                    structuresDict[structure.id] = structure;
+                }
+                foreach (var node in nodes)
+                {
+                    var docStruct = new DocStructure
+                    {
+                        structure_id = node.etablissement_uai,
+                        node_id = node.id,
+                        is_deleted = true
+                    };
+                    if (structuresDict.ContainsKey(node.etablissement_uai))
+                    {
+                        var structure = structuresDict[node.etablissement_uai];
+                        docStruct.name = structure.name;
+                        docStruct.is_deleted = false;
+                    }
+                    result.Add(docStruct);
+                }
+                c.Response.StatusCode = 200;
+                c.Response.Content = result.Search(c).ToJson(c);
             };
 
             GetAsync["/"] = async (p, c) =>

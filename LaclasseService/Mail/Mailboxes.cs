@@ -15,15 +15,15 @@ namespace Laclasse.Mail
         [ModelField]
         public DateTime ctime { get { return GetField<DateTime>(nameof(ctime), DateTime.MinValue); } set { SetField(nameof(ctime), value); } }
         [ModelField]
-        public DateTime atime { get { return GetField<DateTime>(nameof(atime), DateTime.MinValue); } set { SetField(nameof(atime), value); } }
-        [ModelField]
-        public DateTime wtime { get { return GetField<DateTime>(nameof(wtime), DateTime.MinValue); } set { SetField(nameof(wtime), value); } }
+        public DateTime mtime { get { return GetField<DateTime>(nameof(mtime), DateTime.MinValue); } set { SetField(nameof(mtime), value); } }
         [ModelField]
         public string firstname { get { return GetField<string>(nameof(firstname), null); } set { SetField(nameof(firstname), value); } }
         [ModelField]
         public string lastname { get { return GetField<string>(nameof(lastname), null); } set { SetField(nameof(lastname), value); } }
         [ModelField]
         public bool is_deleted { get { return GetField(nameof(is_deleted), false); } set { SetField(nameof(is_deleted), value); } }
+        [ModelField]
+        public long? size { get { return GetField<long?>(nameof(size), null); } set { SetField(nameof(size), value); } }
     }
 
     public class Mailboxes : HttpRouting
@@ -33,6 +33,9 @@ namespace Laclasse.Mail
             GetAsync["/"] = async (p, c) =>
             {
                 await c.EnsureIsSuperAdminAsync();
+                var expand = false;
+                if (c.Request.QueryString.ContainsKey("expand") && bool.Parse(c.Request.QueryString["expand"]))
+                    expand = true;
 
                 var mailboxes = new ModelList<Mailbox>();
                 // browse mail folder to find users mailboxes
@@ -48,10 +51,11 @@ namespace Laclasse.Mail
                         {
                             id = filename.ToUpper(),
                             ctime = info.CreationTime,
-                            atime = info.LastAccessTime,
-                            wtime = info.LastWriteTime,
+                            mtime = info.LastWriteTime,
                             is_deleted = true
                         };
+                        if (expand)
+                            mailbox.size = GetDirectorySize(info);
                         mailboxes.Add(mailbox);
                     }
                 }
@@ -109,6 +113,14 @@ namespace Laclasse.Mail
                 }
                 c.Response.StatusCode = 200;
             };
+        }
+
+        public static long GetDirectorySize(DirectoryInfo dir)
+        {
+            long size = 0;
+            dir.EnumerateFiles().ForEach(f => size += f.Length);
+            dir.EnumerateDirectories().ForEach(d => size += GetDirectorySize(d));
+            return size;
         }
     }
 }

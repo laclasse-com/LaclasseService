@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using Erasme.Http;
 using Erasme.Json;
@@ -61,15 +62,33 @@ namespace Laclasse.Mail
                 }
 
                 var userIds = mailboxes.Select(mailbox => mailbox.id);
-                ModelList<Directory.User> users;
+                var usersDict = new Dictionary<string, Directory.User>();
                 using (DB db = await DB.CreateAsync(dbUrl, false))
                 {
-                    users = await db.SelectAsync<Directory.User>($"SELECT * FROM `user` WHERE {DB.InFilter(nameof(Directory.User.id), userIds)}");
-                }
-                var usersDict = new Dictionary<string, Directory.User>();
-                foreach (var user in users)
-                {
-                    usersDict[user.id] = user;
+                    var tmpIds = new List<string>();
+                    var idsCount = 0;
+
+                    Func<Task> loadUsers = async delegate
+                    {
+                        var sql = $"SELECT * FROM `user` WHERE {DB.InFilter(nameof(Directory.User.id), tmpIds)} ORDER BY `{nameof(Directory.User.id)}`";
+                        foreach (var user in await db.SelectAsync<Directory.User>(sql))
+                            usersDict[user.id] = user;
+                    };
+
+                    // batch request by a group of 200 because it is too slowest for bigger id group
+                    foreach (var id in userIds)
+                    {
+                        tmpIds.Add(id);
+                        idsCount++;
+                        if (idsCount > 200)
+                        {
+                            await loadUsers();
+                            tmpIds.Clear();
+                            idsCount = 0;
+                        }
+                    }
+                    if (idsCount > 0)
+                        await loadUsers();
                 }
                 foreach (var mailbox in mailboxes)
                 {

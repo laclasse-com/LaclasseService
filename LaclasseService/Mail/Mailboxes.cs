@@ -124,7 +124,7 @@ namespace Laclasse.Mail
                             {
                                 System.IO.Directory.Delete(mailPath, true);
                                 // remove the parent folder if empty
-                                if (System.IO.Directory.EnumerateFileSystemEntries(parentPath).Any())
+                                if (!System.IO.Directory.EnumerateFileSystemEntries(parentPath).Any())
                                     System.IO.Directory.Delete(parentPath, false);
                             }
                         }

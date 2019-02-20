@@ -410,6 +410,32 @@ namespace Laclasse.Doc
                 await Migration3To4Async(c);
             };
 
+            PostAsync["/generateblob"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                var json = await c.Request.ReadAsJsonAsync();
+
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    foreach (var id in json as JsonArray)
+                    {
+                        var item = await context.GetByIdAsync(id);
+                        if (item != null)
+                        {
+                            // try our best
+                            try
+                            {
+                                await item.GenerateBlobAsync();
+                            }
+                            catch (WebException) { }
+                        }
+                    }
+                    await db.CommitAsync();
+                }
+                c.Response.StatusCode = 200;
+            };
+
             GetAsync["/generatemissingtmb"] = async (p, c) =>
             {
                 await c.EnsureIsSuperAdminAsync();

@@ -175,6 +175,42 @@ namespace Laclasse.Doc
             return Task.FromResult(stream);
         }
 
+        /// <summary>
+        /// Generates the BLOB async. TEMPORARY. ONLY NEED FOR MIGRATION PURPOSE
+        /// </summary>
+        /// <returns>The BLOB async.</returns>
+        public async virtual Task GenerateBlobAsync()
+        {
+            // migrate node without content
+            if (this is Folder || node.size == 0)
+            {
+                await (new Node { id = node.id, content = null }).UpdateAsync(context.db);
+            }
+            else
+            {
+                var stream = await GetContentAsync();
+                if (stream == null)
+                    return;
+                var fileDefinition = new FileDefinition<Node>
+                {
+                    Stream = stream,
+                    Mimetype = node.mime,
+                    Name = node.name,
+                    Size = node.size
+                };
+                Blob blob = null; string tempFile = null;
+                (blob, tempFile) = await context.blobs.PrepareBlobAsync(fileDefinition);
+                if (blob != null)
+                {
+                    blob = await context.blobs.CreateBlobFromTempFileAsync(context.db, blob, tempFile);
+                    node.blob_id = blob.id;
+                    node.content = null;
+                }
+                await node.UpdateAsync(context.db);
+                await node.LoadAsync(context.db, true);
+            }
+        }
+
         public async virtual Task ChangeAsync(FileDefinition<Node> fileDefinition)
         {
             if (context.user.IsUser)

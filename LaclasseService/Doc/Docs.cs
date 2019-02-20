@@ -200,6 +200,18 @@ namespace Laclasse.Doc
         public bool is_deleted { get { return GetField(nameof(is_deleted), false); } set { SetField(nameof(is_deleted), value); } }
     }
 
+    public class DocGroup : Model
+    {
+        [ModelField]
+        public int group_id { get { return GetField(nameof(group_id), 0); } set { SetField(nameof(group_id), value); } }
+        [ModelField]
+        public long node_id { get { return GetField(nameof(node_id), 0L); } set { SetField(nameof(node_id), value); } }
+        [ModelField]
+        public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
+        [ModelField]
+        public bool is_deleted { get { return GetField(nameof(is_deleted), false); } set { SetField(nameof(is_deleted), value); } }
+    }
+
     /// <summary>
     /// Create a Seekable Stream from a ZIP Entry. This allow support
     /// for bytes ranges.
@@ -608,6 +620,47 @@ namespace Laclasse.Doc
                 c.Response.StatusCode = 200;
                 c.Response.Content = result.Search(c).ToJson(c);
 
+            };
+
+            GetAsync["/groups"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                var result = new ModelList<DocGroup>();
+                ModelList<Node> nodes;
+                using (DB db = await DB.CreateAsync(dbUrl, false))
+                {
+                    nodes = await db.SelectAsync<Node>($"SELECT * FROM `node` WHERE {nameof(Node.parent_id)} IS NULL AND {nameof(Node.groupe_libre_id)} IS NOT NULL");
+                }
+                var groupIds = nodes.Select(s => s.groupe_libre_id);
+                ModelList<Directory.Group> groups;
+                using (DB db = await DB.CreateAsync(directoryDbUrl, false))
+                {
+                    groups = await db.SelectAsync<Directory.Group>($"SELECT * FROM `group` WHERE {DB.InFilter(nameof(Directory.Group.id), groupIds)}");
+                }
+                var groupsDict = new Dictionary<long, Directory.Group>();
+                foreach (var group in groups)
+                {
+                    groupsDict[group.id] = group;
+                }
+                foreach (var node in nodes)
+                {
+                    var docGroup = new DocGroup
+                    {
+                        group_id = (int)node.groupe_libre_id,
+                        node_id = node.id,
+                        name = node.name,
+                        is_deleted = true
+                    };
+                    if (groupsDict.ContainsKey((int)node.groupe_libre_id))
+                    {
+                        var group = groupsDict[(int)node.groupe_libre_id];
+                        docGroup.name = group.name;
+                        docGroup.is_deleted = false;
+                    }
+                    result.Add(docGroup);
+                }
+                c.Response.StatusCode = 200;
+                c.Response.Content = result.Search(c).ToJson(c);
             };
 
             GetAsync["/"] = async (p, c) =>

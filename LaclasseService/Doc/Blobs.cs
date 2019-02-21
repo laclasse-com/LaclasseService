@@ -156,7 +156,7 @@ namespace Laclasse.Doc
 
         public async Task<Blob> SearchSameBlobAsync(DB db, Blob blob)
         {
-            var blobs = await db.SelectAsync<Blob>("SELECT * FROM `blob` WHERE `size` = ? AND `sha1` = ? AND `md5` = ?", blob.size, blob.sha1, blob.md5);
+            var blobs = await db.SelectAsync<Blob>("SELECT * FROM `blob` WHERE `parent_id` IS NULL AND `size` = ? AND `sha1` = ? AND `md5` = ?", blob.size, blob.sha1, blob.md5);
             Blob res = null;
             if (blobs.Count > 0)
             {
@@ -181,7 +181,40 @@ namespace Laclasse.Doc
         public async Task<Blob> CreateBlobFromTempFileAsync(DB db, Blob blob, string tempFile)
         {
             if (tempFile != null)
+            {
+                // if needed get the file size
+                if (blob.size == 0)
+                {
+                    var fileInfo = new FileInfo(tempFile);
+                    blob.size = fileInfo.Length;
+                }
+                // if needed calc the signatures
+                if (blob.sha1 == null || blob.md5 == null)
+                {
+                    var size = 0;
+                    var count = 0;
+                    var buffer = new byte[4096];
+                    using (Stream fileStream = File.OpenRead(tempFile))
+                    using (SHA1 sha1 = SHA1.Create())
+                    using (MD5 md5 = MD5.Create())
+                    {
+                        while ((count = await fileStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            size += count;
+                            md5.TransformBlock(buffer, 0, count, buffer, 0);
+                            sha1.TransformBlock(buffer, 0, count, buffer, 0);
+                        }
+                        if (size > 0)
+                        {
+                            md5.TransformFinalBlock(buffer, 0, 0);
+                            sha1.TransformFinalBlock(buffer, 0, 0);
+                            blob.md5 = BitConverter.ToString(md5.Hash).Replace("-", "").ToLowerInvariant();
+                            blob.sha1 = BitConverter.ToString(sha1.Hash).Replace("-", "").ToLowerInvariant();
+                        }
+                    }
+                }
                 storage.Add(blob.id, tempFile);
+            }
             ModelList<Blob> removeChildren = null;
 
             if (blob.parent_id != null && blob.name != null)

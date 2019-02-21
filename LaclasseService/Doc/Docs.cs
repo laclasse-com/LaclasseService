@@ -504,7 +504,7 @@ namespace Laclasse.Doc
                     json["blobs"] = new JsonObject
                     {
                         ["count"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT COUNT(*) FROM `blob`")),
-                        ["size"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT COUNT(size) FROM `blob`")),
+                        ["size"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT SUM(size) FROM `blob`")),
                         ["dataCount"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT COUNT(*) FROM `blob` WHERE `parent_id` IS NULL")),
                         ["dataSize"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT SUM(size) FROM `blob` WHERE `parent_id` IS NULL")),
                         ["metaCount"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT COUNT(*) FROM `blob` WHERE `parent_id` IS NOT NULL")),

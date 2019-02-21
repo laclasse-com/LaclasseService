@@ -456,21 +456,65 @@ namespace Laclasse.Doc
 
             PostAsync["/generatetmb"] = async (p, c) =>
             {
-                await c.EnsureIsSuperAdminAsync();
-                var json = await c.Request.ReadAsJsonAsync();
+            await c.EnsureIsSuperAdminAsync();
+            var json = await c.Request.ReadAsJsonAsync();
 
-                using (DB db = await DB.CreateAsync(dbUrl, true))
+            using (DB db = await DB.CreateAsync(dbUrl, true))
+            {
+                var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                foreach (var id in json as JsonArray)
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                    foreach (var id in json as JsonArray)
+                    var item = await context.GetByIdAsync(id);
+                    if (item != null && item.node.size > 0)
                     {
-                        var item = await context.GetByIdAsync(id);
-                        if (item != null)
-                            await item.GenerateThumbnailAsync();
+                            try
+                            {
+                                await item.GenerateThumbnailAsync();
+                            }
+                            catch (WebException) { }
+                        }
                     }
                     await db.CommitAsync();
                 }
                 c.Response.StatusCode = 200;
+            };
+
+            GetAsync["/stats"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                var json = new JsonObject();
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var res = await db.SelectAsync("SELECT * FROM(SELECT CONCAT(size,':',sha1,':',md5) AS str, COUNT(id) AS count, SUM(size) AS size FROM `blob` WHERE `parent_id` IS NULL GROUP BY CONCAT(size, ':', sha1, ':', md5)) AS t WHERE t.count > 1 ORDER BY count DESC");
+                    long duplicateBlobs = 0;
+                    long lostSize = 0;
+                    foreach (var row in res)
+                    {
+                        duplicateBlobs++;
+                        var count = Convert.ToInt64(row["count"]);
+                        var size = Convert.ToInt64(row["count"]);
+                        lostSize += size * (count - 1);
+                    }
+
+                    json["files"] = new JsonObject
+                    {
+                        ["count"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT COUNT(*) FROM `node` WHERE `mime` LIKE '%/%'")),
+                        ["size"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT SUM(size) FROM `node` WHERE `mime` LIKE '%/%'")),
+                    };
+                    json["blobs"] = new JsonObject
+                    {
+                        ["count"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT COUNT(*) FROM `blob`")),
+                        ["size"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT COUNT(size) FROM `blob`")),
+                        ["dataCount"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT COUNT(*) FROM `blob` WHERE `parent_id` IS NULL")),
+                        ["dataSize"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT SUM(size) FROM `blob` WHERE `parent_id` IS NULL")),
+                        ["metaCount"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT COUNT(*) FROM `blob` WHERE `parent_id` IS NOT NULL")),
+                        ["metaSize"] = Convert.ToInt64(await db.ExecuteScalarAsync("SELECT SUM(size) FROM `blob` WHERE `parent_id` IS NOT NULL")),
+                        ["duplicateCount"] = duplicateBlobs,
+                        ["duplicateLostSize"] = lostSize,
+                    };
+                }
+                c.Response.StatusCode = 200;
+                c.Response.Content = json;
             };
 
             Get["/tempFile/{id}"] = (p, c) =>
@@ -869,7 +913,6 @@ namespace Laclasse.Doc
                 var json = await c.Request.ReadAsJsonAsync();
                 if (json.ContainsKey("status") && json.ContainsKey("url") && json["status"] == 2)
                 {
-                    Console.WriteLine("SAVE NEEDED");
                     Node node = null;
                     using (var db = await DB.CreateAsync(dbUrl, true))
                     {
@@ -916,48 +959,26 @@ namespace Laclasse.Doc
                         }
 
                         // update the file
-                        var fileDefinition = new FileDefinition
+                        var fileDefinition = new FileDefinition<Node>
                         {
                             Name = "content",
                             Mimetype = response.Headers["content-type"],
                             Stream = response.InputStream
                         };
-
-                        Blob blob; string tempFile;
-                        (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition);
-
-                        string thumbnailTempFile = null;
-                        Blob thumbnailBlob = null;
-
-                        if (tempFile != null)
-                            BuildThumbnail(tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
-
-                        using (var db = await DB.CreateAsync(dbUrl, true))
+                        
+                        using (DB db = await DB.CreateAsync(dbUrl, true))
                         {
-                            node = new Node { id = id };
-                            if (await node.LoadAsync(db))
-                            {
-                                var oldBlobId = node.blob_id;
-                                blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
-                                node.blob_id = blob.id;
-                                node.has_tmb = thumbnailTempFile != null;
-                                node.rev++;
-                                await node.UpdateAsync(db);
-
-                                if (thumbnailTempFile != null)
-                                {
-                                    thumbnailBlob.parent_id = blob.id;
-                                    thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
-                                    node.has_tmb = true;
-                                }
-
-                                // delete old blob if any
-                                if (oldBlobId != null)
-                                    await blobs.DeleteBlobAsync(db, oldBlobId);
-                            }
+                            var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                            var item = await context.GetByIdAsync(id);
+                            if (item != null)
+                                await item.ChangeAsync(fileDefinition);
                             await db.CommitAsync();
+                            if (item != null)
+                            {
+                                c.Response.StatusCode = 200;
+                                c.Response.Content = await item.ToJsonAsync(true);
+                            }
                         }
-
                     }
                     finally
                     {

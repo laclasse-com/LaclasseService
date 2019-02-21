@@ -202,8 +202,25 @@ namespace Laclasse.Doc
                 (blob, tempFile) = await context.blobs.PrepareBlobAsync(fileDefinition);
                 if (blob != null)
                 {
-                    blob = await context.blobs.CreateBlobFromTempFileAsync(context.db, blob, tempFile);
-                    node.blob_id = blob.id;
+                    // merge blob if possible
+                    var sameBlob = await context.blobs.SearchSameBlobAsync(context.db, blob);
+                    if (sameBlob != null)
+                    {
+                        blob = sameBlob;
+                        node.blob_id = sameBlob.id;
+                        if (sameBlob.children.Any(b => b.name == "thumbnail"))
+                            node.has_tmb = true;
+                        // delete the temporary file if commit is done
+                        context.db.AddCommitAction(() =>
+                        {
+                            File.Delete(tempFile);
+                        });
+                    }
+                    else
+                    {
+                        blob = await context.blobs.CreateBlobFromTempFileAsync(context.db, blob, tempFile);
+                        node.blob_id = blob.id;
+                    }
                     node.content = null;
                 }
                 await node.UpdateAsync(context.db);
@@ -233,8 +250,27 @@ namespace Laclasse.Doc
             if (blob != null)
             {
                 oldBlobId = node.blob_id;
-                blob = await context.blobs.CreateBlobFromTempFileAsync(context.db, blob, tempFile);
-                node.blob_id = blob.id;
+                // merge blob if possible
+                var sameBlob = await context.blobs.SearchSameBlobAsync(context.db, blob);
+                if (sameBlob != null)
+                {
+                    blob = sameBlob;
+                    node.blob_id = sameBlob.id;
+                    // delete the temporary file if commit is done
+                    context.db.AddCommitAction(() =>
+                    {
+                        File.Delete(tempFile);
+                    });
+                }
+                else
+                {
+                    blob = await context.blobs.CreateBlobFromTempFileAsync(context.db, blob, tempFile);
+                    node.blob_id = blob.id;
+                }
+                if (oldBlobId == node.blob_id)
+                    oldBlobId = null;
+
+                node.size = blob.size;
                 node.rev++;
                 if (context.user.IsUser)
                 {

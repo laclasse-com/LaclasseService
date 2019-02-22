@@ -55,6 +55,7 @@ namespace Laclasse.Doc
         rtf,  // application/rtf
         txt,  // text/plain
         xps,  // application/vnd.ms-xpsdocument
+        dotx, // application/vnd.openxmlformats-officedocument.wordprocessingml.template
 
         // spreadsheet
         xlsx, // application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
@@ -379,6 +380,7 @@ namespace Laclasse.Doc
         {
             // text
             ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] = OnlyOfficeFileType.docx,
+            ["application/vnd.openxmlformats-officedocument.wordprocessingml.template"] = OnlyOfficeFileType.dotx,
             ["application/msword"] = OnlyOfficeFileType.doc,
             ["application/epub+zip"] = OnlyOfficeFileType.epub,
             ["application/vnd.oasis.opendocument.text"] = OnlyOfficeFileType.odt,
@@ -713,34 +715,57 @@ namespace Laclasse.Doc
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
                     var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                    IEnumerable<Item> roots;
-                    if (c.Request.QueryStringArray.ContainsKey("roots"))
+                    var filter = c.ToFilter();
+                    var expand = c.Request.QueryString.ContainsKey("expand") && bool.Parse(c.Request.QueryString["expand"]);
+                    filter.Remove("expand");
+                    var limit = 100;
+                    if (c.Request.QueryString.ContainsKey("limit"))
+                        limit = Math.Min(500, int.Parse(c.Request.QueryString["limit"]));
+                    filter.Remove("limit");
+                    var json = new JsonArray();
+
+                    if (c.Request.QueryStringArray.ContainsKey("id"))
                     {
-                        roots = new List<Item>();
-                        foreach (var rootId in c.Request.QueryStringArray["roots"])
+                        filter.Remove("id");
+                        var nodes = await db.SelectExpandAsync<Node>($"SELECT * FROM `node` WHERE {DB.InFilter("id", c.Request.QueryStringArray["id"])}", new object[0]);
+                        foreach (var node in nodes)
                         {
-                            var root = await context.GetByIdAsync(long.Parse(rootId));
-                            if (root != null)
+                            if (node.IsFilterMatch(filter))
                             {
-                                var rights = await root.RightsAsync();
-                                Console.WriteLine($"Add root: {rootId} => {root}, read? {rights.Read}");
-                                if (rights.Read)
-                                    (roots as List<Item>).Add(root);
+                                var item = context.GetByNode(node);
+                                var right = await item.RightsAsync();
+                                if (right.Read)
+                                    json.Add(await item.ToJsonAsync(expand));
                             }
                         }
                     }
                     else
-                        roots = await GetRootsAsync(context);
-                    var result = new List<Item>();
-                    var filter = c.ToFilter();
-                    filter.Remove("roots");
-                    filter.Remove("expand");
-                    Console.WriteLine("Filter:");
-                    Console.WriteLine(filter.Dump());
-                    await SearchItemsAsync(context, roots, filter, result);
-                    var json = new JsonArray();
-                    foreach (var item in result)
-                        json.Add(await item.ToJsonAsync(false));
+                    {
+                        IEnumerable<Item> roots;
+                        if (c.Request.QueryStringArray.ContainsKey("roots"))
+                        {
+                            roots = new List<Item>();
+                            foreach (var rootId in c.Request.QueryStringArray["roots"])
+                            {
+                                var root = await context.GetByIdAsync(long.Parse(rootId));
+                                if (root != null)
+                                {
+                                    var rights = await root.RightsAsync();
+                                    Console.WriteLine($"Add root: {rootId} => {root}, read? {rights.Read}");
+                                    if (rights.Read)
+                                        (roots as List<Item>).Add(root);
+                                }
+                            }
+                        }
+                        else
+                            roots = await GetRootsAsync(context);
+                        var result = new List<Item>();
+
+                        filter.Remove("roots");
+                        await SearchItemsAsync(context, roots, filter, result, limit);
+                        foreach (var item in result)
+                            json.Add(await item.ToJsonAsync(expand));
+                    }
                     c.Response.StatusCode = 200;
                     c.Response.Content = json;
                 }
@@ -1289,27 +1314,43 @@ namespace Laclasse.Doc
         }
 
 
-        async Task SearchItemsAsync(Context context, IEnumerable<Item> roots, Dictionary<string, List<string>> filter, List<Item> result)
+        async Task SearchItemsAsync(Context context, IEnumerable<Item> roots, Dictionary<string, List<string>> filter, List<Item> result, int limit)
         {
+            var found = 0;
             foreach (var item in roots)
             {
                 var rights = await item.RightsAsync();
                 if (rights.Read)
-                    await RecursiveSearchItemsAsync(context, item, filter, result);
+                {
+                    var count = await RecursiveSearchItemsAsync(context, item, filter, result, limit - found);
+                    found += count;
+                    if (found >= limit)
+                        break;
+                }
             }
         }
 
-        async Task RecursiveSearchItemsAsync(Context context, Item item, Dictionary<string, List<string>> filter, List<Item> result)
+        async Task<int> RecursiveSearchItemsAsync(Context context, Item item, Dictionary<string, List<string>> filter, List<Item> result, int limit)
         {
+            int found = 0;
             if (item is Folder)
             {
                 var folder = item as Folder;
                 var children = await folder.GetFilteredChildrenAsync();
                 foreach (var child in children)
-                    await RecursiveSearchItemsAsync(context, child, filter, result);
+                {
+                    var count = await RecursiveSearchItemsAsync(context, child, filter, result, limit - found);
+                    found += count;
+                    if (found >= limit)
+                        break;
+                }
             }
             if (item.node.IsFilterMatch(filter))
+            {
+                found++;
                 result.Add(item);
+            }
+            return found;
         }
 
         public override async Task ProcessRequestAsync(HttpContext context)

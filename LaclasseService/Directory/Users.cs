@@ -321,7 +321,7 @@ namespace Laclasse.Directory
             }
 
             // only super admin can create super admins
-            if (right == Right.Create && IsSet(nameof(super_admin)))
+            if (right == Right.Create && IsSet(nameof(super_admin)) && super_admin)
                 throw new WebException(403, "Insufficient rights");
                 
             var onlyAddProfiles = false;

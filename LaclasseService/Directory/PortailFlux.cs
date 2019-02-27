@@ -116,121 +116,109 @@ namespace Laclasse.Directory
                         DtdProcessing = DtdProcessing.Ignore
                     };
                     var uri = new Uri(key);
-                    using (var client = await HttpClient.CreateAsync(uri, 5000, 10000))
+                    var doc = await LoadXmlAsync(uri);
+                    XElement root = doc.Root;
+                    XNamespace ns = doc.Root.Name.Namespace;
+                    var contentns = "http://purl.org/rss/1.0/modules/content/";
+                    var dcns = "http://purl.org/dc/elements/1.1/";
+
+                    // RSS 2.0
+                    if (root.Name.LocalName == "rss")
                     {
-                        var clientRequest = new HttpClientRequest
+                        foreach (XElement item in root.Element("channel").Elements("item"))
                         {
-                            Method = "GET",
-                            Path = uri.PathAndQuery
-                        };
-                        await client.SendRequestAsync(clientRequest);
-
-                        var response = await client.GetResponseAsync();
-
-                        var doc = XDocument.Load(response.InputStream);
-                        XElement root = doc.Root;
-                        XNamespace ns = doc.Root.Name.Namespace;
-                        var contentns = "http://purl.org/rss/1.0/modules/content/";
-                        var dcns = "http://purl.org/dc/elements/1.1/";
-
-                        // RSS 2.0
-                        if (root.Name.LocalName == "rss")
-                        {
-                            foreach (XElement item in root.Element("channel").Elements("item"))
+                            var rss = new Rss();
+                            var title = item.Element("title");
+                            if (title != null)
+                                rss.title = title.Value;
+                            var content = item.Element("description");
+                            if (content != null)
+                                rss.content = content.Value;
+                            var link = item.Element("link");
+                            if (link != null)
+                                rss.link = link.Value;
+                            var date = item.Element("pubDate");
+                            if (date == null)
+                                date = item.Element(XName.Get("date", dcns));
+                            if (date != null)
+                                rss.pubDate = DateTime.Parse(date.Value);
+                            var encoded = item.Element(XName.Get("encoded", contentns));
+                            if (encoded != null)
                             {
-                                var rss = new Rss();
-                                var title = item.Element("title");
-                                if (title != null)
-                                    rss.title = title.Value;
-                                var content = item.Element("description");
-                                if (content != null)
-                                    rss.content = content.Value;
-                                var link = item.Element("link");
-                                if (link != null)
-                                    rss.link = link.Value;
-                                var date = item.Element("pubDate");
-                                if (date == null)
-                                    date = item.Element(XName.Get("date", dcns));
-                                if (date != null)
-                                    rss.pubDate = DateTime.Parse(date.Value);
-                                var encoded = item.Element(XName.Get("encoded", contentns));
-                                if (encoded != null)
+                                var imageUrl = GetImageFromHtml(encoded.Value);
+                                if (imageUrl != null)
+                                    rss.image = imageUrl;
+                            }
+                            items.Add(rss);
+                        }
+                    }
+                    // ATOM
+                    else if (root.Name.LocalName == "feed")
+                    {
+                        var atomns = "http://www.w3.org/2005/Atom";
+                        foreach (XElement item in root.Elements(XName.Get("entry", atomns)))
+                        {
+                            var rss = new Rss();
+                            var title = item.Element(XName.Get("title", atomns));
+                            if (title != null)
+                                rss.title = title.Value;
+                            var summary = item.Element(XName.Get("summary", atomns));
+                            if (summary != null)
+                                rss.content = summary.Value;
+                            var content = item.Element(XName.Get("content", atomns));
+                            if (content != null)
+                            {
+                                var type = "text";
+                                if (content.Attribute("type") != null)
+                                    type = content.Attribute("type").Value;
+                                var textContent = content.Value;
+                                if (type == "html")
                                 {
-                                    var imageUrl = GetImageFromHtml(encoded.Value);
+                                    textContent = GetTextFromHtml(content.Value);
+                                    var imageUrl = GetImageFromHtml(content.Value);
                                     if (imageUrl != null)
                                         rss.image = imageUrl;
                                 }
-                                items.Add(rss);
+                                if (rss.content == null)
+                                    rss.content = textContent;
                             }
+                            var link = item.Element(XName.Get("link", atomns));
+                            if (link != null)
+                                rss.link = link.Attribute("href").Value;
+                            var updated = item.Element(XName.Get("updated", atomns));
+                            if (updated != null)
+                                rss.pubDate = DateTime.Parse(updated.Value);
+                            items.Add(rss);
                         }
-                        // ATOM
-                        else if (root.Name.LocalName == "feed")
-                        {
-                            var atomns = "http://www.w3.org/2005/Atom";
-                            foreach (XElement item in root.Elements(XName.Get("entry", atomns)))
-                            {
-                                var rss = new Rss();
-                                var title = item.Element(XName.Get("title", atomns));
-                                if (title != null)
-                                    rss.title = title.Value;
-                                var summary = item.Element(XName.Get("summary", atomns));
-                                if (summary != null)
-                                    rss.content = summary.Value;
-                                var content = item.Element(XName.Get("content", atomns));
-                                if (content != null)
-                                {
-                                    var type = "text";
-                                    if (content.Attribute("type") != null)
-                                        type = content.Attribute("type").Value;
-                                    var textContent = content.Value;
-                                    if (type == "html")
-                                    {
-                                        textContent = GetTextFromHtml(content.Value);
-                                        var imageUrl = GetImageFromHtml(content.Value);
-                                        if (imageUrl != null)
-                                            rss.image = imageUrl;
-                                    }
-                                    if (rss.content == null)
-                                        rss.content = textContent;
-                                }
-                                var link = item.Element(XName.Get("link", atomns));
-                                if (link != null)
-                                    rss.link = link.Attribute("href").Value;
-                                var updated = item.Element(XName.Get("updated", atomns));
-                                if (updated != null)
-                                    rss.pubDate = DateTime.Parse(updated.Value);
-                                items.Add(rss);
-                            }
-                        }
-                        // RSS 1.0
-                        else if (root.Name.LocalName == "RDF")
-                        {
-                            var rss10ns = "http://purl.org/rss/1.0/";
+                    }
+                    // RSS 1.0
+                    else if (root.Name.LocalName == "RDF")
+                    {
+                        var rss10ns = "http://purl.org/rss/1.0/";
 
-                            foreach (XElement item in root.Elements(XName.Get("item", rss10ns)))
+                        foreach (XElement item in root.Elements(XName.Get("item", rss10ns)))
+                        {
+                            var rss = new Rss();
+                            var title = item.Element(XName.Get("title", rss10ns));
+                            if (title != null)
+                                rss.title = title.Value;
+                            var content = item.Element(XName.Get("description", rss10ns));
+                            if (content != null)
+                                rss.content = content.Value;
+                            var link = item.Element(XName.Get("link", rss10ns));
+                            if (link != null)
+                                rss.link = link.Value;
+                            var date = item.Element(XName.Get("date", dcns));
+                            if (date != null)
+                                rss.pubDate = DateTime.Parse(date.Value);
+                            var encoded = item.Element(XName.Get("encoded", contentns));
+                            if (encoded != null)
                             {
-                                var rss = new Rss();
-                                var title = item.Element(XName.Get("title", rss10ns));
-                                if (title != null)
-                                    rss.title = title.Value;
-                                var content = item.Element(XName.Get("description", rss10ns));
-                                if (content != null)
-                                    rss.content = content.Value;
-                                var link = item.Element(XName.Get("link", rss10ns));
-                                if (link != null)
-                                    rss.link = link.Value;
-                                var date = item.Element(XName.Get("date", dcns));
-                                if (date != null)
-                                    rss.pubDate = DateTime.Parse(date.Value);
-                                var encoded = item.Element(XName.Get("encoded", contentns));
-                                if (encoded != null)
-                                {
-                                    var imageUrl = GetImageFromHtml(encoded.Value);
-                                    if (imageUrl != null)
-                                        rss.image = imageUrl;
-                                }
-                                items.Add(rss);
+                                var imageUrl = GetImageFromHtml(encoded.Value);
+                                if (imageUrl != null)
+                                    rss.image = imageUrl;
                             }
+                            items.Add(rss);
                         }
                     }
                 }
@@ -264,6 +252,30 @@ namespace Laclasse.Directory
                     }
                 }
             };
+        }
+
+        static async Task<XDocument> LoadXmlAsync(Uri url, int maxRedirect = 5)
+        {
+            using (var client = await HttpClient.CreateAsync(url, 5000, 10000))
+            {
+                var clientRequest = new HttpClientRequest
+                {
+                    Method = "GET",
+                    Path = url.PathAndQuery
+                };
+                await client.SendRequestAsync(clientRequest);
+                var response = await client.GetResponseAsync();
+                if ((response.StatusCode == 301 || response.StatusCode == 302) && response.Headers.ContainsKey("location"))
+                {
+                    if (maxRedirect <= 0)
+                        return null;
+                    var redirectUrl = new Uri(url, response.Headers["location"]);
+                    return await LoadXmlAsync(redirectUrl, maxRedirect - 1);
+                }
+                if (response.StatusCode == 200)
+                    return XDocument.Load(response.InputStream);
+            }
+            return null;
         }
 
         static string GetTextFromHtml(string html)

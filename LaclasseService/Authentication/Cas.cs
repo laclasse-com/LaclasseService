@@ -747,6 +747,25 @@ namespace Laclasse.Authentication
                     Console.WriteLine(userInfo.Dump());
 
                     var user = await users.GetUserByOidcIdAsync(userInfo["sub"]);
+                    // if user was not found, try a search by first_name, last_name and email
+                    if (user == null &&
+                        userInfo.ContainsKey("first_name") && userInfo["first_name"] != null &&
+                        userInfo.ContainsKey("last_name") && userInfo["last_name"] != null &&
+                        userInfo.ContainsKey("email") && userInfo["email"] != null)
+                    {
+                        // search by 'firstname', 'lastname' and email 'address'
+                        var queryFields = new Dictionary<string, List<string>>();
+                        queryFields["lastname"] = new List<string>(new string[] { userInfo["last_name"] });
+                        queryFields["firstname"] = new List<string>(new string[] { userInfo["first_name"] });
+                        queryFields["emails.address"] = new List<string>(new string[] { userInfo["email"] });
+                        var usersResult = (await users.SearchUserAsync(queryFields)).Data;
+                        if (usersResult.Count == 1)
+                        {
+                            user = usersResult[0];
+                            using (var db = await DB.CreateAsync(dbUrl))
+                                await (new User { id = user.id, oidc_sso_id = userInfo["sub"] }).UpdateAsync(db);
+                        }
+                    }
                     if (user == null)
                     {
                         preTicket.cutId = userInfo["sub"];

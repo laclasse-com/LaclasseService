@@ -744,6 +744,7 @@ namespace Laclasse.Authentication
 
                     // sub field is the user unique id
                     Console.WriteLine("User SUB: " + userInfo["sub"]);
+                    Console.WriteLine(userInfo.Dump());
 
                     var user = await users.GetUserByOidcIdAsync(userInfo["sub"]);
                     if (user == null)

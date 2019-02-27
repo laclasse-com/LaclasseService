@@ -72,6 +72,7 @@ namespace Laclasse.Authentication
 
     public class Cas : HttpRouting
     {
+        readonly Logger logger;
         readonly string dbUrl;
         readonly Tickets tickets;
         readonly RescueTickets rescueTickets;
@@ -84,7 +85,7 @@ namespace Laclasse.Authentication
         readonly GrandLyonApiSetup grandLyonApiSetup;
         readonly X509Certificate2 saml2ServerCert;
 
-        public Cas(string dbUrl, Sessions sessions, Users users,
+        public Cas(Logger logger, string dbUrl, Sessions sessions, Users users,
             AuthenticationSetup authenticationSetup,
             MailSetup mailSetup, SmsSetup smsSetup)
         {
@@ -93,6 +94,7 @@ namespace Laclasse.Authentication
             CUTSsoSetup cutSsoSetup = authenticationSetup.cutSso;
             int rescueTicketTimeout = authenticationSetup.cas.rescueTicketTimeout;
 
+            this.logger = logger;
             this.dbUrl = dbUrl;
             this.sessions = sessions;
             this.users = users;
@@ -302,18 +304,18 @@ namespace Laclasse.Authentication
                 // if no artifact or multiples artifacts found or not SAML 1.0 protocol, stop here
                 if (nodes.Count != 1)
                 {
-                    Console.WriteLine("samlValidate AssertionArtifact not found");
+                    logger.Log(LogLevel.Error, "samlValidate AssertionArtifact not found");
                     c.Response.StatusCode = 200;
                     c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
                     return;
                 }
                 var ticketId = nodes[0].InnerText;
-                Console.WriteLine($"Extracted Ticket: {ticketId}");
+                logger.Log(LogLevel.Info, $"Extracted Ticket: {ticketId}");
 
                 var sessionId = await tickets.GetAsync(ticketId);
                 if (sessionId == null)
                 {
-                    Console.WriteLine($"samlValidate Ticket {ticketId} not found.");
+                    logger.Log(LogLevel.Info, $"samlValidate Ticket {ticketId} not found.");
                     c.Response.StatusCode = 200;
                     c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
                     return;
@@ -323,7 +325,7 @@ namespace Laclasse.Authentication
                 var session = await sessions.GetSessionAsync(sessionId);
                 if (session == null)
                 {
-                    Console.WriteLine($"samlValidate Ticket {ticketId} has a timed out session.");
+                    logger.Log(LogLevel.Info, $"samlValidate Ticket {ticketId} has a timed out session.");
                     c.Response.StatusCode = 200;
                     c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
                     return;
@@ -333,7 +335,7 @@ namespace Laclasse.Authentication
                 var client = await GetClientFromServiceAsync(service);
                 if (client == null)
                 {
-                    Console.WriteLine($"samlValidate Ticket {ticketId} service not allowed");
+                    logger.Log(LogLevel.Error, $"samlValidate Ticket {ticketId} service not allowed");
                     c.Response.StatusCode = 200;
                     c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
                     return;
@@ -343,7 +345,7 @@ namespace Laclasse.Authentication
                 var userAttributes = await GetUserSsoAttributesAsync(session.user);
                 if (userAttributes == null)
                 {
-                    Console.WriteLine($"samlValidate Ticket {ticketId} user not found");
+                    logger.Log(LogLevel.Info, $"samlValidate Ticket {ticketId} user not found");
                     c.Response.StatusCode = 200;
                     c.Response.Content = new XmlContent(SoapSamlResponseError(doc, service));
                     return;
@@ -509,7 +511,7 @@ namespace Laclasse.Authentication
             PostAsync["/agentPortalIdp"] = async (p, c) =>
             {
                 var formUrl = await c.Request.ReadAsStringAsync();
-                Console.WriteLine($"formUrl: '{formUrl}'");
+                logger.Log(LogLevel.Debug, $"formUrl: '{formUrl}'");
                 Dictionary<string, string> formFields;
                 Dictionary<string, List<string>> formArrayFields;
                 HttpUtility.ParseFormUrlEncoded(formUrl, out formFields, out formArrayFields);
@@ -568,7 +570,7 @@ namespace Laclasse.Authentication
                     return;
                 }
                 var ctemail = node.InnerText;
-                Console.WriteLine($"agentPortalIdp ctemail: {ctemail}, node: {node}");
+                logger.Log(LogLevel.Debug, $"agentPortalIdp ctemail: {ctemail}, node: {node}");
 
                 // find the corresponding user
                 var queryFields = new Dictionary<string, List<string>>();
@@ -578,7 +580,6 @@ namespace Laclasse.Authentication
                 //using (DB db = await DB.CreateAsync(dbUrl))
                 //	userResult = (await Model.SearchAsync<User>(db, new string[] { "emails.type", "emails.adresse" }, queryFields)).Data.SingleOrDefault();
                 var userResult = (await users.SearchUserAsync(queryFields)).Data.SingleOrDefault();
-                //Console.WriteLine($"Found user: {userResult}");
 
                 if (userResult == null)
                 {
@@ -743,8 +744,7 @@ namespace Laclasse.Authentication
                     var userInfo = JsonValue.Parse(Encoding.ASCII.GetString(Convert.FromBase64String(userInfoBase64)));
 
                     // sub field is the user unique id
-                    Console.WriteLine("User SUB: " + userInfo["sub"]);
-                    Console.WriteLine(userInfo.Dump());
+                    logger.Log(LogLevel.Debug, "User SUB: " + userInfo["sub"]);
 
                     var user = await users.GetUserByOidcIdAsync(userInfo["sub"]);
                     // if user was not found, try a search by first_name, last_name and email
@@ -981,7 +981,7 @@ namespace Laclasse.Authentication
 
         async Task LoginAsync(HttpContext c, PreTicket preTicket, bool longSession = false)
         {
-            Console.WriteLine("Login " + preTicket.Dump());
+            logger.Log(LogLevel.Debug, "Login " + preTicket.Dump());
             var session = await sessions.CreateSessionAsync(preTicket.uid, preTicket.idp, longSession);
             var sessionId = session.id;
             string cutId = preTicket.cutId;
@@ -1071,7 +1071,7 @@ namespace Laclasse.Authentication
                 else
                     service += "?ticket=" + ticket.id;
             }
-            Console.WriteLine($"Location: '{service}'");
+            logger.Log(LogLevel.Debug, $"Location: '{service}'");
             c.Response.Headers["location"] = service;
         }
 
@@ -1261,7 +1261,7 @@ namespace Laclasse.Authentication
             var xs = "http://www.w3.org/2001/XMLSchema";
             var xsi = "http://www.w3.org/2001/XMLSchema-instance";
 
-            Console.WriteLine(attributes.Dump());
+            logger.Log(LogLevel.Debug, attributes.Dump());
 
             var issueInstant = DateTime.UtcNow.ToString("s") + "Z";
 
@@ -1812,7 +1812,7 @@ namespace Laclasse.Authentication
             return Convert.ToBase64String(sha1.ComputeHash(memStream));
         }
 
-        public static XmlDocument C14NTransform(XmlDocument doc)
+        public XmlDocument C14NTransform(XmlDocument doc)
         {
             // generate the SHA1 signature
             var xmlTransform = (Transform)CryptoConfig.CreateFromName("http://www.w3.org/2001/10/xml-exc-c14n#");
@@ -1820,8 +1820,8 @@ namespace Laclasse.Authentication
             var memStream = (MemoryStream)xmlTransform.GetOutput();
             memStream.Seek(0, SeekOrigin.Begin);
 
-            Console.WriteLine("C14NTransform");
-            Console.WriteLine(Encoding.UTF8.GetString(memStream.ToArray()));
+            logger.Log(LogLevel.Debug, "C14NTransform");
+            logger.Log(LogLevel.Debug, Encoding.UTF8.GetString(memStream.ToArray()));
 
             memStream.Seek(0, SeekOrigin.Begin);
 
@@ -1842,7 +1842,7 @@ namespace Laclasse.Authentication
             return memStream.ToArray();
         }
 
-        public static XmlDocument SignXml(XmlDocument doc, X509Certificate2 key)
+        public XmlDocument SignXml(XmlDocument doc, X509Certificate2 key)
         {
             doc = C14NTransform(doc);
 
@@ -1858,7 +1858,7 @@ namespace Laclasse.Authentication
             var refId = assertion.Attributes["ID"].Value;
 
             var digestValue = CalculateDigest(assertion);
-            Console.WriteLine($"DIGEST: {digestValue}, ID: {refId}");
+            logger.Log(LogLevel.Debug, $"DIGEST: {digestValue}, ID: {refId}");
 
             var signedInfoDom = new XmlDocument();
 
@@ -2004,7 +2004,7 @@ namespace Laclasse.Authentication
 
         async Task<JsonValue> SearchFrEduVecteurAsync(string FrEduVecteur)
         {
-            Console.WriteLine($"SearchFrEduVecteurAsync({FrEduVecteur})");
+            logger.Log(LogLevel.Debug, $"SearchFrEduVecteurAsync({FrEduVecteur})");
             var tab = FrEduVecteur.Split('|');
             if (tab.Length != 5)
                 return null;
@@ -2257,7 +2257,7 @@ namespace Laclasse.Authentication
                         clientRequest.Content = jsonData.ToString();
                         client.SendRequest(clientRequest);
                         var response = client.GetResponse();
-                        Console.WriteLine($"Send SMS rescue code to {rescue} got HTTP status {response.Status}");
+                        logger.Log(LogLevel.Debug, $"Send SMS rescue code to {rescue} got HTTP status {response.Status}");
                     }
                 }
 
@@ -2395,7 +2395,7 @@ namespace Laclasse.Authentication
 
         public async Task<User> CheckGrandLyonPasswordAsync(string login, string password)
         {
-            Console.WriteLine($"CheckGrandLyonPasswordAsync({login})");
+            logger.Log(LogLevel.Info, $"CheckGrandLyonPasswordAsync({login})");
             JsonValue jsonToken = null;
             var uri = new Uri(grandLyonApiSetup.tokenUrl);
             using (HttpClient client = await HttpClient.CreateAsync(uri))
@@ -2433,7 +2433,7 @@ namespace Laclasse.Authentication
                 if (response.StatusCode == 200)
                 {
                     jsonUserInfo = await response.ReadAsJsonAsync();
-                    Console.WriteLine(jsonUserInfo.Dump());
+                    logger.Log(LogLevel.Debug, jsonUserInfo.Dump());
                 }
             }
 
@@ -2455,7 +2455,7 @@ namespace Laclasse.Authentication
         /// <param name="SAMLRequest">SAMLRequest.</param>
         PreTicket HandleSamlRequest(string SAMLRequest)
         {
-            Console.WriteLine(SAMLRequest);
+            logger.Log(LogLevel.Debug, SAMLRequest);
             using (var resStream = new MemoryStream())
             using (var memStream = new MemoryStream(Convert.FromBase64String(SAMLRequest)))
             using (var compressionStream = new DeflateStream(memStream, CompressionMode.Decompress))
@@ -2463,7 +2463,7 @@ namespace Laclasse.Authentication
                 compressionStream.CopyTo(resStream);
                 SAMLRequest = Encoding.UTF8.GetString(resStream.ToArray());
             }
-            Console.WriteLine(SAMLRequest);
+            logger.Log(LogLevel.Debug, SAMLRequest);
 
             var dom = new XmlDocument();
             dom.PreserveWhitespace = true;

@@ -177,7 +177,7 @@ namespace Laclasse
                 Path.Combine(setup.server.storage, "avatar"),
                 setup.http.defaultCacheDuration));
 
-            mapper.Add("/sso", new Cas(
+            mapper.Add("/sso", new Cas(logger,
                 dbUrl, sessions, users, setup.authentication,
                 setup.mail, setup.sms));
             

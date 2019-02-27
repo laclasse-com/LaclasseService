@@ -1018,62 +1018,46 @@ namespace Laclasse.Doc
             {
                 var id = long.Parse((string)p["id"]);
                 var expand = c.Request.QueryString.ContainsKey("expand") ? bool.Parse(c.Request.QueryString["expand"]) : true;
-                var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
-
+                var json = await c.Request.ReadAsJsonAsync();
                 var dstNode = new Node
                 {
                     rev = 0,
                     mtime = (long)(DateTime.Now - DateTime.Parse("1970-01-01T00:00:00Z")).TotalSeconds
                 };
+                if (json.ContainsKey("name"))
+                    dstNode.name = (string)json["name"];
+                if (!json.ContainsKey("parent_id"))
+                    throw new WebException(400, "A target parent_id is needed for a copy");
+                dstNode.parent_id = long.Parse(json["parent_id"]);
 
                 using (var db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var node = new Node { id = id };
-                    if (await node.LoadAsync(db, true))
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+
+                    var parentItem = await context.GetByIdAsync((long)dstNode.parent_id);
+                    var item = await context.GetByIdAsync(id);
+                    if (item != null && parentItem != null)
                     {
-                        dstNode.name = node.name;
-                        dstNode.mime = node.mime;
+                        // check file read right
+                        var rights = await item.RightsAsync();
+                        if (!rights.Read)
+                            throw new WebException(403, "Insufficient rights");
+                        // check destination write rights 
+                        var parentRights = await parentItem.RightsAsync();
+                        if (!parentRights.Write)
+                            throw new WebException(403, "Insufficient rights");
 
-                        Blob blob = null; string tempFile = null;
-                        string thumbnailTempFile = null;
-                        Blob thumbnailBlob = null;
-
-                        if (node.blob_id != null)
+                        var fileDefinition = new FileDefinition<Node>
                         {
-                            fileDefinition.Stream = blobs.GetBlobStream(node.blob_id);
-                            (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition, node.blob);
+                            Define = dstNode,
+                            Mimetype = item.node.mime,
+                            Size = item.node.size,
+                            Stream = await item.GetContentAsync()
+                        };
 
-                            if (tempFile != null)
-                                BuildThumbnail(tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
-                        }
-
-                        if (blob != null)
-                        {
-                            blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
-                            dstNode.blob_id = blob.id;
-                            dstNode.size = blob.size;
-                        }
-                        if (fileDefinition.Define != null)
-                        {
-                            var define = fileDefinition.Define;
-                            if (define.Fields.ContainsKey(nameof(Node.name)))
-                                dstNode.name = define.name;
-                            if (define.Fields.ContainsKey(nameof(Node.parent_id)))
-                                dstNode.parent_id = define.parent_id;
-                        }
-
-                        if (thumbnailTempFile != null)
-                        {
-                            thumbnailBlob.parent_id = blob.id;
-                            thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
-                            dstNode.has_tmb = true;
-                        }
-
-                        await dstNode.SaveAsync(db);
-                        await dstNode.LoadAsync(db, expand);
-
+                        var resItem = await Item.CreateAsync(context, fileDefinition);
                         c.Response.StatusCode = 200;
-                        c.Response.Content = dstNode;
+                        c.Response.Content = await resItem.ToJsonAsync(expand);
                     }
                     await db.CommitAsync();
                 }
@@ -1084,62 +1068,29 @@ namespace Laclasse.Doc
                 var id = long.Parse((string)p["id"]);
                 var src = long.Parse((string)p["src"]);
                 var expand = c.Request.QueryString.ContainsKey("expand") ? bool.Parse(c.Request.QueryString["expand"]) : true;
-                var fileDefinition = new FileDefinition<Node>();
 
                 using (var db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var srcNode = new Node { id = src };
-                    var dstNode = new Node { id = id };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var srcItem = await context.GetByIdAsync(src);
+                    var dstItem = await context.GetByIdAsync(id);
 
-                    if (await srcNode.LoadAsync(db, true) && await dstNode.LoadAsync(db, true))
+                    if (srcItem != null && dstItem != null)
                     {
-                        Blob blob = null; string tempFile = null;
-                        string thumbnailTempFile = null;
-                        Blob thumbnailBlob = null;
+                        var srcRights = await srcItem.RightsAsync();
+                        var dstRights = await dstItem.RightsAsync();
+                        if (!srcRights.Read || !dstRights.Write)
+                            throw new WebException(403, "Insufficient rights");
 
-                        if (srcNode.blob_id != null)
+                        var fileDefinition = new FileDefinition<Node>
                         {
-                            fileDefinition.Stream = blobs.GetBlobStream(srcNode.blob_id);
-                            (blob, tempFile) = await blobs.PrepareBlobAsync(fileDefinition, srcNode.blob);
+                            Stream = await srcItem.GetContentAsync(),
+                            Mimetype = srcItem.node.mime
+                        };
 
-                            if (tempFile != null)
-                                BuildThumbnail(tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
-                        }
-
-                        string oldBlobId = null;
-                        if (blob != null)
-                        {
-                            oldBlobId = dstNode.blob_id;
-                            blob = await blobs.CreateBlobFromTempFileAsync(db, blob, tempFile);
-                            dstNode.blob_id = blob.id;
-                            dstNode.size = blob.size;
-                            dstNode.rev++;
-                        }
-                        if (fileDefinition.Define != null)
-                        {
-                            var define = fileDefinition.Define;
-                            if (define.Fields.ContainsKey(nameof(Node.name)))
-                                dstNode.name = define.name;
-                            if (define.Fields.ContainsKey(nameof(Node.parent_id)))
-                                dstNode.parent_id = define.parent_id;
-                        }
-
-                        if (thumbnailTempFile != null)
-                        {
-                            thumbnailBlob.parent_id = blob.id;
-                            thumbnailBlob = await blobs.CreateBlobFromTempFileAsync(db, thumbnailBlob, thumbnailTempFile);
-                            dstNode.has_tmb = true;
-                        }
-
-                        await dstNode.UpdateAsync(db);
-                        await dstNode.LoadAsync(db, expand);
-
-                        // delete old blob if any
-                        if (oldBlobId != null)
-                            await blobs.DeleteBlobAsync(db, oldBlobId);
-
+                        await dstItem.ChangeAsync(fileDefinition);
                         c.Response.StatusCode = 200;
-                        c.Response.Content = dstNode;
+                        c.Response.Content = await dstItem.ToJsonAsync(expand);
                     }
                     await db.CommitAsync();
                 }

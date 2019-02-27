@@ -54,66 +54,70 @@ namespace Laclasse.Authentication {
                     "er: 0px solid white;\n\tborder-radius: 0;\n\tbackground-color: #444;\n\tmargin: 5px;\n " +
                     "   color: white;\n\ttext-decoration: none;\n\tcursor: pointer;\n\ttext-align: center;\n" +
                     "}\n\n.btn:hover {\n\tbackground-color: #555;\n}\n\n.box {\n    background: #f2efef;\n    " +
-                    "padding: 20px;\n}\n\n.boxHeader {\n    font-size: 18px;\n    text-transform: uppercas" +
-                    "e;\n    text-align: center;\n    margin-bottom: 10px;\n    color: #444;\n    font-we" +
-                    "ight: bold;\n}\n\ninput[type=text], input[type=password] {\n    -webkit-appearance: " +
-                    "none;\n    width: calc(100% - 10px);\n    height: 30px;\n    border: 1px solid #ccc" +
-                    "ccc;\n    background-color: #f7f7f7;\n    margin: 5px;\n    color: #444;\n    font-s" +
-                    "ize: 18px;\n    padding-left: 10px;\n    padding-right: 10px;\n    border-radius: 0" +
-                    ";\n}\n\ninput:-webkit-autofill {\n    -webkit-box-shadow: 0 0 0 30px #f9f194 inset;\n" +
-                    "}\n\n.title {\n    font-weight: bold;\n    font-size: 18px;\n    margin-bottom: 20px;" +
-                    "\n}\n\n.authBox {\n    display: flex;\n    flex-direction: row;\n    flex-wrap: nowrap" +
-                    ";\n    justify-content: stretch;\n    margin-bottom: 20px;\n}\n\n.authSeparator {\n   " +
-                    " position: absolute;\n    left: calc(50% - 1px);\n    top: 0px;\n    width: 2px;\n  " +
-                    "  height: 100%;\n    background-color: #444;\n}\n\n.authOr {\n    width: 30px;\n    he" +
-                    "ight: 20px; \n    text-align: center;\n    position: absolute;\n    left: calc(50% " +
-                    "- 15px);\n    top: calc(50% - 10px);\n    background-color: #f2efef;\n    font-weig" +
-                    "ht: bold;\n}\n\n@media screen and (max-width: 600px) {\n    .authBox {\n        displ" +
-                    "ay: block;\n        flex-direction: column;\n    }\n\n    .authSeparator {\n        l" +
-                    "eft: 0px;\n        top: calc(50% - 1px);\n        width: 100%;\n        height: 2px" +
-                    ";\n    }\n}\n\n.checkbox {\n    user-select: none;\n    margin: 5px;\n}\n\n.checkbox div " +
-                    "{\n    border: 2px solid #444;\n    border-radius: 4px;\n}\n\n.checkbox input {\n    w" +
-                    "idth: 0px;\n    height: 0px;\n    opacity: 0;\n}\n\n.checkbox svg {\n    opacity: 0;\n}" +
-                    "\n\n.checkbox input:checked ~ div {\n    background: #444;\n}\n\n.checkbox input:check" +
-                    "ed ~ div > svg {\n    fill: #ffffff;\n    opacity: 1;\n}\n\n\t\t</style>\n\t\t<script>\nfun" +
-                    "ction onRescue()\n{\n\tvar errorContent = document.getElementById(\"error-content\");" +
-                    "\n\tif (errorContent != null)\n\t\terrorContent.style.display = \"none\";\n\tdocument.get" +
-                    "ElementById(\"authentication-content\").style.display = \"none\";\n\tdocument.getEleme" +
-                    "ntById(\"rescue-content\").style.display = \"inherit\";\n}\n\nfunction onContact() {\n\tv" +
-                    "ar contactContent = document.getElementById(\"contact-content\");\n\tif (contactCont" +
-                    "ent != null)\n\t\tcontactContent.style.display = \"none\";\n\tdocument.getElementById(\"" +
-                    "authentication-content\").style.display = \"none\";\n\tdocument.getElementById(\"conta" +
-                    "ct-content\").style.display = \"inherit\";\n}\n\nfunction onRescueBack(e)\n{\n\tdocument." +
-                    "getElementById(\"authentication-content\").style.display = \"inherit\";\n\tdocument.ge" +
-                    "tElementById(\"rescue-content\").style.display = \"none\";\n}\n\nfunction onContactBack" +
-                    "(e) {\n\tdocument.getElementById(\"authentication-content\").style.display = \"inheri" +
-                    "t\";\n\tdocument.getElementById(\"contact-content\").style.display = \"none\";\n}\n\t\t</sc" +
-                    "ript>\n\t</head>\n<body>\n            <div style=\"width: 100%; height: 20px; backgro" +
-                    "und-color: #e10000; margin: 0px; position: relative; top: 0px; z-index: 2;\"></di" +
-                    "v>\n\t\t\t<img draggable=\"false\" class=\"logo\" src=\"images/logolaclasse.svg\" alt=\"Log" +
-                    "o ENT\">\n\t\t\t<div style=\"position: absolute; top: 20px; left: 0px; right: 0px; bot" +
-                    "tom: 0px;\">\n\t\t\t<center>\n\t\t\t\t<div style=\"max-width: 1000px;\">\n                   " +
-                    " <div style=\"display: flex; flex-direction: row; flex-wrap: wrap; padding: 20px;" +
-                    "\">\n                        <div style=\"font-weight: bold; font-size: 40px; flex-" +
-                    "grow: 1; text-align: left;\"><span style=\"color: #da0100\">la</span>classe<span st" +
-                    "yle=\"color: #da0100\">.</span>com</div>\n                        <a href=\"http://w" +
-                    "ww.ac-lyon.fr/\" style=\"margin-right: 20px;\"><img draggable=\"false\" style=\"width:" +
-                    " 74px; height: 46px\" src=\"images/logo-academie2.svg\" alt=\"Logo Académie de Lyon\"" +
-                    " /></a>\n                        <a href=\"https://www.grandlyon.com/\"><img dragga" +
-                    "ble=\"false\" style=\"width: 200px; height: 46px;\" src=\"images/grandlyon-logo.svg\" " +
-                    "alt=\"Logo Métropole du Grand Lyon\"></a>\n                    </div>\n\n            " +
-                    "        ");
+                    "padding: 30px;\n}\n\n.boxHeader {\n    font-size: 20px;\n    text-align: center;\n    " +
+                    "margin-bottom: 10px;\n    color: #444;\n    font-weight: bold;\n}\n\ninput[type=text]" +
+                    ", input[type=password] {\n    -webkit-appearance: none;\n    width: calc(100% - 10" +
+                    "px);\n    height: 30px;\n    border: 1px solid #cccccc;\n    background-color: #f7f" +
+                    "7f7;\n    margin: 5px;\n    color: #444;\n    font-size: 18px;\n    padding-left: 10" +
+                    "px;\n    padding-right: 10px;\n    border-radius: 0;\n}\n\ninput:-webkit-autofill {\n " +
+                    "   -webkit-box-shadow: 0 0 0 30px #f9f194 inset;\n}\n\n.title {\n    font-weight: bo" +
+                    "ld;\n    font-size: 18px;\n    margin-bottom: 20px;\n}\n\n.authBox {\n    display: fle" +
+                    "x;\n    flex-direction: row;\n    flex-wrap: nowrap;\n    justify-content: stretch;" +
+                    "\n    margin-bottom: 20px;\n}\n\n.authSeparator {\n    position: absolute;\n    left: " +
+                    "calc(50% - 1px);\n    top: 0px;\n    width: 2px;\n    height: 100%;\n    background-" +
+                    "color: #444;\n}\n\n.authOr {\n    width: 30px;\n    height: 20px; \n    text-align: ce" +
+                    "nter;\n    position: absolute;\n    left: calc(50% - 15px);\n    top: calc(50% - 10" +
+                    "px);\n    background-color: #f2efef;\n    font-weight: bold;\n}\n\n@media screen and " +
+                    "(max-width: 600px) {\n    .authBox {\n        display: block;\n        flex-directi" +
+                    "on: column;\n    }\n\n    .authSeparator {\n        left: 0px;\n        top: calc(50%" +
+                    " - 1px);\n        width: 100%;\n        height: 2px;\n    }\n}\n\n.checkbox {\n    user" +
+                    "-select: none;\n    margin: 5px;\n}\n\n.checkbox div {\n    border: 2px solid #444;\n " +
+                    "   border-radius: 4px;\n}\n\n.checkbox input {\n    width: 0px;\n    height: 0px;\n   " +
+                    " opacity: 0;\n}\n\n.checkbox svg {\n    opacity: 0;\n}\n\n.checkbox input:checked ~ div" +
+                    " {\n    background: #444;\n}\n\n.checkbox input:checked ~ div > svg {\n    fill: #fff" +
+                    "fff;\n    opacity: 1;\n}\n\n\t\t</style>\n\t\t<script>\nfunction onRescue()\n{\n\tvar errorCo" +
+                    "ntent = document.getElementById(\"error-content\");\n\tif (errorContent != null)\n\t\te" +
+                    "rrorContent.style.display = \"none\";\n\tdocument.getElementById(\"authentication-con" +
+                    "tent\").style.display = \"none\";\n\tdocument.getElementById(\"rescue-content\").style." +
+                    "display = \"inherit\";\n}\n\nfunction onContact() {\n\tvar contactContent = document.ge" +
+                    "tElementById(\"contact-content\");\n\tif (contactContent != null)\n\t\tcontactContent.s" +
+                    "tyle.display = \"none\";\n\tdocument.getElementById(\"authentication-content\").style." +
+                    "display = \"none\";\n\tdocument.getElementById(\"contact-content\").style.display = \"i" +
+                    "nherit\";\n}\n\nfunction onRescueBack(e)\n{\n\tdocument.getElementById(\"authentication-" +
+                    "content\").style.display = \"inherit\";\n\tdocument.getElementById(\"rescue-content\")." +
+                    "style.display = \"none\";\n}\n\nfunction onContactBack(e) {\n\tdocument.getElementById(" +
+                    "\"authentication-content\").style.display = \"inherit\";\n\tdocument.getElementById(\"c" +
+                    "ontact-content\").style.display = \"none\";\n}\n\t\t</script>\n\t</head>\n<body>\n         " +
+                    "   <div style=\"width: 100%; height: 0px; background-color: #e10000; margin: 0px;" +
+                    " position: relative; top: 0px; z-index: 2;\"></div>\n\t\t\t<img draggable=\"false\" cla" +
+                    "ss=\"logo\" src=\"images/logolaclasse.svg\" alt=\"Logo ENT\">\n\t\t\t<div style=\"position:" +
+                    " absolute; top: 20px; left: 0px; right: 0px; bottom: 0px;\">\n\t\t\t<center>\n\t\t\t\t<div" +
+                    " style=\"max-width: 1000px;\">\n                    <div style=\"display: flex; flex" +
+                    "-direction: row; flex-wrap: wrap; padding: 20px; padding-bottom: 5px;\">\n        " +
+                    "                <div style=\"font-weight: bold; font-size: 40px; flex-grow: 1; te" +
+                    "xt-align: left;\"><span style=\"color: #da0100\">la</span>classe<span style=\"color:" +
+                    " #da0100\">.</span>com</div>\n                        <a href=\"http://www.ac-lyon." +
+                    "fr/\" style=\"margin-right: 20px;\"><img draggable=\"false\" style=\"width: 74px; heig" +
+                    "ht: 46px\" src=\"images/logo-academie2.svg\" alt=\"Logo Académie de Lyon\" /></a>\n   " +
+                    "                     <a href=\"https://www.grandlyon.com/\"><img draggable=\"false\"" +
+                    " style=\"width: 200px; height: 46px;\" src=\"images/grandlyon-logo.svg\" alt=\"Logo M" +
+                    "étropole du Grand Lyon\"></a>\n                    </div>\n                    \n   " +
+                    "                 <div style=\"text-align: left; padding: 5px; padding-top: 0px; p" +
+                    "adding-left: 20px; margin-bottom: 30px; font-size: 16px; font-weight: bold; colo" +
+                    "r: #444; border-top-left-radius: 10px; border-top-right-radius: 10px;\">\n        " +
+                    "                Espace Numérique de Travail des collèges et écoles de la Métropo" +
+                    "le de Lyon\n                    </div>\n                    \n                    ");
             
             #line default
             #line hidden
             
-            #line 246 ""
+            #line 249 ""
  if (error != null) { 
             
             #line default
             #line hidden
             
-            #line 247 ""
+            #line 250 ""
             this.Write(@"
                     <div style=""display: flex; flex-direction: row; padding: 20px; margin-bottom: 20px; background-color: #f3eff0;"" id=""error-content"">
                         <svg xmlns=""http://www.w3.org/2000/svg"" width=""36"" height=""36"" viewBox=""0 0 48 48"" version=""1.1"" style=""fill: #e10000; align-self: center;"">
@@ -127,38 +131,38 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 255 ""
+            #line 258 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( error ));
             
             #line default
             #line hidden
             
-            #line 255 ""
+            #line 258 ""
             this.Write("\n                            </div>\n                        </div>\n              " +
                     "      </div>\n                    ");
             
             #line default
             #line hidden
             
-            #line 259 ""
+            #line 262 ""
  } 
             
             #line default
             #line hidden
             
-            #line 260 ""
+            #line 263 ""
             this.Write("\n                    ");
             
             #line default
             #line hidden
             
-            #line 261 ""
+            #line 264 ""
  if (info != null) { 
             
             #line default
             #line hidden
             
-            #line 262 ""
+            #line 265 ""
             this.Write(@"
                     <div style=""display: flex; flex-direction: row; padding: 20px; margin-bottom: 20px; background-color: #f3eff0;"" id=""info-content"">
                         <svg xmlns=""http://www.w3.org/2000/svg"" width=""36"" height=""36"" viewBox=""0 0 48 48"" version=""1.1"" style=""fill: #4F891F; align-self: center;"">
@@ -172,75 +176,70 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 270 ""
+            #line 273 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( info ));
             
             #line default
             #line hidden
             
-            #line 270 ""
+            #line 273 ""
             this.Write("\n                            </div>\n                        </div>\n              " +
                     "      </div>\n                    ");
             
             #line default
             #line hidden
             
-            #line 274 ""
+            #line 277 ""
  } 
             
             #line default
             #line hidden
             
-            #line 275 ""
-            this.Write(@"
-                    <div style=""text-align: left; padding: 5px; padding-left: 15px; margin-bottom: 10px; font-size: 16px; font-weight: bold; background: #444; color: #f5f5f5; border-top-left-radius: 10px; border-top-right-radius: 10px;"">
-                        Espace Numérique de Travail des collèges et écoles de la Métropole de Lyon.
-                    </div>
-
-					<div class=""box"" style=""width: 100%; text-align: left;"">
-						");
+            #line 278 ""
+            this.Write("                    \n\t\t\t\t\t<div class=\"box\" style=\"width: 100%; text-align: left;\"" +
+                    ">\n\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 281 ""
+            #line 280 ""
  if (message != null) { 
             
             #line default
             #line hidden
             
-            #line 282 ""
+            #line 281 ""
             this.Write("\n\t\t\t\t\t\t<div style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t<div class=\"title\">");
             
             #line default
             #line hidden
             
-            #line 284 ""
+            #line 283 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( title ));
             
             #line default
             #line hidden
             
-            #line 284 ""
+            #line 283 ""
             this.Write("</div>\n\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 286 ""
+            #line 285 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( message ));
             
             #line default
             #line hidden
             
-            #line 286 ""
+            #line 285 ""
             this.Write("\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t<a class=\"btn\" href=\"logout\">SE DÉCONNECTER</a>\n\t\t\t\t\t\t</div" +
                     ">\n\n\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 291 ""
+            #line 290 ""
 
 						}
 						else
@@ -250,7 +249,7 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 296 ""
+            #line 295 ""
             this.Write(@"
 						<div id=""rescue-content"">
 							<div class=""boxHeader"">
@@ -270,122 +269,122 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 310 ""
+            #line 309 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( Web.HttpUtility.HtmlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 310 ""
+            #line 309 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
             
             #line default
             #line hidden
             
-            #line 311 ""
+            #line 310 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
             
             #line default
             #line hidden
             
-            #line 311 ""
+            #line 310 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
             
             #line default
             #line hidden
             
-            #line 312 ""
+            #line 311 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( state ));
             
             #line default
             #line hidden
             
-            #line 312 ""
+            #line 311 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescue\" value=\"");
             
             #line default
             #line hidden
             
-            #line 313 ""
+            #line 312 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
             
             #line default
             #line hidden
             
-            #line 313 ""
+            #line 312 ""
             this.Write("\">\n\t\t    \t        \t\t\t");
             
             #line default
             #line hidden
             
-            #line 314 ""
+            #line 313 ""
  var first = "checked"; foreach (var user in rescueUsers) { 
             
             #line default
             #line hidden
             
-            #line 315 ""
+            #line 314 ""
             this.Write("\t\t    \t        \t\t\t<input type=\"radio\" name=\"user\" value=\"");
             
             #line default
             #line hidden
             
-            #line 315 ""
+            #line 314 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( user.id ));
             
             #line default
             #line hidden
             
-            #line 315 ""
+            #line 314 ""
             this.Write("\" ");
             
             #line default
             #line hidden
             
-            #line 315 ""
+            #line 314 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( first ));
             
             #line default
             #line hidden
             
-            #line 315 ""
+            #line 314 ""
             this.Write(">");
             
             #line default
             #line hidden
             
-            #line 315 ""
+            #line 314 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( user.firstname + " " + user.lastname ));
             
             #line default
             #line hidden
             
-            #line 315 ""
+            #line 314 ""
             this.Write("</input><br>\n\t\t\t\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 316 ""
+            #line 315 ""
  first = ""; } 
             
             #line default
             #line hidden
             
-            #line 317 ""
+            #line 316 ""
             this.Write("\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" type=\"submit\" value=\"VALI" +
                     "DER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t");
             
             #line default
             #line hidden
             
-            #line 323 ""
+            #line 322 ""
  	} else if (rescueId != null) { 
             
             #line default
             #line hidden
             
-            #line 324 ""
+            #line 323 ""
             this.Write(@"
 						<div id=""rescue-content"">
 							<div class=""boxHeader"">
@@ -403,26 +402,26 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 336 ""
+            #line 335 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
             
             #line default
             #line hidden
             
-            #line 336 ""
+            #line 335 ""
             this.Write("</b>. Merci de le saisir dans\n\t\t\t\t\t\t\t\t\tle champ ci-dessous. Cela vous permettra d" +
                     "e vous connecter sur le compte\n\t\t\t\t\t\t\t\t\tde ");
             
             #line default
             #line hidden
             
-            #line 338 ""
+            #line 337 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescueUser ));
             
             #line default
             #line hidden
             
-            #line 338 ""
+            #line 337 ""
             this.Write(". Une fois connecté, pensez bien à changer le mot de passe.\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t" +
                     "\t\t<br>\n\t\t\t\t\t\t\t\t<form method=\"post\" action=\"login\">\n\t\t    \t        \t\t\t<input type" +
                     "=\"hidden\" name=\"service\" value=\"");
@@ -430,61 +429,61 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 342 ""
+            #line 341 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( Web.HttpUtility.HtmlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 342 ""
+            #line 341 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
             
             #line default
             #line hidden
             
-            #line 343 ""
+            #line 342 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
             
             #line default
             #line hidden
             
-            #line 343 ""
+            #line 342 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
             
             #line default
             #line hidden
             
-            #line 344 ""
+            #line 343 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( state ));
             
             #line default
             #line hidden
             
-            #line 344 ""
+            #line 343 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescue\" value=\"");
             
             #line default
             #line hidden
             
-            #line 345 ""
+            #line 344 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescue ));
             
             #line default
             #line hidden
             
-            #line 345 ""
+            #line 344 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"rescueId\" value=\"");
             
             #line default
             #line hidden
             
-            #line 346 ""
+            #line 345 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( rescueId ));
             
             #line default
             #line hidden
             
-            #line 346 ""
+            #line 345 ""
             this.Write("\">\n\t\t    \t        \t\t\t<div>Code:</div>\n\t\t    \t        \t\t\t<input type=\"text\" name=\"" +
                     "rescueCode\" value=\"\">\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\t<input class=\"btn\" name=\"submit\" ty" +
                     "pe=\"submit\" value=\"VALIDER\">\n\t\t\t\t\t\t\t\t</form>\n\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t");
@@ -492,160 +491,166 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 355 ""
+            #line 354 ""
  	} 
             
             #line default
             #line hidden
             
-            #line 356 ""
+            #line 355 ""
             this.Write("\n\t\t\t\t\t\t<!-- authentication -->\n\t\t\t\t\t\t<div style=\"display: ");
             
             #line default
             #line hidden
             
-            #line 358 ""
+            #line 357 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( (rescue != null) ? "none" : "inherit" ));
             
             #line default
             #line hidden
             
-            #line 358 ""
+            #line 357 ""
             this.Write(@""" id=""authentication-content"">
-							<div class=""boxHeader"">Authentification</div>
+							<div class=""boxHeader"">Connectez vous</div>
 
                             <div class=""authBox"">
     							<div style=""margin-bottom: 0px; flex: 1; display: flex; flex-direction: column;"">
-    								<div class=""title"">Connectez-vous avec un compte partenaire:</div>
+    								<div class=""title"" style=""position: relative; top: -8px"">avec un compte partenaire : 
+                                        <a href=""https://ent-laclasse.blogs.laclasse.com/"" target=""_blank"">
+                                            <svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 48 48"" version=""1.1"" style=""fill: #0074c1; position: relative; top: 8px; width: 28px; height: 28px; margin-left: 10px"">
+                                                <path d=""M24 4C6.2 4-2.7 25.5 9.9 38.1 22.5 50.7 44 41.8 44 24 44 13 35 4 24 4zM23.5 8C31.9 7.8 40 14.2 40 24 40 32.8 32.8 40 24 40 9.7 40 2.6 22.8 12.7 12.7 15.8 9.5 19.7 8.1 23.5 8zM24 12C19.6 12 16 15.6 16 20L20 20C20 14.7 28 14.7 28 20 28 24 22 23.5 22 30L26 30C26 25.5 32 25 32 20 32 15.6 28.4 12 24 12zM24 32.2A2.9 2.9 0 0 0 21.1 35.1 2.9 2.9 0 0 0 24 38 2.9 2.9 0 0 0 26.9 35.1 2.9 2.9 0 0 0 24 32.2z"" />
+                                            </svg>
+                                        </a>
+                                    </div>
                                     <a class=""btn"" style=""padding: 6px; padding-left: 10px; background-color: #9b0383; display: flex; flex-direction: row;"" href=""parentPortalIdp?service=");
             
             #line default
             #line hidden
             
-            #line 364 ""
+            #line 369 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 364 ""
+            #line 369 ""
             this.Write("&state=");
             
             #line default
             #line hidden
             
-            #line 364 ""
+            #line 369 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
             
             #line default
             #line hidden
             
-            #line 364 ""
+            #line 369 ""
             this.Write(@""">
                                         <img src=""images/education-nationale.svg"" style=""width: 24px; height: 24px; align-self: center;"">
-                                        <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;"">Compte Académique Parents/Elèves</div>
+                                        <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: center; align-self: center;"">Éducation Nationale Parents/Elèves</div>
                                     </a>
                                     <a class=""btn"" style=""padding: 6px; padding-left: 10px; background-color: #05a9cc; display: flex; flex-direction: row;"" href=""agentPortalIdp?service=");
             
             #line default
             #line hidden
             
-            #line 368 ""
+            #line 373 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 368 ""
+            #line 373 ""
             this.Write("&state=");
             
             #line default
             #line hidden
             
-            #line 368 ""
+            #line 373 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
             
             #line default
             #line hidden
             
-            #line 368 ""
+            #line 373 ""
             this.Write(@""">
                                         <img src=""images/education-nationale.svg"" style=""width: 24px; height: 24px; align-self: center;"">
-                                        <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;"">Compte Académique Profs/Agents</div>
+                                        <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: center; align-self: center;"">Éducation Nationale Profs/Agents</div>
                                     </a>
-                                    <a class=""btn"" style=""margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #e10000; display: flex; flex-direction: row;"" href=""cutIdp?service=");
+                                    <a class=""btn"" style=""margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #c71717; display: flex; flex-direction: row;"" href=""cutIdp?service=");
             
             #line default
             #line hidden
             
-            #line 372 ""
+            #line 377 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 372 ""
+            #line 377 ""
             this.Write("&state=");
             
             #line default
             #line hidden
             
-            #line 372 ""
+            #line 377 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
             
             #line default
             #line hidden
             
-            #line 372 ""
+            #line 377 ""
             this.Write(@""">
                                         <img src=""images/grandlyon-connect.svg"" style=""width: 24px; height: 24px; align-self: center;"">
-                                        <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;"">Compte GrandLyon Connect</div>
+                                        <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: center; align-self: center;"">GrandLyon Connect</div>
                                     </a>
     							</div>
-                                <div style=""position: relative; min-width: 40px; min-height: 40px;"">
+                                <div style=""position: relative; min-width: 80px; min-height: 80px;"">
                                     <div class=""authSeparator""></div>
                                     <span class=""authOr"">&nbsp;ou&nbsp;</span>
                                 </div>
 
     							<div style=""margin-bottom: 0px; flex: 1;"">
-    								<div class=""title"">Connectez-vous avec votre compte Laclasse.com:</div>
+    								<div class=""title"">avec votre compte Laclasse.com :</div>
     								<form method=""post"" action=""login"">
     			            			<input type=""hidden"" name=""service"" value=""");
             
             #line default
             #line hidden
             
-            #line 385 ""
+            #line 390 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( Web.HttpUtility.HtmlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 385 ""
+            #line 390 ""
             this.Write("\">\n    \t\t\t            \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
             
             #line default
             #line hidden
             
-            #line 386 ""
+            #line 391 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( state ));
             
             #line default
             #line hidden
             
-            #line 386 ""
+            #line 391 ""
             this.Write("\">\n    \t\t\t            \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
             
             #line default
             #line hidden
             
-            #line 387 ""
+            #line 392 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
             
             #line default
             #line hidden
             
-            #line 387 ""
+            #line 392 ""
             this.Write("\">\n    \t\t\t\t\t\t\t\t\t<div>Identifiant:</div>\n    \t\t\t\t\t\t\t\t\t<input name=\"username\" type=" +
                     "\"text\" style=\"margin-bottom: 10px;\">\n    \t\t\t\t\t\t\t\t\t<div>Mot de passe:</div>\n    \t" +
                     "\t\t\t\t\t\t\t\t<input name=\"password\" type=\"password\" style=\"margin-bottom: 10px;\">\n   " +
@@ -685,37 +690,37 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 432 ""
+            #line 437 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( Web.HttpUtility.HtmlEncode(service) ));
             
             #line default
             #line hidden
             
-            #line 432 ""
+            #line 437 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"state\" value=\"");
             
             #line default
             #line hidden
             
-            #line 433 ""
+            #line 438 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( state ));
             
             #line default
             #line hidden
             
-            #line 433 ""
+            #line 438 ""
             this.Write("\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"ticket\" value=\"");
             
             #line default
             #line hidden
             
-            #line 434 ""
+            #line 439 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( ticket ));
             
             #line default
             #line hidden
             
-            #line 434 ""
+            #line 439 ""
             this.Write(@""">
 		    	        			<div>Email ou Tel:</div>
 									<input name=""rescue"" type=""text"" style=""margin-bottom: 10px;"">
@@ -760,17 +765,17 @@ namespace Laclasse.Authentication {
             #line default
             #line hidden
             
-            #line 473 ""
+            #line 478 ""
  } 
             
             #line default
             #line hidden
             
-            #line 474 ""
+            #line 479 ""
             this.Write(@"					</div>
 					<div class=""footer"">
-                        <div style=""position: absolute; height: 60px; width: 60px; border-radius: 30px; background-color: #444; display: block; left: 20px; top: -30px; padding: 0px;""><img src=""images/laclasse-light.svg"" style=""width: 60px; height: 60px;""></div>
-                        <a href=""/portail/#Accueil"" style=""padding: 5px; padding-left: 90px; font-weight: bold; color: #f5f5f5; background-color: #444; text-transform: uppercase; display: block; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;"">En savoir plus sur laclasse.com</a>
+                        <div style=""position: absolute; height: 60px; width: 60px; border-radius: 30px; display: block; left: 20px; top: -30px; padding: 0px;""><img src=""images/laclasse-grey.svg"" style=""width: 60px; height: 60px;""></div>
+                        <a href=""/portail/#Accueil"" style=""padding: 5px; padding-left: 90px; font-weight: bold; color: #444; text-transform: uppercase; display: block; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;"">En savoir plus sur laclasse.com</a>
 					</div>
 				</div>
 			</center>

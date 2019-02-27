@@ -93,12 +93,11 @@ li {
 
 .box {
     background: #f2efef;
-    padding: 20px;
+    padding: 30px;
 }
 
 .boxHeader {
-    font-size: 18px;
-    text-transform: uppercase;
+    font-size: 20px;
     text-align: center;
     margin-bottom: 10px;
     color: #444;
@@ -232,17 +231,21 @@ function onContactBack(e) {
 		</script>
 	</head>
 <body>
-            <div style="width: 100%; height: 20px; background-color: #e10000; margin: 0px; position: relative; top: 0px; z-index: 2;"></div>
+            <div style="width: 100%; height: 0px; background-color: #e10000; margin: 0px; position: relative; top: 0px; z-index: 2;"></div>
 			<img draggable="false" class="logo" src="images/logolaclasse.svg" alt="Logo ENT">
 			<div style="position: absolute; top: 20px; left: 0px; right: 0px; bottom: 0px;">
 			<center>
 				<div style="max-width: 1000px;">
-                    <div style="display: flex; flex-direction: row; flex-wrap: wrap; padding: 20px;">
+                    <div style="display: flex; flex-direction: row; flex-wrap: wrap; padding: 20px; padding-bottom: 5px;">
                         <div style="font-weight: bold; font-size: 40px; flex-grow: 1; text-align: left;"><span style="color: #da0100">la</span>classe<span style="color: #da0100">.</span>com</div>
                         <a href="http://www.ac-lyon.fr/" style="margin-right: 20px;"><img draggable="false" style="width: 74px; height: 46px" src="images/logo-academie2.svg" alt="Logo Académie de Lyon" /></a>
                         <a href="https://www.grandlyon.com/"><img draggable="false" style="width: 200px; height: 46px;" src="images/grandlyon-logo.svg" alt="Logo Métropole du Grand Lyon"></a>
                     </div>
-
+                    
+                    <div style="text-align: left; padding: 5px; padding-top: 0px; padding-left: 20px; margin-bottom: 30px; font-size: 16px; font-weight: bold; color: #444; border-top-left-radius: 10px; border-top-right-radius: 10px;">
+                        Espace Numérique de Travail des collèges et écoles de la Métropole de Lyon
+                    </div>
+                    
                     <# if (error != null) { #>
 
                     <div style="display: flex; flex-direction: row; padding: 20px; margin-bottom: 20px; background-color: #f3eff0;" id="error-content">
@@ -272,11 +275,7 @@ function onContactBack(e) {
                         </div>
                     </div>
                     <# } #>
-
-                    <div style="text-align: left; padding: 5px; padding-left: 15px; margin-bottom: 10px; font-size: 16px; font-weight: bold; background: #444; color: #f5f5f5; border-top-left-radius: 10px; border-top-right-radius: 10px;">
-                        Espace Numérique de Travail des collèges et écoles de la Métropole de Lyon.
-                    </div>
-
+                    
 					<div class="box" style="width: 100%; text-align: left;">
 						<# if (message != null) { #>
 
@@ -356,31 +355,37 @@ function onContactBack(e) {
 
 						<!-- authentication -->
 						<div style="display: <#= (rescue != null) ? "none" : "inherit" #>" id="authentication-content">
-							<div class="boxHeader">Authentification</div>
+							<div class="boxHeader">Connectez vous</div>
 
                             <div class="authBox">
     							<div style="margin-bottom: 0px; flex: 1; display: flex; flex-direction: column;">
-    								<div class="title">Connectez-vous avec un compte partenaire:</div>
+    								<div class="title" style="position: relative; top: -8px">avec un compte partenaire : 
+                                        <a href="https://ent-laclasse.blogs.laclasse.com/" target="_blank">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" version="1.1" style="fill: #0074c1; position: relative; top: 8px; width: 28px; height: 28px; margin-left: 10px">
+                                                <path d="M24 4C6.2 4-2.7 25.5 9.9 38.1 22.5 50.7 44 41.8 44 24 44 13 35 4 24 4zM23.5 8C31.9 7.8 40 14.2 40 24 40 32.8 32.8 40 24 40 9.7 40 2.6 22.8 12.7 12.7 15.8 9.5 19.7 8.1 23.5 8zM24 12C19.6 12 16 15.6 16 20L20 20C20 14.7 28 14.7 28 20 28 24 22 23.5 22 30L26 30C26 25.5 32 25 32 20 32 15.6 28.4 12 24 12zM24 32.2A2.9 2.9 0 0 0 21.1 35.1 2.9 2.9 0 0 0 24 38 2.9 2.9 0 0 0 26.9 35.1 2.9 2.9 0 0 0 24 32.2z" />
+                                            </svg>
+                                        </a>
+                                    </div>
                                     <a class="btn" style="padding: 6px; padding-left: 10px; background-color: #9b0383; display: flex; flex-direction: row;" href="parentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">
                                         <img src="images/education-nationale.svg" style="width: 24px; height: 24px; align-self: center;">
-                                        <div style="flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;">Compte Académique Parents/Elèves</div>
+                                        <div style="flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: center; align-self: center;">Éducation Nationale Parents/Elèves</div>
                                     </a>
                                     <a class="btn" style="padding: 6px; padding-left: 10px; background-color: #05a9cc; display: flex; flex-direction: row;" href="agentPortalIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">
                                         <img src="images/education-nationale.svg" style="width: 24px; height: 24px; align-self: center;">
-                                        <div style="flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;">Compte Académique Profs/Agents</div>
+                                        <div style="flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: center; align-self: center;">Éducation Nationale Profs/Agents</div>
                                     </a>
-                                    <a class="btn" style="margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #e10000; display: flex; flex-direction: row;" href="cutIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">
+                                    <a class="btn" style="margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #c71717; display: flex; flex-direction: row;" href="cutIdp?service=<#= HttpUtility.UrlEncode(service) #>&state=<#= HttpUtility.UrlEncode(state) #>">
                                         <img src="images/grandlyon-connect.svg" style="width: 24px; height: 24px; align-self: center;">
-                                        <div style="flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: left; align-self: center;">Compte GrandLyon Connect</div>
+                                        <div style="flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: center; align-self: center;">GrandLyon Connect</div>
                                     </a>
     							</div>
-                                <div style="position: relative; min-width: 40px; min-height: 40px;">
+                                <div style="position: relative; min-width: 80px; min-height: 80px;">
                                     <div class="authSeparator"></div>
                                     <span class="authOr">&nbsp;ou&nbsp;</span>
                                 </div>
 
     							<div style="margin-bottom: 0px; flex: 1;">
-    								<div class="title">Connectez-vous avec votre compte Laclasse.com:</div>
+    								<div class="title">avec votre compte Laclasse.com :</div>
     								<form method="post" action="login">
     			            			<input type="hidden" name="service" value="<#= Web.HttpUtility.HtmlEncode(service) #>">
     			            			<input type="hidden" name="state" value="<#= state #>">
@@ -473,8 +478,8 @@ function onContactBack(e) {
 						<# } #>
 					</div>
 					<div class="footer">
-                        <div style="position: absolute; height: 60px; width: 60px; border-radius: 30px; background-color: #444; display: block; left: 20px; top: -30px; padding: 0px;"><img src="images/laclasse-light.svg" style="width: 60px; height: 60px;"></div>
-                        <a href="/portail/#Accueil" style="padding: 5px; padding-left: 90px; font-weight: bold; color: #f5f5f5; background-color: #444; text-transform: uppercase; display: block; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;">En savoir plus sur laclasse.com</a>
+                        <div style="position: absolute; height: 60px; width: 60px; border-radius: 30px; display: block; left: 20px; top: -30px; padding: 0px;"><img src="images/laclasse-grey.svg" style="width: 60px; height: 60px;"></div>
+                        <a href="/portail/#Accueil" style="padding: 5px; padding-left: 90px; font-weight: bold; color: #444; text-transform: uppercase; display: block; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;">En savoir plus sur laclasse.com</a>
 					</div>
 				</div>
 			</center>

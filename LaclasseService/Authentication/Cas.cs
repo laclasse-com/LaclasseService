@@ -776,11 +776,12 @@ namespace Laclasse.Authentication
                         {
                             state = preTicket.id,
                             info = @"
-								Il n'y a pas de compte utilisateur dans laclasse.com associé à votre
-								compte Grand Lyon CUT.<br>
-								Si vous avez en votre possession un compte laclasse.com ou Académique
-								connectez vous avec se compte et il sera associé avec votre compte
-								Grand Lyon CUT."
+                                Votre compte Grand Lyon Connect n'est pas encore associé à votre compte
+                                laclasse.com. Pour associer vos comptes, <b>authentifiez-vous maintenant avec
+                                vos identifiants habituels (laclasse.com ou Éducation Nationale)</b>.
+                                <br/><br/>
+                                Si vous n'avez pas de compte laclasse.com, contactez le responsable
+                                de votre établissement scolaire."
                         }).TransformText();
                         return;
                     }

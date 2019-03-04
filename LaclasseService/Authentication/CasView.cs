@@ -585,31 +585,31 @@ namespace Laclasse.Authentication {
                                         <img src=""images/education-nationale.svg"" style=""width: 24px; height: 24px; align-self: center;"">
                                         <div style=""flex-grow: 1; margin-left: 10px; text-align: center; align-self: center;"">Éducation Nationale Profs/Agents</div>
                                     </a>
-                                    <a class=""btn"" style=""margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #000000; display: flex; flex-direction: row;"" href=""cutIdp?service=");
+                                    <a class=""btn"" style=""margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #000000; display: flex; flex-direction: row; ");
             
             #line default
             #line hidden
             
             #line 377 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(service) ));
+            this.Write(this.ToStringHelper.ToStringWithCulture( disableGrandLyonConnect ? "opacity: 0.1; cursor: default;": "" ));
             
             #line default
             #line hidden
             
             #line 377 ""
-            this.Write("&state=");
+            this.Write("\" ");
             
             #line default
             #line hidden
             
             #line 377 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( HttpUtility.UrlEncode(state) ));
+            this.Write(this.ToStringHelper.ToStringWithCulture( disableGrandLyonConnect ? "" : "href=\"cutIdp?service=" + HttpUtility.UrlEncode(service) + "&state=" + HttpUtility.UrlEncode(state) +"\"" ));
             
             #line default
             #line hidden
             
             #line 377 ""
-            this.Write(@""">
+            this.Write(@">
                                         <img src=""images/grandlyon-connect.svg"" style=""width: 24px; height: 24px; align-self: center;"">
                                         <div style=""flex-grow: 1; margin-left: 10px; text-align: center; align-self: center;"">GrandLyon Connect</div>
                                     </a>

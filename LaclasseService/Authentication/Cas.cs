@@ -58,6 +58,7 @@ namespace Laclasse.Authentication
         public string rescue;
         public string rescueId;
         public string rescueUser;
+        public bool disableGrandLyonConnect = false;
     }
 
     public class SsoClient
@@ -781,7 +782,8 @@ namespace Laclasse.Authentication
                                 vos identifiants habituels (laclasse.com ou Éducation Nationale)</b>.
                                 <br/><br/>
                                 Si vous n'avez pas de compte laclasse.com, contactez le responsable
-                                de votre établissement scolaire."
+                                de votre établissement scolaire.",
+                            disableGrandLyonConnect = true
                         }).TransformText();
                         return;
                     }

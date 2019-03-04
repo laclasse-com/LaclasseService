@@ -88,25 +88,26 @@ namespace Laclasse.Authentication {
                     "style.display = \"none\";\n}\n\nfunction onContactBack(e) {\n\tdocument.getElementById(" +
                     "\"authentication-content\").style.display = \"inherit\";\n\tdocument.getElementById(\"c" +
                     "ontact-content\").style.display = \"none\";\n}\n\t\t</script>\n\t</head>\n<body>\n         " +
-                    "   <div style=\"width: 100%; height: 0px; background-color: #e10000; margin: 0px;" +
-                    " position: relative; top: 0px; z-index: 2;\"></div>\n\t\t\t<img draggable=\"false\" cla" +
-                    "ss=\"logo\" src=\"images/logolaclasse.svg\" alt=\"Logo ENT\">\n\t\t\t<div style=\"position:" +
-                    " absolute; top: 20px; left: 0px; right: 0px; bottom: 0px;\">\n\t\t\t<center>\n\t\t\t\t<div" +
-                    " style=\"max-width: 1000px;\">\n                    <div style=\"display: flex; flex" +
-                    "-direction: row; flex-wrap: wrap; padding: 20px; padding-bottom: 5px;\">\n        " +
-                    "                <div style=\"font-weight: bold; font-size: 40px; flex-grow: 1; te" +
-                    "xt-align: left;\"><span style=\"color: #da0100\">la</span>classe<span style=\"color:" +
-                    " #da0100\">.</span>com</div>\n                        <a href=\"http://www.ac-lyon." +
-                    "fr/\" style=\"margin-right: 20px;\"><img draggable=\"false\" style=\"width: 74px; heig" +
-                    "ht: 46px\" src=\"images/logo-academie2.svg\" alt=\"Logo Académie de Lyon\" /></a>\n   " +
-                    "                     <a href=\"https://www.grandlyon.com/\"><img draggable=\"false\"" +
-                    " style=\"width: 200px; height: 46px;\" src=\"images/grandlyon-logo.svg\" alt=\"Logo M" +
-                    "étropole du Grand Lyon\"></a>\n                    </div>\n                    \n   " +
-                    "                 <div style=\"text-align: left; padding: 5px; padding-top: 0px; p" +
-                    "adding-left: 20px; margin-bottom: 30px; font-size: 16px; font-weight: bold; colo" +
-                    "r: #444; border-top-left-radius: 10px; border-top-right-radius: 10px;\">\n        " +
-                    "                Espace Numérique de Travail des collèges et écoles de la Métropo" +
-                    "le de Lyon\n                    </div>\n                    \n                    ");
+                    "   <div style=\"width: 100%; height: 10px; background-color: #e10000; margin: 0px" +
+                    "; position: relative; top: 0px; z-index: 2;\"></div>\n\t\t\t<img draggable=\"false\" cl" +
+                    "ass=\"logo\" src=\"images/logolaclasse.svg\" alt=\"Logo ENT\">\n\t\t\t<div style=\"position" +
+                    ": absolute; top: 20px; left: 0px; right: 0px; bottom: 0px;\">\n\t\t\t<center>\n\t\t\t\t<di" +
+                    "v style=\"max-width: 1000px;\">\n                    <div style=\"display: flex; fle" +
+                    "x-direction: row; flex-wrap: wrap; padding: 20px; padding-bottom: 5px;\">\n       " +
+                    "                 <div style=\"font-weight: bold; font-size: 40px; flex-grow: 1; t" +
+                    "ext-align: left;\"><span style=\"color: #da0100\">la</span>classe<span style=\"color" +
+                    ": #da0100\">.</span>com</div>\n                        <a href=\"http://www.ac-lyon" +
+                    ".fr/\" style=\"margin-right: 20px;\"><img draggable=\"false\" style=\"width: 91px; hei" +
+                    "ght: 46px\" src=\"images/logo-academie3.svg\" alt=\"Logo Académie de Lyon\" /></a>\n  " +
+                    "                      <a href=\"https://www.grandlyon.com/\"><img draggable=\"false" +
+                    "\" style=\"width: 200px; height: 46px;\" src=\"images/grandlyon-logo.svg\" alt=\"Logo " +
+                    "Métropole du Grand Lyon\"></a>\n                    </div>\n                    \n  " +
+                    "                  <div style=\"text-align: left; padding: 5px; padding-top: 0px; " +
+                    "padding-left: 20px; margin-bottom: 30px; font-size: 16px; font-weight: bold; col" +
+                    "or: #444; border-top-left-radius: 10px; border-top-right-radius: 10px;\">\n       " +
+                    "                 Espace Numérique de Travail des collèges et écoles de la Métrop" +
+                    "ole de Lyon\n                    </div>\n                    \n                    " +
+                    "");
             
             #line default
             #line hidden
@@ -511,7 +512,7 @@ namespace Laclasse.Authentication {
             
             #line 357 ""
             this.Write(@""" id=""authentication-content"">
-							<div class=""boxHeader"">Connectez vous</div>
+							<div class=""boxHeader"">Connectez-vous</div>
 
                             <div class=""authBox"">
     							<div style=""margin-bottom: 0px; flex: 1; display: flex; flex-direction: column;"">
@@ -548,7 +549,7 @@ namespace Laclasse.Authentication {
             #line 369 ""
             this.Write(@""">
                                         <img src=""images/education-nationale.svg"" style=""width: 24px; height: 24px; align-self: center;"">
-                                        <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: center; align-self: center;"">Éducation Nationale Parents/Elèves</div>
+                                        <div style=""flex-grow: 1; margin-left: 10px; text-align: center; align-self: center;"">Éducation Nationale Parents/Élèves</div>
                                     </a>
                                     <a class=""btn"" style=""padding: 6px; padding-left: 10px; background-color: #05a9cc; display: flex; flex-direction: row;"" href=""agentPortalIdp?service=");
             
@@ -576,9 +577,9 @@ namespace Laclasse.Authentication {
             #line 373 ""
             this.Write(@""">
                                         <img src=""images/education-nationale.svg"" style=""width: 24px; height: 24px; align-self: center;"">
-                                        <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: center; align-self: center;"">Éducation Nationale Profs/Agents</div>
+                                        <div style=""flex-grow: 1; margin-left: 10px; text-align: center; align-self: center;"">Éducation Nationale Profs/Agents</div>
                                     </a>
-                                    <a class=""btn"" style=""margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #c71717; display: flex; flex-direction: row;"" href=""cutIdp?service=");
+                                    <a class=""btn"" style=""margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #000000; display: flex; flex-direction: row;"" href=""cutIdp?service=");
             
             #line default
             #line hidden
@@ -604,7 +605,7 @@ namespace Laclasse.Authentication {
             #line 377 ""
             this.Write(@""">
                                         <img src=""images/grandlyon-connect.svg"" style=""width: 24px; height: 24px; align-self: center;"">
-                                        <div style=""flex-grow: 1; padding-top: 4px; margin-left: 10px; text-align: center; align-self: center;"">GrandLyon Connect</div>
+                                        <div style=""flex-grow: 1; margin-left: 10px; text-align: center; align-self: center;"">GrandLyon Connect</div>
                                     </a>
     							</div>
                                 <div style=""position: relative; min-width: 80px; min-height: 80px;"">

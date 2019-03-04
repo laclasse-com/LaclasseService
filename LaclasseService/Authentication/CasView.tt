@@ -268,7 +268,7 @@ function onContactBack(e) {
                             <path d="m 26,34 0,-12 h -4 l 0,12 z m 0,-16 v -4 h -4 v 4 z" />
                             <path d="M24 4C13 4 4 13 4 24 4 35 13 44 24 44c11 0 20-9 20-20 0-11-9-20-20-20zm0 4c9 0 16 7 16 16 0 9-7 16-16 16-9 0-16-7-16-16 0-9 7-16 16-16z" />
                         </svg>
-                        <div style="margin-left: 20px; align-self: center; color: #628e4e; font-size: 18px;">
+                        <div style="margin-left: 20px; align-self: center; text-align: left; color: #628e4e; font-size: 18px;">
                             <div>
                                 <#= info #>
                             </div>

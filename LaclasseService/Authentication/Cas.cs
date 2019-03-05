@@ -138,14 +138,27 @@ namespace Laclasse.Authentication
 
                     if (!string.IsNullOrEmpty(service))
                     {
-                        //string service = c.Request.QueryString["service"];
-
-                        var ticket = await tickets.CreateAsync(c.Request.Cookies[cookieName]);
-                        if (service.IndexOf('?') >= 0)
-                            service += "&ticket=" + ticket.id;
+                        // need the check if the service is accepted.
+                        var client = await GetClientFromServiceAsync(service);
+                        if (client == null)
+                        {
+                            c.Response.StatusCode = 200;
+                            c.Response.Headers["content-type"] = "text/html; charset=utf-8";
+                            c.Response.Content = (new CasView
+                            {
+                                title = "Échec",
+                                error = @"<p>Le service vers lequel vous souhaité aller n'est pas autorisé.</p>"
+                            }).TransformText();
+                        }
                         else
-                            service += "?ticket=" + ticket.id;
-                        c.Response.Headers["location"] = service;
+                        {
+                            var ticket = await tickets.CreateAsync(c.Request.Cookies[cookieName]);
+                            if (service.IndexOf('?') >= 0)
+                                service += "&ticket=" + ticket.id;
+                            else
+                                service += "?ticket=" + ticket.id;
+                            c.Response.Headers["location"] = service;
+                        }
                     }
                     else
                     {
@@ -166,7 +179,22 @@ namespace Laclasse.Authentication
                     string service = "";
                     var wantTicket = true;
                     if (c.Request.QueryString.ContainsKey("service"))
+                    {
                         service = c.Request.QueryString["service"];
+                        // need the check if the service is accepted.
+                        var client = await GetClientFromServiceAsync(service);
+                        if (client == null)
+                        {
+                            c.Response.StatusCode = 200;
+                            c.Response.Headers["content-type"] = "text/html; charset=utf-8";
+                            c.Response.Content = (new CasView
+                            {
+                                title = "Échec",
+                                error = @"<p>Le service vers lequel vous souhaité aller n'est pas autorisé.</p>"
+                            }).TransformText();
+                            return;
+                        }
+                    }
 
                     if (preTicket == null)
                     {

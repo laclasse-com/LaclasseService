@@ -65,14 +65,10 @@ namespace Laclasse.Directory
         public DateTime? aaf_mtime { get { return GetField<DateTime?>(nameof(aaf_mtime), null); } set { SetField(nameof(aaf_mtime), value); } }
         [ModelField]
         public string domain { get { return GetField<string>(nameof(domain), null); } set { SetField(nameof(domain), value); } }
-        [ModelField]
-        public string public_ip { get { return GetField<string>(nameof(public_ip), null); } set { SetField(nameof(public_ip), value); } }
         [ModelField(Required = true)]
         public int type { get { return GetField(nameof(type), 0); } set { SetField(nameof(type), value); } }
         [ModelField]
         public bool aaf_sync_activated { get { return GetField(nameof(aaf_sync_activated), false); } set { SetField(nameof(aaf_sync_activated), value); } }
-        [ModelField]
-        public string private_ip { get { return GetField<string>(nameof(private_ip), null); } set { SetField(nameof(private_ip), value); } }
         [ModelField]
         public string educnat_marking_id { get { return GetField<string>(nameof(educnat_marking_id), null); } set { SetField(nameof(educnat_marking_id), value); } }
         [ModelField]

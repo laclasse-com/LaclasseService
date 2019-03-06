@@ -150,6 +150,9 @@ catch(e) {
         {
             this.mailSetup = mailSetup;
 
+            // API only available to authenticated users
+            BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+
             GetAsync["/{id:int}/pdf"] = async (p, c) =>
             {
                 var publi = new Publipostage { id = (int)p["id"] };

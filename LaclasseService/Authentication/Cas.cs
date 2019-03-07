@@ -1066,7 +1066,7 @@ namespace Laclasse.Authentication
 
             if (!ent.disable_student_parent || (user.profiles.Any((p) => p.type != "TUT" && p.type != "ELV")))
             {
-                c.Response.Headers["set-cookie"] = $"{cookieName}={sessionId};{((longSession) ? $" Max-Age={Math.Round(session.duration.TotalSeconds)}; Expires={DateTime.Now.AddSeconds(session.duration.TotalSeconds).ToString("r")};" : "")} Path=/"; // HttpOnly; SameSite = Strict
+                c.Response.Headers["set-cookie"] = $"{cookieName}={sessionId};{((longSession) ? $" Max-Age={Math.Round(session.duration.TotalSeconds)}; Expires={DateTime.Now.AddSeconds(session.duration.TotalSeconds).ToString("r")};" : "")} Path=/; HttpOnly";
 
                 if (preTicket.SAMLRequest != null)
                     await Saml2LoginAsync(c, preTicket, session);

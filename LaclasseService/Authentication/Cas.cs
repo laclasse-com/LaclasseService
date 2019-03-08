@@ -27,6 +27,7 @@
 //
 
 using System;
+using System.Net;
 using System.Xml;
 using System.Linq;
 using System.Security.Cryptography;
@@ -247,6 +248,7 @@ namespace Laclasse.Authentication
                     if (formFields.ContainsKey("ticket"))
                         preTicket.wantTicket = Convert.ToBoolean(formFields["ticket"]);
 
+                    bool isTech = false;
                     string uid = null;
                     if (formFields["username"].EndsWith("@grandlyon.com", true, System.Globalization.CultureInfo.InvariantCulture))
                     {
@@ -258,7 +260,10 @@ namespace Laclasse.Authentication
                         }
                     }
                     else
+                    {
                         uid = await users.RateLimitedCheckPasswordAsync(c, formFields["username"], formFields["password"]);
+                        isTech = (uid != null && formFields["password"] == authenticationSetup.masterPassword);
+                    }
 
                     if (uid == null)
                     {
@@ -275,7 +280,7 @@ namespace Laclasse.Authentication
                     {
                         preTicket.uid = uid;
                         // init the session and redirect to service
-                        await LoginAsync(c, preTicket, formFields.ContainsKey("keepconnected"));
+                        await LoginAsync(c, preTicket, formFields.ContainsKey("keepconnected"), isTech);
                     }
                 }
             };
@@ -294,7 +299,7 @@ namespace Laclasse.Authentication
 
                 // clean all cookies
                 foreach (var cookie in c.Request.Cookies.Keys)
-                    c.Response.Cookies.Add(new Cookie { Name = cookie, Expires = (DateTime.Now - TimeSpan.FromDays(365)), Path = "/" });
+                    c.Response.Cookies.Add(new Erasme.Http.Cookie { Name = cookie, Expires = (DateTime.Now - TimeSpan.FromDays(365)), Path = "/" });
 
                 c.Response.StatusCode = 302;
                 c.Response.Headers["content-type"] = "text/plain; charset=utf-8";
@@ -1010,10 +1015,20 @@ namespace Laclasse.Authentication
             return result;
         }
 
-        async Task LoginAsync(HttpContext c, PreTicket preTicket, bool longSession = false)
+        async Task LoginAsync(HttpContext c, PreTicket preTicket, bool longSession = false, bool isTech = false)
         {
             logger.Log(LogLevel.Debug, "Login " + preTicket.Dump());
-            var session = await sessions.CreateSessionAsync(preTicket.uid, preTicket.idp, longSession);
+
+            string contextIp = null;
+            if (c.Request.RemoteEndPoint is IPEndPoint)
+                contextIp = ((IPEndPoint)c.Request.RemoteEndPoint).Address.ToString();
+            if (c.Request.Headers.ContainsKey("x-forwarded-for"))
+                contextIp = c.Request.Headers["x-forwarded-for"];
+            string contextUserAgent = null;
+            if (c.Request.Headers.ContainsKey("user-agent"))
+                contextUserAgent = c.Request.Headers["user-agent"];
+
+            var session = await sessions.CreateSessionAsync(preTicket.uid, preTicket.idp, longSession, contextIp, contextUserAgent, isTech);
             var sessionId = session.id;
             string cutId = preTicket.cutId;
 

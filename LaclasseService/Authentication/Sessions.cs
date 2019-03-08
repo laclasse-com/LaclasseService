@@ -28,6 +28,7 @@
 //
 
 using System;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Runtime.Remoting.Messaging;
@@ -60,8 +61,31 @@ namespace Laclasse.Authentication
         public Idp idp { get { return GetField(nameof(idp), Idp.ENT); } set { SetField(nameof(idp), value); } }
         [ModelField]
         public bool long_session { get { return GetField(nameof(long_session), false); } set { SetField(nameof(long_session), value); } }
+        [ModelField]
+        public string ip { get { return GetField<string>(nameof(ip), null); } set { SetField(nameof(ip), value); } }
+        [ModelField]
+        public string user_agent { get { return GetField<string>(nameof(user_agent), null); } set { SetField(nameof(user_agent), value); } }
+        [ModelField]
+        public bool tech { get { return GetField<bool>(nameof(tech), false); } set { SetField(nameof(tech), value); } }
 
         public TimeSpan duration;
+
+        public override void FromJson(JsonObject json, string[] filterFields = null, HttpContext context = null)
+        {
+            base.FromJson(json, filterFields, context);
+            // if create from an HTTP context, auto fill timestamp and IP address
+            if (context != null)
+            {
+                string contextIp = "unknown";
+                if (context.Request.RemoteEndPoint is IPEndPoint)
+                    contextIp = ((IPEndPoint)context.Request.RemoteEndPoint).Address.ToString();
+                if (context.Request.Headers.ContainsKey("x-forwarded-for"))
+                    contextIp = context.Request.Headers["x-forwarded-for"];
+                ip = contextIp;
+                if (context.Request.Headers.ContainsKey("user-agent"))
+                    user_agent = context.Request.Headers["user-agent"];
+            }
+        }
 
         public async override Task<bool> InsertAsync(DB db)
         {
@@ -97,7 +121,6 @@ namespace Laclasse.Authentication
                     c.Response.StatusCode = 200;
                     c.Response.Content = new JsonObject
                     {
-                        ["id"] = session.id,
                         ["start"] = session.start,
                         ["duration"] = session.duration.TotalSeconds,
                         ["user"] = session.user,
@@ -126,7 +149,7 @@ namespace Laclasse.Authentication
             };
         }
 
-        public async Task<Session> CreateSessionAsync(string user, Idp idp, bool longSession = false)
+        public async Task<Session> CreateSessionAsync(string user, Idp idp, bool longSession = false, string ip = null, string userAgent = null, bool isTech = false)
         {
             string sessionId;
             Session session = null;
@@ -149,7 +172,10 @@ namespace Laclasse.Authentication
                             id = sessionId,
                             user = user,
                             idp = idp,
+                            ip = ip,
+                            user_agent = userAgent,
                             long_session = longSession,
+                            tech = isTech,
                             duration = longSession ? TimeSpan.FromSeconds(sessionLongTimeout) : TimeSpan.FromSeconds(sessionTimeout)
                         };
                         if (!await session.InsertAsync(db))
@@ -166,6 +192,10 @@ namespace Laclasse.Authentication
                 while (duplicate && (tryCount < 10));
                 if (sessionId == null)
                     throw new Exception("Session create fails. Impossible generate a sessionId");
+                // if its not a long session, only 1 short session is allowed at a time
+                // invalidate previous sessions
+                if (!isTech && !longSession)
+                    await db.DeleteAsync($"DELETE FROM `session` WHERE `{nameof(session.long_session)}` = FALSE AND `{nameof(session.tech)}` = FALSE AND `{nameof(session.id)}` != ? AND {nameof(session.user)} = ?", sessionId, user);
             }
             return session;
         }
@@ -209,9 +239,37 @@ namespace Laclasse.Authentication
 
         public async Task<Session> GetCurrentSessionAsync(HttpContext context)
         {
-            string session = (context.Request.Cookies.ContainsKey(cookieName)) ?
+            // get the session ID
+            string sessionId = (context.Request.Cookies.ContainsKey(cookieName)) ?
                 context.Request.Cookies[cookieName] : (context.Request.QueryString.ContainsKey("session") ? context.Request.QueryString["session"] : null);
-            return session != null ? await GetSessionAsync(session) : null;
+            // get the corresponding session
+            Session session = null;
+            if (sessionId != null)
+                session = await GetSessionAsync(sessionId);
+            // check security on the session
+            if (session != null)
+            {
+                // if its not a long session
+                if (!session.long_session)
+                {
+                    string contextIp = null;
+                    if (context.Request.RemoteEndPoint is IPEndPoint)
+                        contextIp = ((IPEndPoint)context.Request.RemoteEndPoint).Address.ToString();
+                    if (context.Request.Headers.ContainsKey("x-forwarded-for"))
+                        contextIp = context.Request.Headers["x-forwarded-for"];
+                    string contextUserAgent = null;
+                    if (context.Request.Headers.ContainsKey("user-agent"))
+                        contextUserAgent = context.Request.Headers["user-agent"];
+                    // if the IP or the User Agent has changed, delete the current
+                    // session to ask for a new authentication
+                    if (session.ip != contextIp || session.user_agent != contextUserAgent)
+                    {
+                        await DeleteSessionAsync(sessionId);
+                        session = null;
+                    }
+                }
+            }
+            return session;
         }
 
         public async Task<string> GetAuthenticatedUserAsync(HttpContext context)

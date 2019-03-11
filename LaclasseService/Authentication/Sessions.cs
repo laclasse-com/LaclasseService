@@ -241,7 +241,7 @@ namespace Laclasse.Authentication
         {
             // get the session ID
             string sessionId = (context.Request.Cookies.ContainsKey(cookieName)) ?
-                context.Request.Cookies[cookieName] : (context.Request.QueryString.ContainsKey("session") ? context.Request.QueryString["session"] : null);
+                context.Request.Cookies[cookieName] : null;
             // get the corresponding session
             Session session = null;
             if (sessionId != null)

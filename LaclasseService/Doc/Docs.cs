@@ -82,7 +82,6 @@ namespace Laclasse.Doc
         public OnlyOfficeFileType fileType = OnlyOfficeFileType.docx;
         public OnlyOfficeMode mode = OnlyOfficeMode.Desktop;
         public Node node = null;
-        public Session session = null;
         public Directory.User user = null;
         public string downloadUrl = null;
         public string callbackUrl = null;
@@ -211,6 +210,21 @@ namespace Laclasse.Doc
         public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
         [ModelField]
         public bool is_deleted { get { return GetField(nameof(is_deleted), false); } set { SetField(nameof(is_deleted), value); } }
+    }
+
+    [Model(Table = "onlyoffice_session", PrimaryKey = nameof(id), DB = "DOCS")]
+    public class OnlyOfficeSession : Model
+    {
+        [ModelField]
+        public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
+        [ModelField]
+        public long node_id { get { return GetField(nameof(node_id), 0L); } set { SetField(nameof(node_id), value); } }
+        [ModelField]
+        public DateTime ctime { get { return GetField(nameof(ctime), DateTime.MinValue); } set { SetField(nameof(ctime), value); } }
+        [ModelField]
+        public bool write { get { return GetField(nameof(write), false); } set { SetField(nameof(write), value); } }
+        [ModelField]
+        public int rev { get { return GetField(nameof(rev), 0); } set { SetField(nameof(rev), value); } }
     }
 
     /// <summary>
@@ -413,9 +427,17 @@ namespace Laclasse.Doc
 
             BeforeAsync = async (p, c) =>
             {
-                // not authentication needed for tempFile
-                if (!c.Request.Path.StartsWith("/tempFile/", StringComparison.InvariantCulture))
-                    await c.EnsureIsAuthenticatedAsync();
+                // no authentication for onlyoffice POST
+                if (c.Request.Method == "POST" && Regex.IsMatch(c.Request.Path, "^/[0-9]+/onlyoffice$"))
+                    return;
+                // no authentication for tempFile
+                if (c.Request.Path.StartsWith("/tempFile/", StringComparison.InvariantCulture))
+                    return;
+                // no authentication for onlyoffice GET file
+                if (c.Request.Method == "GET" && Regex.IsMatch(c.Request.Path, "^/[0-9]+/onlyoffice/file$"))
+                    return;
+                // authentication needed
+                await c.EnsureIsAuthenticatedAsync();
             };
 
             GetAsync["/migration3to4"] = async (p, c) =>
@@ -913,7 +935,7 @@ namespace Laclasse.Doc
                     if (!rights.Read)
                         throw new WebException(403, "Rights needed");
 
-                    var session = await c.GetSessionAsync();
+                    var session = await CreateOnlyOfficeSessionAsync(item.node.id, rights.Write);
                     var authUser = await c.GetAuthenticatedUserAsync();
                     c.Response.StatusCode = 200;
                     c.Response.Headers["content-type"] = "text/html; charset=utf-8";
@@ -923,21 +945,62 @@ namespace Laclasse.Doc
                         documentType = documentType,
                         fileType = fileType,
                         node = item.node,
-                        session = session,
                         user = authUser.user,
                         edit = rights.Write,
-                        downloadUrl = $"{Regex.Replace(c.SelfURL(), "onlyoffice$", "content")}?rev={item.node.rev}&session={session.id}",
+                        downloadUrl = $"{c.SelfURL()}/file?session={session.id}",
                         callbackUrl = $"{c.SelfURL()}?session={session.id}"
                     }.TransformText();
                 }
             };
 
+            GetAsync["/{id}/onlyoffice/file"] = async (p, c) =>
+            {
+                if (!c.Request.QueryString.ContainsKey("session"))
+                    throw new WebException(403, "Insufficient rights");
+
+                var session = await GetOnlyOfficeSessionAsync(c.Request.QueryString["session"]);
+                if (session == null)
+                    throw new WebException(403, "Invalid session");
+
+                var id = long.Parse((string)p["id"]);
+                if (id != session.node_id)
+                    throw new WebException(403, "Invalid session node");
+
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var item = await context.GetByIdAsync(id);
+                    if (item != null)
+                    {
+                        c.Response.StatusCode = 200;
+                        c.Response.SupportRanges = true;
+                        c.Response.Headers["content-type"] = item.node.mime;
+                        c.Response.Content = await item.GetContentAsync();
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
             PostAsync["/{id}/onlyoffice"] = async (p, c) =>
             {
+                if (!c.Request.QueryString.ContainsKey("session"))
+                    throw new WebException(403, "Insufficient rights");
+                    
+                var session = await GetOnlyOfficeSessionAsync(c.Request.QueryString["session"]);
+                if (session == null)
+                    throw new WebException(403, "Invalid session");
+
                 var id = long.Parse((string)p["id"]);
+                if (id != session.node_id)
+                    throw new WebException(403, "Invalid session node");
+
                 var json = await c.Request.ReadAsJsonAsync();
                 if (json.ContainsKey("status") && json.ContainsKey("url") && json["status"] == 2)
                 {
+                    // if save is need check is the session has the right
+                    if (!session.write)
+                        throw new WebException(403, "Insufficient rights");
+
                     Node node = null;
                     using (var db = await DB.CreateAsync(dbUrl, true))
                     {
@@ -993,7 +1056,8 @@ namespace Laclasse.Doc
                         
                         using (DB db = await DB.CreateAsync(dbUrl, true))
                         {
-                            var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                            var authUser = new AuthenticatedUser { application = new Directory.Application() } ;
+                            var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = authUser, directoryDbUrl = directoryDbUrl };
                             var item = await context.GetByIdAsync(id);
                             if (item != null)
                                 await item.ChangeAsync(fileDefinition);
@@ -1009,6 +1073,7 @@ namespace Laclasse.Doc
                     {
                         client.Dispose();
                     }
+                    await DeleteOnlyOfficeSessionAsync(session.id);
                 }
                 c.Response.StatusCode = 200;
                 c.Response.Content = new JsonObject { ["error"] = 0 };
@@ -1747,6 +1812,47 @@ namespace Laclasse.Doc
                     ["fails"] = fails,
                     ["nodes"] = nodes.ToJson()
                 };
+            }
+        }
+
+        async Task<OnlyOfficeSession> CreateOnlyOfficeSessionAsync(long nodeId, bool write)
+        {
+            OnlyOfficeSession session = null;
+            using (DB db = await DB.CreateAsync(dbUrl))
+            {
+                session = new OnlyOfficeSession
+                {
+                    id = StringExt.RandomString(32),
+                    node_id = nodeId,
+                    write = write,
+                    ctime = DateTime.Now
+                };
+                await session.SaveAsync(db);
+            }
+            return session;
+        }
+
+        async Task<OnlyOfficeSession> GetOnlyOfficeSessionAsync(string id)
+        {
+            OnlyOfficeSession session = null;
+            using (DB db = await DB.CreateAsync(dbUrl))
+            {
+                // delete too old sessions
+                await db.DeleteAsync("DELETE FROM `onlyoffice_session` WHERE (TIMESTAMPDIFF(SECOND, ctime, NOW()) >= ?)", 3600 * 12);
+
+                session = new OnlyOfficeSession { id = id };
+                if (!await session.LoadAsync(db))
+                    session = null;
+            }
+            return session;
+        }
+
+        async Task DeleteOnlyOfficeSessionAsync(string id)
+        {
+            using (DB db = await DB.CreateAsync(dbUrl))
+            {
+                var session = new OnlyOfficeSession { id = id };
+                await session.DeleteAsync(db);
             }
         }
     }

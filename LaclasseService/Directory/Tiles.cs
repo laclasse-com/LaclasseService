@@ -226,6 +226,9 @@ namespace Laclasse.Directory
 	{
 		public Tiles(string dbUrl) : base(dbUrl)
 		{
+            // API only available to authenticated users
+            BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+
             GetAsync["/"] = async (p, c) =>
             {
                 var res = new ModelList<Tile>();

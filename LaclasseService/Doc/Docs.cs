@@ -1111,12 +1111,19 @@ namespace Laclasse.Doc
                         var parentRights = await parentItem.RightsAsync();
                         if (!parentRights.Write)
                             throw new WebException(403, "Insufficient rights");
+                        // check if destination folder is not the node or its children
+                        if (parentItem.node.id == item.node.id)
+                            throw new WebException(400, "Cant copy a node inside itself");
+                        var parents = await parentItem.GetParentsAsync();
+                        if (parents.Any((pI) => pI.node.id == item.node.id))
+                            throw new WebException(400, "Cant copy a node inside subfolders");
 
                         var fileDefinition = new FileDefinition<Node>
                         {
                             Define = dstNode,
                             Mimetype = item.node.mime,
                             Size = item.node.size,
+                            Name = item.node.name,
                             Stream = await item.GetContentAsync()
                         };
 

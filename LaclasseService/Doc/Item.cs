@@ -299,9 +299,22 @@ namespace Laclasse.Doc
                             throw new WebException(403, "User dont have write to modify root nodes");
                         if (!(await oldParent.RightsAsync()).Write)
                             throw new WebException(403, "User dont have write right on the source folder");
+                    }
+                    if (define.parent_id != null)
                         parent = await context.GetByIdAsync((long)define.parent_id);
+                    if (context.user.IsUser)
+                    {
                         if (!(await parent.RightsAsync()).Write)
                             throw new WebException(403, "User dont have write right on the destination");
+                    }
+                    // check if destination folder is not the node or its children
+                    if (parent != null)
+                    {
+                        if (parent.node.id == node.id)
+                            throw new WebException(400, "Cant move a node inside itself");
+                        var parents = await parent.GetParentsAsync();
+                        if (parents.Any((p) => p.node.id == node.id))
+                            throw new WebException(400, "Cant move a node inside subfolders");
                     }
                     node.parent_id = define.parent_id;
                 }

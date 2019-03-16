@@ -170,7 +170,6 @@
     </Compile>
     <Compile Include="Doc\Item.cs" />
     <Compile Include="BonApp\BonApp.cs" />
-    <Compile Include="Mail\UnusedEmailCheck.cs" />
     <Compile Include="Textbook\EduLib.cs" />
     <Compile Include="Utils\Cache.cs" />
     <Compile Include="Utils\TimeLimiter.cs" />

@@ -1260,6 +1260,11 @@ namespace Laclasse.Doc
                     }
                 }
             };
+
+            PostAsync["/archive"] = async (p, c) =>
+            {
+                await Task.Delay(2000);
+            };
         }
 
         //# Thumbnail avec OnlyOffice

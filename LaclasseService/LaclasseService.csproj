@@ -175,6 +175,7 @@
     <Compile Include="Utils\TimeLimiter.cs" />
     <Compile Include="Utils\Html.cs" />
     <Compile Include="Mail\Mailboxes.cs" />
+    <Compile Include="Doc\ArchiveZip.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

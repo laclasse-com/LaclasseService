@@ -480,17 +480,17 @@ namespace Laclasse.Doc
 
             PostAsync["/generatetmb"] = async (p, c) =>
             {
-            await c.EnsureIsSuperAdminAsync();
-            var json = await c.Request.ReadAsJsonAsync();
+                await c.EnsureIsSuperAdminAsync();
+                var json = await c.Request.ReadAsJsonAsync();
 
-            using (DB db = await DB.CreateAsync(dbUrl, true))
-            {
-                var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                foreach (var id in json as JsonArray)
+                using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var item = await context.GetByIdAsync(id);
-                    if (item != null && item.node.size > 0)
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    foreach (var id in json as JsonArray)
                     {
+                        var item = await context.GetByIdAsync(id);
+                        if (item != null && item.node.size > 0)
+                        {
                             try
                             {
                                 await item.GenerateThumbnailAsync();
@@ -985,7 +985,7 @@ namespace Laclasse.Doc
             {
                 if (!c.Request.QueryString.ContainsKey("session"))
                     throw new WebException(403, "Insufficient rights");
-                    
+
                 var session = await GetOnlyOfficeSessionAsync(c.Request.QueryString["session"]);
                 if (session == null)
                     throw new WebException(403, "Invalid session");
@@ -1053,10 +1053,10 @@ namespace Laclasse.Doc
                             Mimetype = response.Headers["content-type"],
                             Stream = response.InputStream
                         };
-                        
+
                         using (DB db = await DB.CreateAsync(dbUrl, true))
                         {
-                            var authUser = new AuthenticatedUser { application = new Directory.Application() } ;
+                            var authUser = new AuthenticatedUser { application = new Directory.Application() };
                             var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = authUser, directoryDbUrl = directoryDbUrl };
                             var item = await context.GetByIdAsync(id);
                             if (item != null)
@@ -1263,7 +1263,18 @@ namespace Laclasse.Doc
 
             PostAsync["/archive"] = async (p, c) =>
             {
-                await Task.Delay(2000);
+                var json = await c.Request.ReadAsJsonAsync();
+                var files = (json["files"] as JsonArray).Select(f => (long)f).ToArray();
+                var parentId = (long)json["parent_id"];
+                var name = json["name"];
+
+                using (var db = await DB.CreateAsync(dbUrl))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var item = await ArchiveZip.CreateAsync(context, files, parentId, name);
+                    c.Response.StatusCode = 200;
+                    c.Response.Content = await item.ToJsonAsync(false);
+                }
             };
         }
 

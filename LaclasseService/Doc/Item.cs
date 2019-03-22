@@ -806,6 +806,20 @@ namespace Laclasse.Doc
             }
             return renameNeeded ? $"{prefix}{renamePrefix} {lastIndex + 1}{extension}" : name;
         }
+
+        public static async Task<Folder> CreateAsync(Context context, string name, long parentId)
+        {
+            return await Item.CreateAsync(context, new FileDefinition<Node>
+            {
+                Define = new Node
+                {
+                    mime = "directory",
+                    parent_id = parentId,
+                    name = name,
+                }
+            }) as Folder;
+        }
+
     }
 
     public class Cartable : Folder

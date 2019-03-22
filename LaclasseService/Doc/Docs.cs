@@ -1276,6 +1276,25 @@ namespace Laclasse.Doc
                     c.Response.Content = await item.ToJsonAsync(false);
                 }
             };
+
+            PostAsync["/unarchive"] = async (p, c) =>
+            {
+                var json = await c.Request.ReadAsJsonAsync();
+                var file = (long)json["file"];
+                var parentId = (long)json["parent_id"];
+                var name = json["name"];
+
+                using (var db = await DB.CreateAsync(dbUrl))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var items = await ArchiveZip.ExtractAsync(context, file, parentId, name);
+                    c.Response.StatusCode = 200;
+                    var jsonResult = new JsonArray();
+                    foreach (var item in items)
+                        jsonResult.Add(await item.ToJsonAsync(false));
+                    c.Response.Content = jsonResult;
+                }
+            };
         }
 
         //# Thumbnail avec OnlyOffice

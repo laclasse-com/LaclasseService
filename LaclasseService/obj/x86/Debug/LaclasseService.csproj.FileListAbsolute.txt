@@ -108,3 +108,4 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csproj.CopyComplete
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.exe
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.pdb
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/LaclasseService.csprojAssemblyReference.cache

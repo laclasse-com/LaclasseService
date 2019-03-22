@@ -78,8 +78,9 @@ namespace Laclasse.Directory
         {
             if (user.IsSuperAdmin || user.IsApplication)
                 return new SqlFilter();
-
-            var groupIds = user.user.groups.Select((g) => g.group_id);
+            // allow group or children groups 
+            var groupIds = user.user.groups.Select((g) => g.group_id).Union(
+                user.user.children_groups.Select((g) => g.group_id));
 
             var filter = $"INNER JOIN(" +
                     $"SELECT `{nameof(Publipostage.id)}` AS `allow_id` FROM `publipostage` WHERE `user_id`= '{DB.EscapeString(user.user.id)}' " +

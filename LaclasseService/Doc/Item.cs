@@ -469,6 +469,8 @@ namespace Laclasse.Doc
             await node.SaveAsync(context.db, true);
             if (parent != null)
                 await parent.OnChildChangedAsync(this, ChildAction.Create);
+            // register in the context
+            context.items[node.id] = this;
         }
 
         public static Item ByNode(Context context, Node node)
@@ -571,13 +573,11 @@ namespace Laclasse.Doc
 
         protected virtual Task OnBeforeChildChangedAsync(Item child, ChildAction action, FileDefinition<Node> fileDefinition)
         {
-            Console.WriteLine($"Item.BeforeOnChildChanged {action.ToString()}");
             return Task.FromResult(true);
         }
 
         protected virtual Task OnChildChangedAsync(Item child, ChildAction action)
         {
-            Console.WriteLine($"Item.OnChildChanged {action.ToString()}");
             return Task.FromResult(true);
         }
 
@@ -733,9 +733,8 @@ namespace Laclasse.Doc
         {
             if (!_childrenLoaded)
             {
-                // load node children if needed
-                if (!node.Fields.ContainsKey(nameof(node.children)))
-                    await node.LoadExpandFieldAsync(context.db, nameof(node.children));
+                // load node children
+                await node.LoadExpandFieldAsync(context.db, nameof(node.children));
                 // get all children by their id because the node need to by
                 // fully loaded with the node's expanded field to have a valid Item
                 foreach (var child in node.children)
@@ -805,6 +804,27 @@ namespace Laclasse.Doc
                 }
             }
             return renameNeeded ? $"{prefix}{renamePrefix} {lastIndex + 1}{extension}" : name;
+        }
+
+        protected override async Task OnChildChangedAsync(Item child, ChildAction action)
+        {
+            // update children cache if needed
+            if (_childrenLoaded)
+            {
+                if (action == ChildAction.Delete || action == ChildAction.MoveOut)
+                {
+                    var pos = _children.FindIndex((c) => c.node.id == child.node.id);
+                    if (pos != -1)
+                        _children.RemoveAt(pos);
+                }
+                else if (action == ChildAction.Create || action == ChildAction.MoveIn)
+                {
+                    var pos = _children.FindIndex((c) => c.node.id == child.node.id);
+                    if (pos == -1)
+                        _children.Add(child);
+                }
+            }
+            await base.OnChildChangedAsync(child, action);
         }
 
         public static async Task<Folder> CreateAsync(Context context, string name, long parentId)

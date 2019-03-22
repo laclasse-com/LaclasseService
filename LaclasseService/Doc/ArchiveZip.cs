@@ -54,6 +54,40 @@ namespace Laclasse.Doc
             });
         }
 
+        public static async Task<Stream> DownloadAsArchiveAsync(Context context, long[] files)
+        {
+            var guid = Guid.NewGuid().ToString();
+            string tempFile = Path.Combine(context.tempDir, guid);
+            using (var zip = File.OpenWrite(tempFile))
+            using (var zipWriter = WriterFactory.Open(zip, ArchiveType.Zip, CompressionType.Deflate))
+            {
+                Func<Item, string, Task> AddItemAsync = null;
+                AddItemAsync = async (Item item, string path) =>
+                {
+                    if (item is Folder)
+                    {
+                        path += item.node.name + "/";
+                        var children = await ((Folder)item).GetFilteredChildrenAsync();
+                        foreach (var child in children)
+                            await AddItemAsync(child, path);
+                    }
+                    else
+                    {
+                        var mtime = new DateTime(1970, 1, 1) + TimeSpan.FromSeconds(item.node.mtime);
+                        zipWriter.Write(path + item.node.name, await item.GetContentAsync(), mtime);
+                    }
+                };
+                foreach (var fileId in files)
+                {
+                    var file = await context.GetByIdAsync(fileId);
+                    await AddItemAsync(file, "/");
+                }
+            }
+            var stream = File.OpenRead(tempFile);
+            File.Delete(tempFile);
+            return stream;
+        }
+
         public static async Task<List<Item>> ExtractAsync(Context context, long fileId, long parentId, string name)
         {
             var res = new List<Item>();
@@ -64,28 +98,25 @@ namespace Laclasse.Doc
             FindOrCreateFolderAsync = async (Folder dir, string path) =>
             {
                 if (path == "")
-                    return null;
+                    return dir;
                 var children = await dir.GetFilteredChildrenAsync();
+                var currentFolder = path;
+                var remainPath = "";
                 var firstPos = path.IndexOf('/');
                 if (firstPos != -1)
                 {
-                    var currentFolder = path.Substring(0, firstPos);
-                    var remainPath = path.Substring(firstPos + 1);
-                    var folder = children.FirstOrDefault((c) => c.node.name == currentFolder);
-                    // not found, create it
-                    if (folder == null)
-                        folder = await Folder.CreateAsync(context, currentFolder, dir.node.id);
-
-                    // TODO: recursive search / create
-//                    path = fileName.Substring(0, lastPos);
-//                    fileName = fileName.Substring(lastPos + 1);
+                    currentFolder = path.Substring(0, firstPos);
+                    remainPath = path.Substring(firstPos + 1);
                 }
-
-                /*                    path += item.node.name + "/";
-
-                                    foreach (var child in children)
-                                        await AddItemAsync(child, path);*/
-                return null;
+                var folder = children.FirstOrDefault((c) => c.node.name == currentFolder && c is Folder) as Folder;
+                // not found, create it
+                if (folder == null)
+                {
+                    folder = await Folder.CreateAsync(context, currentFolder, dir.node.id);
+                    res.Add(folder);
+                }
+                // recursive search / create
+                return await FindOrCreateFolderAsync(folder, remainPath);
             };
 
 
@@ -105,8 +136,6 @@ namespace Laclasse.Doc
                     Folder dir = parent;
                     if (path != "")
                         dir = await FindOrCreateFolderAsync(parent, path);
-
-                    Console.WriteLine("ZIP " + reader.Entry.Key + ", File: " + fileName);
 
                     var fileDefinition = new FileDefinition<Node>
                     {

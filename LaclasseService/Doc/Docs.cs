@@ -793,6 +793,22 @@ namespace Laclasse.Doc
                 }
             };
 
+            GetAsync["/downloadasarchive"] = async (p, c) =>
+            {
+                if (c.Request.QueryStringArray.ContainsKey("id"))
+                {
+                    var ids = c.Request.QueryStringArray["id"].Select(a => long.Parse(a)).ToArray();
+                    c.Response.StatusCode = 200;
+                    c.Response.Headers["content-type"] = "application/zip";
+                    c.Response.Headers["content-disposition"] = "attachment; filename=\"archive.zip\"";
+                    using (var db = await DB.CreateAsync(dbUrl))
+                    {
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        c.Response.Content = await ArchiveZip.DownloadAsArchiveAsync(context, ids);
+                    }
+                }
+            };
+
             GetAsync["/{id}"] = async (p, c) =>
             {
                 bool expand = true;

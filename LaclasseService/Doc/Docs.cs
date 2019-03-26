@@ -798,9 +798,12 @@ namespace Laclasse.Doc
                 if (c.Request.QueryStringArray.ContainsKey("id"))
                 {
                     var ids = c.Request.QueryStringArray["id"].Select(a => long.Parse(a)).ToArray();
+                    var name = "archive.zip";
+                    if (c.Request.QueryString.ContainsKey("name"))
+                        name = c.Request.QueryString["name"].Replace('"', ' ');
                     c.Response.StatusCode = 200;
                     c.Response.Headers["content-type"] = "application/zip";
-                    c.Response.Headers["content-disposition"] = "attachment; filename=\"archive.zip\"";
+                    c.Response.Headers["content-disposition"] = $"attachment; filename=\"{name}\"";
                     using (var db = await DB.CreateAsync(dbUrl))
                     {
                         var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };

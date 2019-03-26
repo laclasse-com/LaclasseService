@@ -916,7 +916,7 @@ namespace Laclasse.Doc
                 // catch MySQL duplicate name exception
                 catch (MySql.Data.MySqlClient.MySqlException e)
                 {
-                    if (e.Number == 1602)
+                    if (e.Number == 1062)
                     {
                         c.Response.StatusCode = 400;
                         c.Response.Content = new JsonObject { ["error"] = "Duplicate name", ["code"] = 1 };
@@ -1300,15 +1300,29 @@ namespace Laclasse.Doc
                 var parentId = (long)json["parent_id"];
                 var name = json["name"];
 
-                using (var db = await DB.CreateAsync(dbUrl))
+                try
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                    var items = await ArchiveZip.ExtractAsync(context, file, parentId, name);
-                    c.Response.StatusCode = 200;
-                    var jsonResult = new JsonArray();
-                    foreach (var item in items)
-                        jsonResult.Add(await item.ToJsonAsync(false));
-                    c.Response.Content = jsonResult;
+                    using (var db = await DB.CreateAsync(dbUrl))
+                    {
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var items = await ArchiveZip.ExtractAsync(context, file, parentId, name);
+                        c.Response.StatusCode = 200;
+                        var jsonResult = new JsonArray();
+                        foreach (var item in items)
+                            jsonResult.Add(await item.ToJsonAsync(false));
+                        c.Response.Content = jsonResult;
+                    }
+                }
+                // catch MySQL duplicate name exception
+                catch (MySql.Data.MySqlClient.MySqlException e)
+                {
+                    if (e.Number == 1062)
+                    {
+                        c.Response.StatusCode = 400;
+                        c.Response.Content = new JsonObject { ["error"] = "Duplicate name", ["code"] = 1 };
+                    }
+                    else
+                        throw;
                 }
             };
         }

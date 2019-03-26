@@ -3,9 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using SharpCompress.Common;
-using SharpCompress.Readers;
-using SharpCompress.Writers;
+using ICSharpCode.SharpZipLib.Zip;
 
 namespace Laclasse.Doc
 {
@@ -15,8 +13,8 @@ namespace Laclasse.Doc
         {
             var guid = Guid.NewGuid().ToString();
             string tempFile = Path.Combine(context.tempDir, guid);
-            using (var zip = File.OpenWrite(tempFile))
-            using (var zipWriter = WriterFactory.Open(zip, ArchiveType.Zip, CompressionType.Deflate))
+            using (var fileStream = File.OpenWrite(tempFile))
+            using (var zipStream = new ZipOutputStream(fileStream))
             {
                 Func<Item, string, Task> AddItemAsync = null;
                 AddItemAsync = async (Item item, string path) =>
@@ -31,7 +29,12 @@ namespace Laclasse.Doc
                     else
                     {
                         var mtime = new DateTime(1970, 1, 1) + TimeSpan.FromSeconds(item.node.mtime);
-                        zipWriter.Write(path + item.node.name, await item.GetContentAsync(), mtime);
+                        var zipEntry = new ZipEntry(ZipEntry.CleanName(path + item.node.name));
+                        zipEntry.DateTime = mtime;
+                        zipEntry.IsUnicodeText = true;
+                        zipStream.PutNextEntry(zipEntry);
+                        await (await item.GetContentAsync()).CopyToAsync(zipStream);
+                        zipStream.CloseEntry();
                     }
                 };
                 foreach (var fileId in files)
@@ -58,8 +61,8 @@ namespace Laclasse.Doc
         {
             var guid = Guid.NewGuid().ToString();
             string tempFile = Path.Combine(context.tempDir, guid);
-            using (var zip = File.OpenWrite(tempFile))
-            using (var zipWriter = WriterFactory.Open(zip, ArchiveType.Zip, CompressionType.Deflate))
+            using (var fileStream = File.OpenWrite(tempFile))
+            using (var zipStream = new ZipOutputStream(fileStream))
             {
                 Func<Item, string, Task> AddItemAsync = null;
                 AddItemAsync = async (Item item, string path) =>
@@ -74,7 +77,12 @@ namespace Laclasse.Doc
                     else
                     {
                         var mtime = new DateTime(1970, 1, 1) + TimeSpan.FromSeconds(item.node.mtime);
-                        zipWriter.Write(path + item.node.name, await item.GetContentAsync(), mtime);
+                        var zipEntry = new ZipEntry(ZipEntry.CleanName(path + item.node.name));
+                        zipEntry.DateTime = mtime;
+                        zipEntry.IsUnicodeText = true;
+                        zipStream.PutNextEntry(zipEntry);
+                        await (await item.GetContentAsync()).CopyToAsync(zipStream);
+                        zipStream.CloseEntry();
                     }
                 };
                 foreach (var fileId in files)
@@ -119,14 +127,15 @@ namespace Laclasse.Doc
                 return await FindOrCreateFolderAsync(folder, remainPath);
             };
 
-
-            using (var reader = ReaderFactory.Open(await file.GetContentAsync()))
+            using (var zipFile = new ZipFile(await file.GetContentAsync()))
             {
-                while (reader.MoveToNextEntry())
+                foreach (ZipEntry zipEntry in zipFile)
                 {
+                    if (!zipEntry.IsFile)
+                        continue;
                     var path = "";
-                    var fileName = reader.Entry.Key;
-                    var lastPos = reader.Entry.Key.LastIndexOf('/');
+                    var fileName = zipEntry.Name;
+                    var lastPos = fileName.LastIndexOf('/');
                     if (lastPos != -1)
                     {
                         path = fileName.Substring(0, lastPos);
@@ -140,7 +149,7 @@ namespace Laclasse.Doc
                     var fileDefinition = new FileDefinition<Node>
                     {
                         Name = fileName,
-                        Stream = reader.OpenEntryStream(),
+                        Stream = zipFile.GetInputStream(zipEntry),
                         Define = new Node
                         {
                             parent_id = dir.node.id

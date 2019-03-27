@@ -258,18 +258,17 @@ namespace Laclasse.Directory
         {
             if (user.IsSuperAdmin || user.IsApplication || !user.IsRestrictedUser)
                 return new SqlFilter();
+            return GenerateFilterAuthUser(user);
+        }
+
+        public static SqlFilter GenerateFilterAuthUser(AuthenticatedUser user)
+        {
             var groupsIds = user.user.groups.Select((arg) => arg.group_id);
             groupsIds = groupsIds.Concat(user.user.children_groups.Select((arg) => arg.group_id)).Distinct();
             var structuresIds = user.user.profiles.Select((arg) => arg.structure_id).Distinct();
             var childrenIds = user.user.children.Select((arg) => arg.child_id).Distinct();
             var parentsIds = user.user.parents.Select((arg) => arg.parent_id).Distinct();
             var allowIds = childrenIds.Concat(parentsIds);
-            //            var filter = 
-            //                $"(`id` = '{DB.EscapeString(user.user.id)}' " +
-            //                $"OR `id` IN (SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)}) " +
-            //                $"OR `id` IN (SELECT DISTINCT(`user_id`) FROM `user_profile` WHERE {DB.InFilter ("structure_id", structuresIds)} AND `type` != 'ELV' AND `type` != 'TUT') " +
-            //				$"OR {DB.InFilter("id", allowIds)})";
-
 
             var filter = $"INNER JOIN(SELECT '{DB.EscapeString(user.user.id)}' AS `allow_id` ";
 
@@ -280,7 +279,6 @@ namespace Laclasse.Directory
                 else
                     filter += $"UNION SELECT DISTINCT(`user_id`) as `allow_id` FROM `user_profile` WHERE `structure_id`='{DB.EscapeString(structureId)}' AND `type` != 'ELV' AND `type` != 'TUT' ";
             }
-
 
             if (groupsIds.Count() > 0)
                 filter += $"UNION SELECT DISTINCT(`user_id`) FROM `group_user` WHERE {DB.InFilter("group_id", groupsIds)} ";
@@ -372,6 +370,25 @@ namespace Laclasse.Directory
 
             // register a type
             Types["uid"] = (val) => (Regex.IsMatch(val, "^[A-Z0-9]+$")) ? val : null;
+
+            GetAsync["/"] = async (p, c) =>
+            {
+                await RunBeforeAsync(null, c);
+                var authUser = await c.GetAuthenticatedUserAsync();
+                SqlFilter filterAuth;
+                if (authUser.IsUser && c.Request.QueryString.ContainsKey("restrict"))
+                    filterAuth = User.GenerateFilterAuthUser(authUser);
+                else
+                    filterAuth = (new User()).FilterAuthUser(authUser);
+                using (DB db = await DB.CreateAsync(dbUrl))
+                {
+                    var result = await Model.SearchAsync<User>(db, c, filterAuth);
+                    foreach (var item in result.Data)
+                        await item.EnsureRightAsync(c, Right.Read, null);
+                    c.Response.Content = result.ToJson(c);
+                }
+                c.Response.StatusCode = 200;
+            };
 
             GetAsync["/current"] = async (p, c) =>
             {

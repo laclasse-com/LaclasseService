@@ -24,7 +24,11 @@ namespace Laclasse.Doc
                         path += item.node.name + "/";
                         var children = await ((Folder)item).GetFilteredChildrenAsync();
                         foreach (var child in children)
-                            await AddItemAsync(child, path);
+                        {
+                            // add if the user has read right
+                            if (!(await child.RightsAsync()).Read)
+                                await AddItemAsync(child, path);
+                        }
                     }
                     else
                     {
@@ -72,7 +76,11 @@ namespace Laclasse.Doc
                         path += item.node.name + "/";
                         var children = await ((Folder)item).GetFilteredChildrenAsync();
                         foreach (var child in children)
-                            await AddItemAsync(child, path);
+                        {
+                            // add if the user has read right
+                            if (!(await child.RightsAsync()).Read)
+                                await AddItemAsync(child, path);
+                        }
                     }
                     else
                     {
@@ -88,6 +96,9 @@ namespace Laclasse.Doc
                 foreach (var fileId in files)
                 {
                     var file = await context.GetByIdAsync(fileId);
+                    // check the user rights
+                    if (context.user.IsUser && !(await file.RightsAsync()).Read)
+                        throw new WebException(403, "User dont have read right");
                     await AddItemAsync(file, "/");
                 }
             }
@@ -96,11 +107,14 @@ namespace Laclasse.Doc
             return stream;
         }
 
-        public static async Task<List<Item>> ExtractAsync(Context context, long fileId, long parentId, string name)
+        public static async Task<List<Item>> ExtractAsync(Context context, long fileId, long parentId)
         {
             var res = new List<Item>();
             var file = await context.GetByIdAsync(fileId);
             var parent = (Folder)await context.GetByIdAsync(parentId);
+            // check the user rights
+            if (context.user.IsUser && !(await file.RightsAsync()).Write)
+                throw new WebException(403, "User dont have write right");
 
             Func<Folder, string, Task<Folder>> FindOrCreateFolderAsync = null;
             FindOrCreateFolderAsync = async (Folder dir, string path) =>

@@ -908,6 +908,7 @@ namespace Laclasse.Doc
     public class Structure : Folder
     {
         Directory.Structure _structure = null;
+        ModelList<Directory.Group> _structureGroups = null;
 
         public Structure(Context context, Node node) : base(context, node)
         {
@@ -924,6 +925,17 @@ namespace Laclasse.Doc
                     _structure = null;
             }
             return _structure;
+        }
+
+        public async Task<ModelList<Directory.Group>> GetStructureGroupsAsync()
+        {
+            if (_structureGroups != null)
+                return _structureGroups;
+            using (var db = await DB.CreateAsync(context.directoryDbUrl))
+            {
+                _structureGroups = await db.SelectAsync<Directory.Group>($"SELECT * FROM `group` WHERE `{nameof(Directory.Group.structure_id)}` = ?", node.etablissement_uai);
+            }
+            return _structureGroups;
         }
 
         public override Task<ItemRight> RightsAsync()
@@ -1114,9 +1126,70 @@ namespace Laclasse.Doc
         }
     }
 
-    public class Classe : Folder
+    public class ClasseGroupe : Folder
     {
-        public Classe(Context context, Node node) : base(context, node)
+        Directory.GroupType type;
+
+        public ClasseGroupe(Context context, Node node, Directory.GroupType type) : base(context, node)
+        {
+            this.type = type;
+        }
+
+        public override async Task<ItemRight> RightsAsync()
+        {
+            var rights = await base.RightsAsync();
+            if (context.user.IsSuperAdmin)
+                rights = new ItemRight { Read = true, Write = true, Locked = false };
+            else
+            {
+                rights.Read = false;
+                rights.Write = false;
+                rights.Locked = true;
+                var root = await GetRootAsync();
+                if (root is Structure)
+                {
+                    if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && new string[] { "DOC", "DIR", "ADM" }.Contains(p.type)))
+                    {
+                        rights.Read = true;
+                        rights.Write = true;
+                    }
+                    else
+                    {
+                        if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && !(new string[] { "ELV", "TUT", "ENS" }.Contains(p.type))))
+                        {
+                            rights.Read = true;
+                            rights.Write = false;
+                        }
+                        var groups = await ((Structure)root).GetStructureGroupsAsync();
+                        var group = groups.SingleOrDefault((g) => g.name == node.name && g.type == type);
+                        // if the name correspond to an existing group in the structure
+                        if (group != null)
+                        {
+                            // if the user is a member of this group
+                            if (context.user.user.groups.Any((g) => g.group_id == group.id))
+                            {
+                                rights.Read = true;
+                                rights.Write = true;
+                            }
+                            // if the user has a child in this group
+                            else if (context.user.user.children_groups.Any((g) => g.group_id == group.id))
+                            {
+                                rights.Read = true;
+                                rights.Write = false;
+                            }
+                        }
+                    }
+                }
+                await ProcessAdvancedRightsAsync(rights);
+                await ProcessAdvancedParentRightsAsync(rights);
+            }
+            return rights;
+        }
+    }
+
+    public class Classe : ClasseGroupe
+    {
+        public Classe(Context context, Node node) : base(context, node, Directory.GroupType.CLS)
         {
         }
 
@@ -1139,28 +1212,6 @@ namespace Laclasse.Doc
                 children.Append(ctItem);
             }
             return children;
-        }
-
-        public override async Task<ItemRight> RightsAsync()
-        {
-            var rights = await base.RightsAsync();
-            if (context.user.IsSuperAdmin)
-                rights = new ItemRight { Read = true, Write = true, Locked = false };
-            else
-            {
-                rights.Locked = true;
-                var root = await GetRootAsync();
-                if (root is Structure)
-                {
-                    // only students, teachers and management staff are allowed to write
-                    var allowedProfiles = new string[] { "ENS", "ELV", "DOC", "DIR", "ADM" };
-                    if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && allowedProfiles.Contains(p.type)))
-                        rights.Write = true;
-                }
-                await ProcessAdvancedRightsAsync(rights);
-                await ProcessAdvancedParentRightsAsync(rights);
-            }
-            return rights;
         }
     }
 
@@ -1249,32 +1300,10 @@ namespace Laclasse.Doc
         }
     }
 
-    public class Groupe : Folder
+    public class Groupe : ClasseGroupe
     {
-        public Groupe(Context context, Node node) : base(context, node)
+        public Groupe(Context context, Node node) : base(context, node, Directory.GroupType.GRP)
         {
-        }
-
-        public override async Task<ItemRight> RightsAsync()
-        {
-            var rights = await base.RightsAsync();
-            if (context.user.IsSuperAdmin)
-                rights = new ItemRight { Read = true, Write = true, Locked = false };
-            else
-            {
-                rights.Locked = true;
-                var root = await GetRootAsync();
-                if (root is Structure)
-                {
-                    // only students, teachers and management staff are allowed to write
-                    var allowedProfiles = new string[] { "ENS", "ELV", "DOC", "DIR", "ADM" };
-                    if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && allowedProfiles.Contains(p.type)))
-                        rights.Write = true;
-                }
-                await ProcessAdvancedRightsAsync(rights);
-                await ProcessAdvancedParentRightsAsync(rights);
-            }
-            return rights;
         }
     }
 
@@ -1497,7 +1526,7 @@ namespace Laclasse.Doc
             {
                 if (!await HasSeeAllRightAsync())
                     rights.Locked = true;
-                if (await NeedForceWriteAsync())
+                if (rights.Read && await NeedForceWriteAsync())
                     rights.Write = node.return_date == null || node.return_date > DateTime.Now;
             }
             return rights;

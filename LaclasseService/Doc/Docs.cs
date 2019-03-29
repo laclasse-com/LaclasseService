@@ -823,12 +823,26 @@ namespace Laclasse.Doc
                 {
                     var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
                     var item = await context.GetByIdAsync(id);
-                    await db.CommitAsync();
                     if (item != null)
                     {
+                        if (context.user.IsUser)
+                        {
+                            // a user can see the meta data if he has read right on
+                            // the parent folder or read right on the item if there is no parent
+                            var parent = await item.GetParentAsync();
+                            if (parent != null)
+                            {
+                                if (!(await parent.RightsAsync()).Read)
+                                    throw new WebException(403, "User dont have read right");
+                            }
+                            else if (!(await item.RightsAsync()).Read)
+                                throw new WebException(403, "User dont have read right");
+                        }
+
                         c.Response.StatusCode = 200;
                         c.Response.Content = await item.ToJsonAsync(expand);
                     }
+                    await db.CommitAsync();
                 }
             };
 
@@ -1301,14 +1315,13 @@ namespace Laclasse.Doc
                 var json = await c.Request.ReadAsJsonAsync();
                 var file = (long)json["file"];
                 var parentId = (long)json["parent_id"];
-                var name = json["name"];
 
                 try
                 {
                     using (var db = await DB.CreateAsync(dbUrl))
                     {
                         var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                        var items = await ArchiveZip.ExtractAsync(context, file, parentId, name);
+                        var items = await ArchiveZip.ExtractAsync(context, file, parentId);
                         c.Response.StatusCode = 200;
                         var jsonResult = new JsonArray();
                         foreach (var item in items)

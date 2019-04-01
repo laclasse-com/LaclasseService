@@ -106,9 +106,14 @@ namespace Laclasse.Doc
                 {
                     rights = await parent.RightsAsync();
                     rights.Locked = false;
+                    // only process advanced right if the user can
+                    // read on parents folders
+                    if (rights.Read)
+                        await ProcessAdvancedRightsAsync(rights);
                 }
-                await ProcessAdvancedRightsAsync(rights);
-                await ProcessAdvancedParentRightsAsync(rights);
+                else
+                    await ProcessAdvancedRightsAsync(rights);
+                await ProcessAdvancedParentRightsAsync(this, rights);
             }
             return rights;
         }
@@ -148,11 +153,11 @@ namespace Laclasse.Doc
                 rights.Write = (bool)advWrite;
         }
 
-        public virtual async Task ProcessAdvancedParentRightsAsync(ItemRight rights)
+        public virtual async Task ProcessAdvancedParentRightsAsync(Item item, ItemRight rights)
         {
             var parent = await GetParentAsync();
             if (parent != null)
-                await parent.ProcessAdvancedParentRightsAsync(rights);
+                await parent.ProcessAdvancedParentRightsAsync(item, rights);
         }
 
         public virtual Task<Stream> GetContentAsync()
@@ -858,7 +863,7 @@ namespace Laclasse.Doc
             return Task.FromResult(rights);
         }
 
-        public override async Task ProcessAdvancedParentRightsAsync(ItemRight rights)
+        public override async Task ProcessAdvancedParentRightsAsync(Item item, ItemRight rights)
         {
             if (context.user.IsSuperAdmin)
             {
@@ -879,7 +884,7 @@ namespace Laclasse.Doc
                     }
                 }
                 else
-                    await parent.ProcessAdvancedParentRightsAsync(rights);
+                    await parent.ProcessAdvancedParentRightsAsync(item, rights);
             }
         }
 
@@ -953,7 +958,7 @@ namespace Laclasse.Doc
             return Task.FromResult(rights);
         }
 
-        public override async Task ProcessAdvancedParentRightsAsync(ItemRight rights)
+        public override async Task ProcessAdvancedParentRightsAsync(Item item, ItemRight rights)
         {
             if (context.user.IsSuperAdmin)
             {
@@ -974,7 +979,7 @@ namespace Laclasse.Doc
                     }
                 }
                 else
-                    await parent.ProcessAdvancedParentRightsAsync(rights);
+                    await parent.ProcessAdvancedParentRightsAsync(item, rights);
             }
         }
 
@@ -1181,7 +1186,7 @@ namespace Laclasse.Doc
                     }
                 }
                 await ProcessAdvancedRightsAsync(rights);
-                await ProcessAdvancedParentRightsAsync(rights);
+                await ProcessAdvancedParentRightsAsync(this, rights);
             }
             return rights;
         }
@@ -1321,18 +1326,22 @@ namespace Laclasse.Doc
             else
             {
                 rights.Locked = true;
-                var root = await GetRootAsync();
-                if (root is Structure)
+                // we first need to have read right on the parent
+                if (rights.Read)
                 {
-                    rights.Read = false;
-                    // a profile on the "etablissement" = read right
-                    if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai))
-                        rights.Read = true;
-                    rights.Write = false;
-                    // students and parents are not allowed to write
-                    var allowedProfiles = new string[] { "ENS", "DOC", "DIR", "ADM" };
-                    if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && allowedProfiles.Contains(p.type)))
-                        rights.Write = true;
+                    var root = await GetRootAsync();
+                    if (root is Structure)
+                    {
+                        rights.Read = false;
+                        // a profile on the "etablissement" = read right
+                        if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai))
+                            rights.Read = true;
+                        rights.Write = false;
+                        // students and parents are not allowed to write
+                        var allowedProfiles = new string[] { "ENS", "DOC", "DIR", "ADM" };
+                        if (context.user.user.profiles.Any((p) => p.structure_id == root.node.etablissement_uai && allowedProfiles.Contains(p.type)))
+                            rights.Write = true;
+                    }
                 }
             }
             return rights;
@@ -1351,7 +1360,10 @@ namespace Laclasse.Doc
             if (context.user.IsSuperAdmin)
                 rights = new ItemRight { Read = true, Write = true, Locked = false };
             else
-                rights = new ItemRight { Read = true, Locked = true, Write = context.user.user.groups.Any((g) => node.groupe_libre_id == g.group_id) };
+            {
+                var isMember = context.user.user.groups.Any((g) => node.groupe_libre_id == g.group_id);
+                rights = new ItemRight { Read = isMember, Locked = true, Write = isMember };
+            }
             return Task.FromResult(rights);
         }
 
@@ -1522,7 +1534,7 @@ namespace Laclasse.Doc
             var rights = await base.RightsAsync();
             if (context.user.IsSuperAdmin)
                 rights = new ItemRight { Read = true, Write = true, Locked = false };
-            else
+            else if (rights.Read)
             {
                 if (!await HasSeeAllRightAsync())
                     rights.Locked = true;
@@ -1530,6 +1542,19 @@ namespace Laclasse.Doc
                     rights.Write = node.return_date == null || node.return_date > DateTime.Now;
             }
             return rights;
+        }
+
+        public override async Task ProcessAdvancedParentRightsAsync(Item item, ItemRight rights)
+        {
+            if (item != this && !await HasSeeAllRightAsync())
+            {
+                if (item.node.owner != context.user.user.id)
+                {
+                    rights.Read = false;
+                    rights.Write = false;
+                }
+            }
+            await base.ProcessAdvancedParentRightsAsync(item, rights);
         }
 
         static string CleanName(string name, string lastname, string firstname)

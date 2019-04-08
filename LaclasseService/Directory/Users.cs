@@ -66,9 +66,9 @@ namespace Laclasse.Directory
                 SetField(nameof(password), value);
             }
         }
-        [ModelField(Required = true)]
+        [ModelField(Required = true, RegexMatch = "^[-'0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖÙÜàâãäçèéêëîïôöœùûüÿ]*$")]
         public string lastname { get { return GetField<string>(nameof(lastname), null); } set { SetField(nameof(lastname), value); } }
-        [ModelField(Required = true)]
+        [ModelField(Required = true, RegexMatch = "^[-'0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖÙÜàâãäçèéêëîïôöœùûüÿ]*$")]
         public string firstname { get { return GetField<string>(nameof(firstname), null); } set { SetField(nameof(firstname), value); } }
         [ModelField]
         public Gender? gender { get { return GetField<Gender?>(nameof(gender), null); } set { SetField(nameof(gender), value); } }
@@ -76,7 +76,7 @@ namespace Laclasse.Directory
         public DateTime? birthdate { get { return GetField<DateTime?>(nameof(birthdate), null); } set { SetField(nameof(birthdate), value); } }
         [ModelField]
         public string address { get { return GetField<string>(nameof(address), null); } set { SetField(nameof(address), value); } }
-        [ModelField]
+        [ModelField(RegexMatch = "^[0-9]*$")]
         public string zip_code { get { return GetField<string>(nameof(zip_code), null); } set { SetField(nameof(zip_code), value); } }
         [ModelField]
         public string city { get { return GetField<string>(nameof(city), null); } set { SetField(nameof(city), value); } }

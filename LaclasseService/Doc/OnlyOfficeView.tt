@@ -48,7 +48,10 @@ var config = {
             "name": "<#= user.firstname + " " + user.lastname #>"
         },
         "customization": {
-            "forcesave": true
+            "forcesave": true,
+            "logo": {
+                "image": "/portail/img/logo-onlyoffice.png"
+            }
         }
     },
     "type": "<#= mode == OnlyOfficeMode.Mobile ? "mobile" : "desktop" #>",

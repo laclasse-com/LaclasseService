@@ -1510,12 +1510,18 @@ namespace Laclasse.Doc
             var match = Regex.Match(context.Request.Path, @"^/zip/(\d+)/content/(.*)$");
             if (match.Success)
             {
-                await context.EnsureIsAuthenticatedAsync();
+                // if user is not authenticated, ask for authentication
+                var authUser = await context.GetAuthenticatedUserAsync();
+                if (authUser == null)
+                {
+                    context.Response.StatusCode = 302;
+                    context.Response.Headers["location"] = "/sso/login?ticket=false&service=" + HttpUtility.UrlEncode(context.SelfURL());
+                    return;
+                }
 
                 string fileId = match.Groups[1].Value;
                 string remainPath = match.Groups[2].Value;
 
-                //                string filePath = null;
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
                     var ctx = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await context.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = context };
@@ -1523,6 +1529,9 @@ namespace Laclasse.Doc
 
                     if (item != null)
                     {
+                        if (!(await item.RightsAsync()).Read)
+                            throw new WebException(403, "Insufficient rights");
+
                         using (var zipFile = new ZipFile(await item.GetContentAsync()))
                         {
                             // special case, if the path is not set, look for an index file

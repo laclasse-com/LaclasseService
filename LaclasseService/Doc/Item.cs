@@ -20,6 +20,7 @@ namespace Laclasse.Doc
         public DB db;
         public Blobs blobs;
         public Docs docs;
+        public HttpContext httpContext;
         public Dictionary<long, Item> items = new Dictionary<long, Item>();
 
         public async Task<Item> GetByIdAsync(long id)
@@ -682,6 +683,8 @@ namespace Laclasse.Doc
             Register("application/x-laclasse-pad", (context, node) => new Pad(context, node));
 
             RegisterFileExtension(".webapp", "application/x-laclasse-webapp");
+
+            Register(Docs.OnlyOfficeMimes.Keys, (context, node) => new OnlyOffice(context, node));
 
             Register("*", (context, node) => new Document(context, node));
         }

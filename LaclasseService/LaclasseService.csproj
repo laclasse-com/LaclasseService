@@ -176,6 +176,7 @@
     <Compile Include="Utils\Html.cs" />
     <Compile Include="Mail\Mailboxes.cs" />
     <Compile Include="Doc\ArchiveZip.cs" />
+    <Compile Include="Doc\OnlyOffice.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

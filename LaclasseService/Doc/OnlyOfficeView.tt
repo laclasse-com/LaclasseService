@@ -46,6 +46,9 @@ var config = {
         "user": {
             "id": "<#= user.id #>",
             "name": "<#= user.firstname + " " + user.lastname #>"
+        },
+        "customization": {
+            "forcesave": true
         }
     },
     "type": "<#= mode == OnlyOfficeMode.Mobile ? "mobile" : "desktop" #>",

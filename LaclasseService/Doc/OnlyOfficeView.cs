@@ -166,18 +166,19 @@ var config = {
             #line hidden
             
             #line 48 ""
-            this.Write("\"\n        }\n    },\n    \"type\": \"");
+            this.Write("\"\n        },\n        \"customization\": {\n            \"forcesave\": true\n        }\n " +
+                    "   },\n    \"type\": \"");
             
             #line default
             #line hidden
             
-            #line 51 ""
+            #line 54 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( mode == OnlyOfficeMode.Mobile ? "mobile" : "desktop" ));
             
             #line default
             #line hidden
             
-            #line 51 ""
+            #line 54 ""
             this.Write("\",\n    \"width\": \"100%\",\n    \"height\": \"100%\"\n};\n\nvar docEditor = new DocsAPI.DocE" +
                     "ditor(\"placeholder\", config);\n        </script>\n    </body>\n</html>");
             

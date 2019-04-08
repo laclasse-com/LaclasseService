@@ -218,6 +218,8 @@ namespace Laclasse.Doc
         [ModelField]
         public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
         [ModelField]
+        public string key { get { return GetField<string>(nameof(key), null); } set { SetField(nameof(key), value); } }
+        [ModelField]
         public long node_id { get { return GetField(nameof(node_id), 0L); } set { SetField(nameof(node_id), value); } }
         [ModelField]
         public DateTime ctime { get { return GetField(nameof(ctime), DateTime.MinValue); } set { SetField(nameof(ctime), value); } }
@@ -390,6 +392,18 @@ namespace Laclasse.Doc
         object tempFilesLock = new object();
         Dictionary<string, TempFile> tempFiles = new Dictionary<string, TempFile>();
 
+        public class OnlyOfficeCallbackData : TaskCompletionSource<OnlyOffice>
+        {
+            public OnlyOfficeCallbackData(int timeoutms)
+            {
+                var ct = new CancellationTokenSource(timeoutms);
+                ct.Token.Register(() => TrySetCanceled());
+            }
+        }
+
+        internal object onlyOfficeCallbacksLock = new object();
+        internal Dictionary<long, List<OnlyOfficeCallbackData>> onlyOfficeCallbacks = new Dictionary<long, List<OnlyOfficeCallbackData>>();
+
         public static Dictionary<string, OnlyOfficeFileType> OnlyOfficeMimes = new Dictionary<string, OnlyOfficeFileType>
         {
             // text
@@ -427,14 +441,17 @@ namespace Laclasse.Doc
 
             BeforeAsync = async (p, c) =>
             {
-                // no authentication for onlyoffice POST
-                if (c.Request.Method == "POST" && Regex.IsMatch(c.Request.Path, "^/[0-9]+/onlyoffice$"))
+                // no authentication for onlyoffice GET or POST
+                if ((c.Request.Method == "POST" || c.Request.Method == "GET") && Regex.IsMatch(c.Request.Path, "^/[0-9]+/onlyoffice$"))
                     return;
                 // no authentication for tempFile
                 if (c.Request.Path.StartsWith("/tempFile/", StringComparison.InvariantCulture))
                     return;
                 // no authentication for onlyoffice GET file
                 if (c.Request.Method == "GET" && Regex.IsMatch(c.Request.Path, "^/[0-9]+/onlyoffice/file$"))
+                    return;
+                // no authentication when getting file content
+                if (c.Request.Method == "GET" && Regex.IsMatch(c.Request.Path, "^/[0-9]+/content$"))
                     return;
                 // authentication needed
                 await c.EnsureIsAuthenticatedAsync();
@@ -453,7 +470,7 @@ namespace Laclasse.Doc
 
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     foreach (var id in json as JsonArray)
                     {
                         var item = await context.GetByIdAsync(id);
@@ -485,7 +502,7 @@ namespace Laclasse.Doc
 
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     foreach (var id in json as JsonArray)
                     {
                         var item = await context.GetByIdAsync(id);
@@ -562,7 +579,7 @@ namespace Laclasse.Doc
             {
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     var roots = await GetRootsAsync(context);
                     var jsonArray = new JsonArray();
                     foreach (var r in roots)
@@ -582,7 +599,7 @@ namespace Laclasse.Doc
                     expand = Convert.ToBoolean(c.Request.QueryString["expand"]);
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     var result = await Model.SearchAsync<Node>(db, c);
                     c.Response.Content = result;
                 }
@@ -736,7 +753,7 @@ namespace Laclasse.Doc
                 // NAIVE ALGO. IMPROVE THIS
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     var filter = c.ToFilter();
                     var expand = c.Request.QueryString.ContainsKey("expand") && bool.Parse(c.Request.QueryString["expand"]);
                     filter.Remove("expand");
@@ -806,7 +823,7 @@ namespace Laclasse.Doc
                     c.Response.Headers["content-disposition"] = $"attachment; filename=\"{name}\"";
                     using (var db = await DB.CreateAsync(dbUrl))
                     {
-                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                         c.Response.Content = await ArchiveZip.DownloadAsArchiveAsync(context, ids);
                     }
                 }
@@ -821,7 +838,7 @@ namespace Laclasse.Doc
 
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     var item = await context.GetByIdAsync(id);
                     if (item != null)
                     {
@@ -851,7 +868,7 @@ namespace Laclasse.Doc
                 var id = long.Parse((string)p["id"]);
                 using (var db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     var item = await context.GetByIdAsync(id);
                     if (item != null)
                         await item.DeleteAsync();
@@ -868,7 +885,7 @@ namespace Laclasse.Doc
                 {
                     using (var db = await DB.CreateAsync(dbUrl, true))
                     {
-                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                         foreach (var idValue in json as JsonArray)
                         {
                             var id = long.Parse(idValue);
@@ -890,7 +907,7 @@ namespace Laclasse.Doc
                 {
                     using (var db = await DB.CreateAsync(dbUrl, true))
                     {
-                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                         var item = await Item.CreateAsync(context, fileDefinition);
                         await db.CommitAsync();
                         c.Response.StatusCode = 200;
@@ -919,7 +936,7 @@ namespace Laclasse.Doc
                 {
                     using (DB db = await DB.CreateAsync(dbUrl, true))
                     {
-                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                         var item = await context.GetByIdAsync(id);
                         await item.ChangeAsync(fileDefinition);
                         await db.CommitAsync();
@@ -946,12 +963,22 @@ namespace Laclasse.Doc
             GetAsync["/{id}/onlyoffice"] = async (p, c) =>
             {
                 var id = long.Parse((string)p["id"]);
-                Item item;
+
+                // if user is not authenticated, ask for authentication
+                var authUser = await c.GetAuthenticatedUserAsync();
+                if (authUser == null)
+                {
+                    c.Response.StatusCode = 302;
+                    c.Response.Headers["location"] = "/sso/login?ticket=false&service=" + HttpUtility.UrlEncode(c.SelfURL());
+                    return;
+                }
+
+                OnlyOffice item;
                 ItemRight rights = null;
                 using (DB db = await DB.CreateAsync(dbUrl))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
-                    item = await context.GetByIdAsync(id);
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                    item = await context.GetByIdAsync(id) as OnlyOffice;
                     if (item != null)
                         rights = await item.RightsAsync();
                 }
@@ -963,13 +990,12 @@ namespace Laclasse.Doc
 
                     OnlyOfficeDocumentType documentType = OnlyOfficeDocumentType.text;
                     OnlyOfficeFileType fileType = OnlyOfficeFileType.docx;
-                    NodeToFileType(item.node, out documentType, out fileType);
+                    OnlyOffice.NodeToFileType(item.node, out documentType, out fileType);
 
                     if (!rights.Read)
                         throw new WebException(403, "Rights needed");
 
-                    var session = await CreateOnlyOfficeSessionAsync(item.node.id, rights.Write);
-                    var authUser = await c.GetAuthenticatedUserAsync();
+                    var session = await CreateOnlyOfficeSessionAsync(item, rights.Write);
                     c.Response.StatusCode = 200;
                     c.Response.Headers["content-type"] = "text/html; charset=utf-8";
                     c.Response.Content = new OnlyOfficeView
@@ -1001,7 +1027,7 @@ namespace Laclasse.Doc
 
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     var item = await context.GetByIdAsync(id);
                     if (item != null)
                     {
@@ -1013,6 +1039,39 @@ namespace Laclasse.Doc
                     await db.CommitAsync();
                 }
             };
+
+            // TEST / DEBUG
+            GetAsync["/{id}/onlyoffice/info"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                    OnlyOffice item = await context.GetByIdAsync(id) as OnlyOffice;
+                    if (item != null)
+                    {
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = await item.GetInfoAsync();
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
+            // TEST / DEBUG
+            GetAsync["/{id}/onlyoffice/forcesave"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                    OnlyOffice item = await context.GetByIdAsync(id) as OnlyOffice;
+                    if (item != null)
+                        await item.ForceSaveAsync();
+                }
+            };
+
 
             PostAsync["/{id}/onlyoffice"] = async (p, c) =>
             {
@@ -1028,7 +1087,13 @@ namespace Laclasse.Doc
                     throw new WebException(403, "Invalid session node");
 
                 var json = await c.Request.ReadAsJsonAsync();
-                if (json.ContainsKey("status") && json.ContainsKey("url") && json["status"] == 2)
+                // document close with no changes
+                if (json.ContainsKey("status") && json["status"] == 4)
+                {
+                    await DeleteOnlyOfficeSessionForNodeAsync(session.node_id);
+                }
+                // final save or intermediate forcesave
+                else if (json.ContainsKey("status") && json.ContainsKey("url") && (json["status"] == 2 || json["status"] == 6))
                 {
                     // if save is need check is the session has the right
                     if (!session.write)
@@ -1060,11 +1125,11 @@ namespace Laclasse.Doc
                         {
                             OnlyOfficeFileType fromFileType;
                             OnlyOfficeDocumentType fromDocumentType;
-                            MimeToFileType(response.Headers["content-type"], out fromDocumentType, out fromFileType);
+                            OnlyOffice.MimeToFileType(response.Headers["content-type"], out fromDocumentType, out fromFileType);
                             OnlyOfficeFileType toFileType;
                             OnlyOfficeDocumentType toDocumentType;
-                            MimeToFileType(node.mime, out toDocumentType, out toFileType);
-                            var convertUrl = await OnlyOfficeConvertAsync(c, json["url"], fromFileType, toFileType);
+                            OnlyOffice.MimeToFileType(node.mime, out toDocumentType, out toFileType);
+                            var convertUrl = await OnlyOffice.ConvertAsync(c, json["url"], fromFileType, toFileType);
                             if (convertUrl == null)
                                 return;
                             client.Dispose();
@@ -1087,18 +1152,25 @@ namespace Laclasse.Doc
                             Stream = response.InputStream
                         };
 
+                        OnlyOffice item = null;
                         using (DB db = await DB.CreateAsync(dbUrl, true))
                         {
                             var authUser = new AuthenticatedUser { application = new Directory.Application() };
-                            var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = authUser, directoryDbUrl = directoryDbUrl };
-                            var item = await context.GetByIdAsync(id);
+                            var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = authUser, directoryDbUrl = directoryDbUrl, httpContext = c };
+                            item = await context.GetByIdAsync(id) as OnlyOffice;
                             if (item != null)
                                 await item.ChangeAsync(fileDefinition);
                             await db.CommitAsync();
-                            if (item != null)
+                        }
+                        // signal that the document content was updated
+                        lock (onlyOfficeCallbacksLock)
+                        {
+                            if (onlyOfficeCallbacks.ContainsKey(id))
                             {
-                                c.Response.StatusCode = 200;
-                                c.Response.Content = await item.ToJsonAsync(true);
+                                var list = onlyOfficeCallbacks[id];
+                                onlyOfficeCallbacks.Remove(id);
+                                foreach (var cb in list)
+                                    cb.SetResult(item);
                             }
                         }
                     }
@@ -1106,7 +1178,9 @@ namespace Laclasse.Doc
                     {
                         client.Dispose();
                     }
-                    await DeleteOnlyOfficeSessionAsync(session.id);
+                    // if it was the last save, delete sessions
+                    if (json["status"] == 2)
+                        await DeleteOnlyOfficeSessionForNodeAsync(session.node_id);
                 }
                 c.Response.StatusCode = 200;
                 c.Response.Content = new JsonObject { ["error"] = 0 };
@@ -1130,7 +1204,7 @@ namespace Laclasse.Doc
 
                 using (var db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
 
                     var parentItem = await context.GetByIdAsync((long)dstNode.parent_id);
                     var item = await context.GetByIdAsync(id);
@@ -1176,7 +1250,7 @@ namespace Laclasse.Doc
 
                 using (var db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     var srcItem = await context.GetByIdAsync(src);
                     var dstItem = await context.GetByIdAsync(id);
 
@@ -1208,9 +1282,18 @@ namespace Laclasse.Doc
                 if (c.Request.QueryString.ContainsKey("rev"))
                     argRev = Convert.ToInt64(c.Request.QueryString["rev"]);
 
+                // if user is not authenticated, ask for authentication
+                var authUser = await c.GetAuthenticatedUserAsync();
+                if (authUser == null)
+                {
+                    c.Response.StatusCode = 302;
+                    c.Response.Headers["location"] = "/sso/login?ticket=false&service=" + HttpUtility.UrlEncode(c.SelfURL());
+                    return;
+                }
+
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     var item = await context.GetByIdAsync(id);
                     if (item != null)
                     {
@@ -1255,7 +1338,7 @@ namespace Laclasse.Doc
 
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     var item = await context.GetByIdAsync(id);
 
                     if (item != null)
@@ -1303,7 +1386,7 @@ namespace Laclasse.Doc
 
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                     var item = await ArchiveZip.CreateAsync(context, files, parentId, name);
                     c.Response.StatusCode = 200;
                     c.Response.Content = await item.ToJsonAsync(false);
@@ -1320,7 +1403,7 @@ namespace Laclasse.Doc
                 {
                     using (var db = await DB.CreateAsync(dbUrl))
                     {
-                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                         var items = await ArchiveZip.ExtractAsync(context, file, parentId);
                         c.Response.StatusCode = 200;
                         var jsonResult = new JsonArray();
@@ -1341,41 +1424,6 @@ namespace Laclasse.Doc
                         throw;
                 }
             };
-        }
-
-        //# Thumbnail avec OnlyOffice
-        //        curl -X POST http://daniel.erasme.lan/onlyoffice/ConvertService.ashx
-        // -H "Content-Type: application/json" -d
-        // '{"async": false, "outputtype":"jpg","thumbnail":{"aspect": 0, "width": 64, "height": 64 },"filetype":"docx","url": "http://admin:masterPassword@daniel.erasme.lan/api/docs/3180/content"}'
-        async Task<string> OnlyOfficeConvertAsync(HttpContext c, string fileUrl, OnlyOfficeFileType fileType, OnlyOfficeFileType destFileType)
-        {
-            string resFileUrl = null;
-            var uri = new Uri(new Uri(c.SelfURL()), "/onlyoffice/ConvertService.ashx");
-            using (HttpClient client = await HttpClient.CreateAsync(uri))
-            {
-                HttpClientRequest request = new HttpClientRequest();
-                request.Method = "POST";
-                request.Path = uri.PathAndQuery;
-                request.Headers["accept"] = "application/json";
-                request.Content = new JsonObject
-                {
-                    ["key"] = Guid.NewGuid().ToString(),
-                    ["async"] = false,
-                    ["codePage"] = 65001,
-                    ["filetype"] = fileType.ToString(),
-                    ["outputtype"] = destFileType.ToString(),
-                    ["url"] = fileUrl
-                };
-                await client.SendRequestAsync(request);
-                HttpClientResponse response = await client.GetResponseAsync();
-                if (response.StatusCode == 200)
-                {
-                    var json = await response.ReadAsJsonAsync();
-                    if (json.ContainsKey("fileUrl"))
-                        resFileUrl = json["fileUrl"];
-                }
-            }
-            return resFileUrl;
         }
 
         async Task<string> OnlyOfficeGenerateThumbAsync(string fileUrl, OnlyOfficeFileType fileType)
@@ -1470,7 +1518,7 @@ namespace Laclasse.Doc
                 //                string filePath = null;
                 using (var db = await DB.CreateAsync(dbUrl))
                 {
-                    var ctx = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await context.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                    var ctx = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await context.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = context };
                     var item = await ctx.GetByIdAsync(long.Parse(fileId));
 
                     if (item != null)
@@ -1611,93 +1659,6 @@ namespace Laclasse.Doc
             }
         }
 
-        static void NodeToFileType(Node node, out OnlyOfficeDocumentType documentType, out OnlyOfficeFileType fileType)
-        {
-            MimeToFileType(node.mime, out documentType, out fileType);
-        }
-
-        static void MimeToFileType(string mime, out OnlyOfficeDocumentType documentType, out OnlyOfficeFileType fileType)
-        {
-            documentType = OnlyOfficeDocumentType.text;
-            fileType = OnlyOfficeFileType.docx;
-
-            // text
-            if (mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-            {
-                documentType = OnlyOfficeDocumentType.text;
-                fileType = OnlyOfficeFileType.docx;
-            }
-            else if (mime == "application/msword")
-            {
-                documentType = OnlyOfficeDocumentType.text;
-                fileType = OnlyOfficeFileType.doc;
-            }
-            else if (mime == "application/epub+zip")
-            {
-                documentType = OnlyOfficeDocumentType.text;
-                fileType = OnlyOfficeFileType.epub;
-            }
-            else if (mime == "application/vnd.oasis.opendocument.text")
-            {
-                documentType = OnlyOfficeDocumentType.text;
-                fileType = OnlyOfficeFileType.odt;
-            }
-            else if (mime == "application/rtf")
-            {
-                documentType = OnlyOfficeDocumentType.text;
-                fileType = OnlyOfficeFileType.rtf;
-            }
-            else if (mime == "text/plain")
-            {
-                documentType = OnlyOfficeDocumentType.text;
-                fileType = OnlyOfficeFileType.txt;
-            }
-            else if (mime == "application/vnd.ms-xpsdocument")
-            {
-                documentType = OnlyOfficeDocumentType.text;
-                fileType = OnlyOfficeFileType.xps;
-            }
-
-            // spreadsheet
-            else if (mime == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            {
-                documentType = OnlyOfficeDocumentType.spreadsheet;
-                fileType = OnlyOfficeFileType.xlsx;
-            }
-            else if (mime == "application/vnd.ms-excel")
-            {
-                documentType = OnlyOfficeDocumentType.spreadsheet;
-                fileType = OnlyOfficeFileType.xls;
-            }
-            else if (mime == "application/vnd.oasis.opendocument.spreadsheet")
-            {
-                documentType = OnlyOfficeDocumentType.spreadsheet;
-                fileType = OnlyOfficeFileType.ods;
-            }
-            else if (mime == "text/csv")
-            {
-                documentType = OnlyOfficeDocumentType.spreadsheet;
-                fileType = OnlyOfficeFileType.csv;
-            }
-
-            // presentation
-            else if (mime == "application/vnd.openxmlformats-officedocument.presentationml.presentation")
-            {
-                documentType = OnlyOfficeDocumentType.presentation;
-                fileType = OnlyOfficeFileType.pptx;
-            }
-            else if (mime == "application/vnd.ms-powerpoint")
-            {
-                documentType = OnlyOfficeDocumentType.presentation;
-                fileType = OnlyOfficeFileType.ppt;
-            }
-            else if (mime == "application/vnd.oasis.opendocument.presentation")
-            {
-                documentType = OnlyOfficeDocumentType.presentation;
-                fileType = OnlyOfficeFileType.odp;
-            }
-        }
-
         public static void GenerateDefaultContent(FileDefinition<Node> fileDefinition)
         {
             if (fileDefinition.Define != null && fileDefinition.Define.mime != null && fileDefinition.Stream == null)
@@ -1789,7 +1750,7 @@ namespace Laclasse.Doc
             var limit = 1000;
             using (DB db = await DB.CreateAsync(dbUrl, true))
             {
-                var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                 var nodes = await db.SelectAsync<Node>("SELECT SQL_CALC_FOUND_ROWS * FROM `node` WHERE content IS NOT NULL LIMIT ?", limit);
 
                 var folderCount = 0;
@@ -1869,7 +1830,7 @@ namespace Laclasse.Doc
 
             using (DB db = await DB.CreateAsync(dbUrl, true))
             {
-                var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl };
+                var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                 var nodes = await db.SelectAsync<Node>($"SELECT SQL_CALC_FOUND_ROWS * FROM `node` WHERE `blob_id` IS NOT NULL AND `has_tmb` = FALSE AND {DB.InFilter("mime", supportedMimes)} LIMIT ?", limit);
                 var total = await db.FoundRowsAsync();
                 var done = 0;
@@ -1903,19 +1864,28 @@ namespace Laclasse.Doc
             }
         }
 
-        async Task<OnlyOfficeSession> CreateOnlyOfficeSessionAsync(long nodeId, bool write)
+        async Task<OnlyOfficeSession> CreateOnlyOfficeSessionAsync(OnlyOffice item, bool write)
         {
             OnlyOfficeSession session = null;
             using (DB db = await DB.CreateAsync(dbUrl))
             {
-                session = new OnlyOfficeSession
+                string key = $"{item.node.id}REV{item.node.rev}";
+                var sessions = await db.SelectAsync<OnlyOfficeSession>("SELECT * FROM `onlyoffice_session` WHERE `node_id` = ?", item.node.id);
+                session = sessions.SingleOrDefault((s) => s.write == write);
+                if (sessions.Count > 0)
+                    key = sessions[0].key;
+                if (session == null)
                 {
-                    id = StringExt.RandomString(32),
-                    node_id = nodeId,
-                    write = write,
-                    ctime = DateTime.Now
-                };
-                await session.SaveAsync(db);
+                    session = new OnlyOfficeSession
+                    {
+                        id = StringExt.RandomString(32),
+                        key = key,
+                        node_id = item.node.id,
+                        write = write,
+                        ctime = DateTime.Now
+                    };
+                    await session.SaveAsync(db);
+                }
             }
             return session;
         }
@@ -1942,6 +1912,12 @@ namespace Laclasse.Doc
                 var session = new OnlyOfficeSession { id = id };
                 await session.DeleteAsync(db);
             }
+        }
+
+        async Task DeleteOnlyOfficeSessionForNodeAsync(long nodeId)
+        {
+            using (DB db = await DB.CreateAsync(dbUrl))
+                await db.DeleteAsync("DELETE FROM `onlyoffice_session` WHERE `node_id` = ?", nodeId);
         }
     }
 }

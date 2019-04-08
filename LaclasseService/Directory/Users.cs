@@ -66,9 +66,9 @@ namespace Laclasse.Directory
                 SetField(nameof(password), value);
             }
         }
-        [ModelField(Required = true, RegexMatch = "^[-'0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖÙÜàâãäçèéêëîïôöœùûüÿ]*$")]
+        [ModelField(Required = true, RegexMatch = "^[-'0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]*$")]
         public string lastname { get { return GetField<string>(nameof(lastname), null); } set { SetField(nameof(lastname), value); } }
-        [ModelField(Required = true, RegexMatch = "^[-'0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖÙÜàâãäçèéêëîïôöœùûüÿ]*$")]
+        [ModelField(Required = true, RegexMatch = "^[-'0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]*$")]
         public string firstname { get { return GetField<string>(nameof(firstname), null); } set { SetField(nameof(firstname), value); } }
         [ModelField]
         public Gender? gender { get { return GetField<Gender?>(nameof(gender), null); } set { SetField(nameof(gender), value); } }

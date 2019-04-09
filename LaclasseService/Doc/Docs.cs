@@ -790,7 +790,6 @@ namespace Laclasse.Doc
                                 if (root != null)
                                 {
                                     var rights = await root.RightsAsync();
-                                    Console.WriteLine($"Add root: {rootId} => {root}, read? {rights.Read}");
                                     if (rights.Read)
                                         (roots as List<Item>).Add(root);
                                 }

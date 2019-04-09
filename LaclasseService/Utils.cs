@@ -214,12 +214,13 @@ namespace Laclasse
         {
             foreach (var value in values)
             {
+                var val = value.RemoveDiacritics();
                 var found = false;
                 foreach (var field in item.Fields.Keys)
                 {
                     var fieldValue = item.Fields[field];
                     if (fieldValue != null)
-                        if (CultureInfo.CurrentCulture.CompareInfo.IndexOf(fieldValue.ToString(), value, CompareOptions.IgnoreCase) >= 0)
+                        if (CultureInfo.CurrentCulture.CompareInfo.IndexOf(fieldValue.ToString().RemoveDiacritics(), val, CompareOptions.IgnoreCase) >= 0)
                         {
                             found = true;
                             break;

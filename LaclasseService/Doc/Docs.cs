@@ -1040,39 +1040,6 @@ namespace Laclasse.Doc
                 }
             };
 
-            // TEST / DEBUG
-            GetAsync["/{id}/onlyoffice/info"] = async (p, c) =>
-            {
-                var id = long.Parse((string)p["id"]);
-
-                using (DB db = await DB.CreateAsync(dbUrl, true))
-                {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
-                    OnlyOffice item = await context.GetByIdAsync(id) as OnlyOffice;
-                    if (item != null)
-                    {
-                        c.Response.StatusCode = 200;
-                        c.Response.Content = await item.GetInfoAsync();
-                    }
-                    await db.CommitAsync();
-                }
-            };
-
-            // TEST / DEBUG
-            GetAsync["/{id}/onlyoffice/forcesave"] = async (p, c) =>
-            {
-                var id = long.Parse((string)p["id"]);
-
-                using (DB db = await DB.CreateAsync(dbUrl, true))
-                {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
-                    OnlyOffice item = await context.GetByIdAsync(id) as OnlyOffice;
-                    if (item != null)
-                        await item.ForceSaveAsync();
-                }
-            };
-
-
             PostAsync["/{id}/onlyoffice"] = async (p, c) =>
             {
                 if (!c.Request.QueryString.ContainsKey("session"))

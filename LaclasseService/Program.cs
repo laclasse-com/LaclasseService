@@ -196,6 +196,7 @@ namespace Laclasse
 
             var blobs = new Blobs(setup.doc.url, Path.Combine(setup.server.storage, "blobs"), setup.server.temporaryDirectory);
             mapper.Add("/api/blobs", blobs);
+            mapper.Add("/api/docs/onlyoffice/sessions", new OnlyOfficeSessions(setup.doc.url));
             mapper.Add("/api/docs", new Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory, blobs, setup.http.defaultCacheDuration, dbUrl, setup));
 
             //mapper.Add("/api/icons", new Icons(dbUrl));

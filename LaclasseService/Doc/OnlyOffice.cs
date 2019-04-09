@@ -1,11 +1,10 @@
 ﻿using System;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Erasme.Http;
 using Erasme.Json;
-using Laclasse;
+using Laclasse.Authentication;
 
 namespace Laclasse.Doc
 {
@@ -86,10 +85,10 @@ namespace Laclasse.Doc
         // curl -X POST http://daniel.erasme.lan/onlyoffice/coauthoring/CommandService.ashx
         // -H "Content-Type: application/json" -d
         // '{"key": "3180REV3", "c": "info"}'
-        public async Task<JsonValue> GetInfoAsync()
+        public static async Task<JsonValue> GetInfoAsync(HttpContext httpContext, string key)
         {
             JsonValue res = null;
-            var uri = new Uri(new Uri(context.httpContext.SelfURL()), "/onlyoffice/coauthoring/CommandService.ashx");
+            var uri = new Uri(new Uri(httpContext.SelfURL()), "/onlyoffice/coauthoring/CommandService.ashx");
             using (HttpClient client = await HttpClient.CreateAsync(uri))
             {
                 HttpClientRequest request = new HttpClientRequest();
@@ -98,8 +97,43 @@ namespace Laclasse.Doc
                 request.Headers["accept"] = "application/json";
                 request.Content = new JsonObject
                 {
-                    ["key"] = await GetEditingKeyAsync(),
+                    ["key"] = key,
                     ["c"] = "info"
+                };
+                await client.SendRequestAsync(request);
+                HttpClientResponse response = await client.GetResponseAsync();
+                if (response.StatusCode == 200)
+                {
+                    res = await response.ReadAsJsonAsync();
+                }
+            }
+            return res;
+        }
+
+        public async Task<JsonValue> GetInfoAsync()
+        {
+            return await GetInfoAsync(context.httpContext, await GetEditingKeyAsync());
+        }
+
+
+        // Ask OnlyOffice to force save the the given item
+        // curl -X POST http://daniel.erasme.lan/onlyoffice/coauthoring/CommandService.ashx
+        // -H "Content-Type: application/json" -d
+        // '{"key": "3180REV3", "c": "forcesave"}'
+        public static async Task<JsonValue> ForceSaveAsync(HttpContext httpContext, string key)
+        {
+            JsonValue res = null;
+            var uri = new Uri(new Uri(httpContext.SelfURL()), "/onlyoffice/coauthoring/CommandService.ashx");
+            using (HttpClient client = await HttpClient.CreateAsync(uri))
+            {
+                HttpClientRequest request = new HttpClientRequest();
+                request.Method = "POST";
+                request.Path = uri.PathAndQuery;
+                request.Headers["accept"] = "application/json";
+                request.Content = new JsonObject
+                {
+                    ["key"] = key,
+                    ["c"] = "forcesave"
                 };
                 await client.SendRequestAsync(request);
                 HttpClientResponse response = await client.GetResponseAsync();
@@ -117,27 +151,7 @@ namespace Laclasse.Doc
         // '{"key": "3180REV3", "c": "forcesave"}'
         public async Task<JsonValue> ForceSaveAsync()
         {
-            JsonValue res = null;
-            var uri = new Uri(new Uri(context.httpContext.SelfURL()), "/onlyoffice/coauthoring/CommandService.ashx");
-            using (HttpClient client = await HttpClient.CreateAsync(uri))
-            {
-                HttpClientRequest request = new HttpClientRequest();
-                request.Method = "POST";
-                request.Path = uri.PathAndQuery;
-                request.Headers["accept"] = "application/json";
-                request.Content = new JsonObject
-                {
-                    ["key"] = await GetEditingKeyAsync(),
-                    ["c"] = "forcesave"
-                };
-                await client.SendRequestAsync(request);
-                HttpClientResponse response = await client.GetResponseAsync();
-                if (response.StatusCode == 200)
-                {
-                    res = await response.ReadAsJsonAsync();
-                }
-            }
-            return res;
+            return await ForceSaveAsync(context.httpContext, await GetEditingKeyAsync());
         }
 
         //# Thumbnail avec OnlyOffice
@@ -260,6 +274,44 @@ namespace Laclasse.Doc
                 documentType = OnlyOfficeDocumentType.presentation;
                 fileType = OnlyOfficeFileType.odp;
             }
+        }
+    }
+
+    public class OnlyOfficeSessions : Directory.ModelService<OnlyOfficeSession>
+    {
+        public OnlyOfficeSessions(string dbUrl) : base(dbUrl)
+        {
+            BeforeAsync = async (p, c) => await c.EnsureIsSuperAdminAsync();
+
+            GetAsync["/{id}/info"] = async (p, c) =>
+            {
+                var id = (string)p["id"];
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var session = new OnlyOfficeSession { id = id };
+                    if (await session.LoadAsync(db))
+                    {
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = await OnlyOffice.GetInfoAsync(c, session.key);
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
+            GetAsync["/{id}/forcesave"] = async (p, c) =>
+            {
+                var id = (string)p["id"];
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var session = new OnlyOfficeSession { id = id };
+                    if (await session.LoadAsync(db))
+                    {
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = await OnlyOffice.ForceSaveAsync(c, session.key);
+                    }
+                    await db.CommitAsync();
+                }
+            };
         }
     }
 }

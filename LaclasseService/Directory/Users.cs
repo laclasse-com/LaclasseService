@@ -74,11 +74,11 @@ namespace Laclasse.Directory
         public Gender? gender { get { return GetField<Gender?>(nameof(gender), null); } set { SetField(nameof(gender), value); } }
         [ModelField]
         public DateTime? birthdate { get { return GetField<DateTime?>(nameof(birthdate), null); } set { SetField(nameof(birthdate), value); } }
-        [ModelField]
+        [ModelField(RegexMatch = "^[-_'°\"\n#().,:;?/\\0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]*$")]
         public string address { get { return GetField<string>(nameof(address), null); } set { SetField(nameof(address), value); } }
         [ModelField(RegexMatch = "^[0-9]*$")]
         public string zip_code { get { return GetField<string>(nameof(zip_code), null); } set { SetField(nameof(zip_code), value); } }
-        [ModelField]
+        [ModelField(RegexMatch = "^[-'/0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]*$")]
         public string city { get { return GetField<string>(nameof(city), null); } set { SetField(nameof(city), value); } }
         [ModelField]
         public string country { get { return GetField<string>(nameof(country), null); } set { SetField(nameof(country), value); } }

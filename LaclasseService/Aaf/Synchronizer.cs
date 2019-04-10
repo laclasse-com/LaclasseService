@@ -1587,12 +1587,13 @@ namespace Laclasse.Aaf
             if (attrs.ContainsKey("ENTPersonAdresse") && !string.IsNullOrWhiteSpace(attrs["ENTPersonAdresse"]))
             {
                 var address = string.Join("\n", attrs["ENTPersonAdresse"].Split(new char[] { '$' }, StringSplitOptions.RemoveEmptyEntries));
-                user.address = string.IsNullOrEmpty(address) ? null : address;
+                if (!string.IsNullOrEmpty(address) && System.Text.RegularExpressions.Regex.IsMatch(address, "^[-_'°\"\n#().,:;?/\\0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]*$"))
+                    user.address = address;
             }
             if (attrs.ContainsKey("ENTPersonCodePostal") && !string.IsNullOrWhiteSpace(attrs["ENTPersonCodePostal"]))
                 user.zip_code = attrs["ENTPersonCodePostal"];
 
-            if (attrs.ContainsKey("ENTPersonVille") && !string.IsNullOrWhiteSpace(attrs["ENTPersonVille"]))
+            if (attrs.ContainsKey("ENTPersonVille") && !string.IsNullOrWhiteSpace(attrs["ENTPersonVille"]) && System.Text.RegularExpressions.Regex.IsMatch(attrs["ENTPersonVille"], "^[-'/0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]+$"))
                 user.city = attrs["ENTPersonVille"];
 
             if (attrs.ContainsKey("ENTPersonPays") && !string.IsNullOrWhiteSpace(attrs["ENTPersonPays"]))

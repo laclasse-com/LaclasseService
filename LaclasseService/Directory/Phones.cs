@@ -5,7 +5,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017-2019 Metropole de Lyon
 // Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -33,15 +33,24 @@ using Laclasse.Authentication;
 
 namespace Laclasse.Directory
 {
+    public enum PhoneType
+    {
+        AUTRE,
+        FAX,
+        MAISON,
+        PORTABLE,
+        TRAVAIL
+    }
+
 	[Model(Table = "phone", PrimaryKey = nameof(id))]
 	public class Phone : Model
 	{
 		[ModelField]
 		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
+		[ModelField(RegexMatch = "^[+]{0,1}[ 0-9]+$")]
+        public string number { get { return GetField<string>(nameof(number), null); } set { SetField(nameof(number), value); } }
 		[ModelField]
-		public string number { get { return GetField<string>(nameof(number), null); } set { SetField(nameof(number), value); } }
-		[ModelField]
-		public string type { get { return GetField<string>(nameof(type), null); } set { SetField(nameof(type), value); } }
+		public PhoneType type { get { return GetField<PhoneType>(nameof(type), PhoneType.AUTRE); } set { SetField(nameof(type), value); } }
 		[ModelField(ForeignModel = typeof(User))]
 		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
 

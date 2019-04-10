@@ -1629,7 +1629,7 @@ namespace Laclasse.Aaf
                 user.phones.Add(new Phone
                 {
                     number = attrs["telephoneNumber"],
-                    type = "TRAVAIL"
+                    type = PhoneType.TRAVAIL
                 });
             }
             if (attrs.ContainsKey("homePhone") && !string.IsNullOrWhiteSpace(attrs["homePhone"]))
@@ -1640,7 +1640,7 @@ namespace Laclasse.Aaf
                 user.phones.Add(new Phone
                 {
                     number = attrs["homePhone"],
-                    type = "MAISON"
+                    type = PhoneType.MAISON
                 });
             }
             if (attrsMul.ContainsKey("mobile"))
@@ -1655,7 +1655,7 @@ namespace Laclasse.Aaf
                         user.phones.Add(new Phone
                         {
                             number = mobile,
-                            type = "PORTABLE"
+                            type = PhoneType.PORTABLE
                         });
                     }
                 }
@@ -1668,7 +1668,7 @@ namespace Laclasse.Aaf
                 user.phones.Add(new Phone
                 {
                     number = attrs["ENTPersRelEleveTelPro"],
-                    type = "TRAVAIL"
+                    type = PhoneType.TRAVAIL
                 });
             }
             if (attrs.ContainsKey("ENTPersonTelPerso") && !string.IsNullOrWhiteSpace(attrs["ENTPersonTelPerso"]))
@@ -1679,7 +1679,7 @@ namespace Laclasse.Aaf
                 user.phones.Add(new Phone
                 {
                     number = attrs["ENTPersonTelPerso"],
-                    type = "MAISON"
+                    type = PhoneType.MAISON
                 });
             }
             if (attrs.ContainsKey("ENTPersRelEleveTelMobile") && !string.IsNullOrWhiteSpace(attrs["ENTPersRelEleveTelMobile"]))
@@ -1690,7 +1690,7 @@ namespace Laclasse.Aaf
                 user.phones.Add(new Phone
                 {
                     number = attrs["ENTPersRelEleveTelMobile"],
-                    type = "PORTABLE"
+                    type = PhoneType.PORTABLE
                 });
             }
 

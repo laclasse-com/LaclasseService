@@ -164,7 +164,7 @@ namespace Laclasse.Sms
                         await user.LoadAsync(db, true);
                         target.user_firstname = user.firstname;
                         target.user_lastname = user.lastname;
-                        var phone = user.phones.Find((ph) => ph.type == "PORTABLE");
+                        var phone = user.phones.Find((ph) => ph.type == PhoneType.PORTABLE);
                         if (phone != null)
                         {
                             target.number = phone.number;

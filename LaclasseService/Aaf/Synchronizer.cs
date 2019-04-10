@@ -1596,7 +1596,7 @@ namespace Laclasse.Aaf
             if (attrs.ContainsKey("ENTPersonVille") && !string.IsNullOrWhiteSpace(attrs["ENTPersonVille"]) && System.Text.RegularExpressions.Regex.IsMatch(attrs["ENTPersonVille"], "^[-'/0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]+$"))
                 user.city = attrs["ENTPersonVille"];
 
-            if (attrs.ContainsKey("ENTPersonPays") && !string.IsNullOrWhiteSpace(attrs["ENTPersonPays"]))
+            if (attrs.ContainsKey("ENTPersonPays") && !string.IsNullOrWhiteSpace(attrs["ENTPersonPays"]) && System.Text.RegularExpressions.Regex.IsMatch(attrs["ENTPersonPays"], "^[-'()0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]*$"))
                 user.country = attrs["ENTPersonPays"];
 
             if (attrs.ContainsKey("ENTEleveStructRattachId"))

@@ -80,7 +80,7 @@ namespace Laclasse.Directory
         public string zip_code { get { return GetField<string>(nameof(zip_code), null); } set { SetField(nameof(zip_code), value); } }
         [ModelField(RegexMatch = "^[-'/0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]*$")]
         public string city { get { return GetField<string>(nameof(city), null); } set { SetField(nameof(city), value); } }
-        [ModelField]
+        [ModelField(RegexMatch = "^[-'()0-9A-Za-z ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]*$")]
         public string country { get { return GetField<string>(nameof(country), null); } set { SetField(nameof(country), value); } }
         [ModelField]
         public DateTime ctime { get { return GetField(nameof(ctime), DateTime.Now); } set { SetField(nameof(ctime), value); } }

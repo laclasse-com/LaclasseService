@@ -51,7 +51,7 @@ namespace Laclasse.Directory
 		public int id { get { return GetField(nameof(id), 0); } set { SetField(nameof(id), value); } }
 		[ModelField(Required = true, ForeignModel = typeof(User))]
 		public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
-		[ModelField(Required = true)]
+		[ModelField(Required = true, RegexMatch = "^[-_a-zA-Z.0-9ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]+@[-_a-zA-Z.0-9]+$")]
 		public string address { get { return GetField<string>(nameof(address), null); } set { SetField(nameof(address), value); } }
 		[ModelField]
 		public bool primary { get { return GetField(nameof(primary), false); } set { SetField(nameof(primary), value); } }

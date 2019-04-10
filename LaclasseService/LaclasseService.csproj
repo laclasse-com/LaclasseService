@@ -164,7 +164,6 @@
     <Compile Include="Storage\Storage.cs" />
     <Compile Include="Doc\Blobs.cs" />
     <Compile Include="Doc\IFilePlugin.cs" />
-    <Compile Include="Doc\ThumbnailPlugin.cs" />
     <Compile Include="Doc\OnlyOfficeView.cs">
       <DependentUpon>OnlyOfficeView.tt</DependentUpon>
     </Compile>

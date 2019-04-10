@@ -1703,6 +1703,9 @@ namespace Laclasse.Aaf
                 {
                     if (string.IsNullOrWhiteSpace(mail))
                         continue;
+                    // check is the email is acceptable
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(mail, "^[-_a-zA-Z.0-9ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]+@[-_a-zA-Z.0-9]+$"))
+                        continue;
 
                     user.emails.Add(new Email
                     {
@@ -1717,7 +1720,7 @@ namespace Laclasse.Aaf
                     user.emails = new ModelList<Email>();
 
                 var mail = attrs["ENTPersonMail"];
-                if (!string.IsNullOrWhiteSpace(mail))
+                if (!string.IsNullOrWhiteSpace(mail) && System.Text.RegularExpressions.Regex.IsMatch(mail, "^[-_a-zA-Z.0-9ÀÁÂÄÇÈÉÊËÎÏÔÖŒÙÛÜàâãäçèéêëîïôöœùûüÿ]+@[-_a-zA-Z.0-9]+$"))
                 {
                     user.emails.Add(new Email
                     {

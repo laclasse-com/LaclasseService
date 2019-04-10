@@ -376,21 +376,21 @@ namespace Laclasse.Doc
         string path;
         string tempDir;
         string directoryDbUrl;
-        Setup globalSetup;
-        DocSetup setup;
-        Blobs blobs;
+        internal Setup globalSetup;
+        internal DocSetup setup;
+        internal Blobs blobs;
         Dictionary<string, List<IFilePlugin>> mimePlugins = new Dictionary<string, List<IFilePlugin>>();
         List<IFilePlugin> allPlugins = new List<IFilePlugin>();
 
-        class TempFile
+        internal class TempFile
         {
             public string Id;
             public Stream Stream;
             public string Mime;
         }
 
-        object tempFilesLock = new object();
-        Dictionary<string, TempFile> tempFiles = new Dictionary<string, TempFile>();
+        internal object tempFilesLock = new object();
+        internal Dictionary<string, TempFile> tempFiles = new Dictionary<string, TempFile>();
 
         public class OnlyOfficeCallbackData : TaskCompletionSource<OnlyOffice>
         {
@@ -1392,7 +1392,7 @@ namespace Laclasse.Doc
             };
         }
 
-        async Task<string> OnlyOfficeGenerateThumbAsync(string fileUrl, OnlyOfficeFileType fileType)
+        internal async Task<string> OnlyOfficeGenerateThumbAsync(string fileUrl, OnlyOfficeFileType fileType)
         {
             string resFileUrl = null;
 

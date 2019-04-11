@@ -194,6 +194,15 @@ namespace Laclasse
         public GrandLyonApiSetup grandLyonApi = new GrandLyonApiSetup();
     }
 
+    public class GARSetup
+    {
+        public string idEnt = null;
+        public string SFTPServer = null;
+        public string SFTPLogin = null;
+        public string listeRessourcesUrl = null;
+        public string adminUrl = null;
+    }
+
     public class Setup
     {
         public ServerSetup server = new ServerSetup();
@@ -208,5 +217,6 @@ namespace Laclasse
         public DocSetup doc = new DocSetup();
         public RestaurantSetup restaurant = new RestaurantSetup();
         public TextbookSetup textbook = new TextbookSetup();
+        public GARSetup gar = new GARSetup();
     }
 }

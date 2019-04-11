@@ -6,6 +6,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Daniel LACROIX
+// Copyright (c) 2019 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -84,12 +85,13 @@ namespace Laclasse.Authentication
         readonly string cookieName;
         readonly MailSetup mailSetup;
         readonly SmsSetup smsSetup;
+        readonly GARSetup garSetup;
         readonly GrandLyonApiSetup grandLyonApiSetup;
         readonly X509Certificate2 saml2ServerCert;
 
         public Cas(Logger logger, string dbUrl, Sessions sessions, Users users,
             AuthenticationSetup authenticationSetup,
-            MailSetup mailSetup, SmsSetup smsSetup)
+            MailSetup mailSetup, SmsSetup smsSetup, GARSetup garSetup)
         {
             double ticketTimeout = authenticationSetup.cas.ticketTimeout;
             AafSsoSetup aafSsoSetup = authenticationSetup.aafSso;
@@ -103,6 +105,7 @@ namespace Laclasse.Authentication
             cookieName = authenticationSetup.session.cookie;
             this.mailSetup = mailSetup;
             this.smsSetup = smsSetup;
+            this.garSetup = garSetup;
             grandLyonApiSetup = authenticationSetup.grandLyonApi;
             tickets = new Tickets(dbUrl, ticketTimeout);
             rescueTickets = new RescueTickets(dbUrl, rescueTicketTimeout);
@@ -1001,7 +1004,9 @@ namespace Laclasse.Authentication
                 ["LaclasseNom"] = user.lastname,
                 ["LaclassePrenom"] = user.firstname,
                 ["MailBackend"] = (emailBackend == null) ? null : emailBackend.address,
-                ["MailAdressePrincipal"] = (primaryEmail == null) ? null : primaryEmail.address
+                ["MailAdressePrincipal"] = (primaryEmail == null) ? null : primaryEmail.address,
+                ["GARPersonIdentifiant"] = user.id,
+                ["idEnt"] = garSetup.idEnt
             };
 
             if (ENTEleveNivFormation != null)

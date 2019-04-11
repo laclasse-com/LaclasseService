@@ -70,6 +70,8 @@ namespace Laclasse.Directory
         [ModelField]
         public bool aaf_sync_activated { get { return GetField(nameof(aaf_sync_activated), false); } set { SetField(nameof(aaf_sync_activated), value); } }
         [ModelField]
+        public bool gar_export_activated { get { return GetField(nameof(gar_export_activated), false); } set { SetField(nameof(gar_export_activated), value); } }
+        [ModelField]
         public string educnat_marking_id { get { return GetField<string>(nameof(educnat_marking_id), null); } set { SetField(nameof(educnat_marking_id), value); } }
         [ModelField]
         public int? aaf_jointure_id { get { return GetField<int?>(nameof(aaf_jointure_id), null); } set { SetField(nameof(aaf_jointure_id), value); } }

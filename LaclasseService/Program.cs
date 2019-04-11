@@ -179,7 +179,7 @@ namespace Laclasse
 
             mapper.Add("/sso", new Cas(logger,
                 dbUrl, sessions, users, setup.authentication,
-                setup.mail, setup.sms));
+                setup.mail, setup.sms, setup.gar));
             
             //mapper.Add("/sso/oidc", new OidcSso(setup.authentication.oidcSso, users, cas));
 

@@ -194,7 +194,7 @@ namespace Laclasse
             mapper.Add("/api/users", new Mail.ImapCheck(dbUrl));
             mapper.Add("/api/mailboxes", new Mail.Mailboxes(dbUrl, setup.mail.server.path));
 
-            var blobs = new Blobs(setup.doc.url, Path.Combine(setup.server.storage, "blobs"), setup.server.temporaryDirectory);
+            var blobs = new Blobs(logger, setup.doc.url, Path.Combine(setup.server.storage, "blobs"), setup.server.temporaryDirectory);
             mapper.Add("/api/blobs", blobs);
             mapper.Add("/api/docs/onlyoffice/sessions", new OnlyOfficeSessions(setup.doc.url));
             mapper.Add("/api/docs", new Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory, blobs, setup.http.defaultCacheDuration, dbUrl, setup));
@@ -213,6 +213,8 @@ namespace Laclasse
 
             mapper.Add("/api/book_allocations", new Textbook.BookAllocations(dbUrl));
             mapper.Add("/api/edulib", new Textbook.EduLibService(setup.textbook.eduLib, dbUrl));
+
+            mapper.Add("/api/gar", new GAR.Resources(setup.gar, logger));
 
             // if the request is not already handled, try static files
             server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));
@@ -280,7 +282,9 @@ namespace Laclasse
             server.Stop();
 
             dayScheduler.Dispose();
+            blobs.Dispose();
             smsService.Dispose();
+
         }
     }
 }

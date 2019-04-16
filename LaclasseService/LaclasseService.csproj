@@ -93,6 +93,7 @@
     <Reference Include="MailKit">
       <HintPath>..\packages\MailKit.2.1.3\lib\net45\MailKit.dll</HintPath>
     </Reference>
+    <Reference Include="System.Net.Http.WebRequest" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
@@ -176,6 +177,7 @@
     <Compile Include="Mail\Mailboxes.cs" />
     <Compile Include="Doc\ArchiveZip.cs" />
     <Compile Include="Doc\OnlyOffice.cs" />
+    <Compile Include="GAR\Resources.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -206,6 +208,7 @@
     <Folder Include="BonApp\" />
     <Folder Include="Textbook\" />
     <Folder Include="Utils\" />
+    <Folder Include="GAR\" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Doc\sample.docx" />

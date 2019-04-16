@@ -200,6 +200,7 @@ namespace Laclasse
         public string SFTPServer = null;
         public string SFTPLogin = null;
         public string listeRessourcesUrl = null;
+        public string listeRessourcesCert = null;
         public string adminUrl = null;
     }
 

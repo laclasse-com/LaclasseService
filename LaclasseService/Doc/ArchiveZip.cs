@@ -26,7 +26,7 @@ namespace Laclasse.Doc
                         foreach (var child in children)
                         {
                             // add if the user has read right
-                            if (!(await child.RightsAsync()).Read)
+                            if ((await child.RightsAsync()).Read)
                                 await AddItemAsync(child, path);
                         }
                     }
@@ -78,7 +78,7 @@ namespace Laclasse.Doc
                         foreach (var child in children)
                         {
                             // add if the user has read right
-                            if (!(await child.RightsAsync()).Read)
+                            if ((await child.RightsAsync()).Read)
                                 await AddItemAsync(child, path);
                         }
                     }

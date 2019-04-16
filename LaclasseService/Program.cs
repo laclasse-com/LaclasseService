@@ -197,7 +197,8 @@ namespace Laclasse
             var blobs = new Blobs(logger, setup.doc.url, Path.Combine(setup.server.storage, "blobs"), setup.server.temporaryDirectory);
             mapper.Add("/api/blobs", blobs);
             mapper.Add("/api/docs/onlyoffice/sessions", new OnlyOfficeSessions(setup.doc.url));
-            mapper.Add("/api/docs", new Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory, blobs, setup.http.defaultCacheDuration, dbUrl, setup));
+            var docs = new Docs(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory, blobs, setup.http.defaultCacheDuration, dbUrl, setup);
+            mapper.Add("/api/docs", docs);
 
             //mapper.Add("/api/icons", new Icons(dbUrl));
             mapper.Add("/api/icons", new StaticIcons(setup.server.publicIcons, setup.http.defaultCacheDuration));
@@ -215,6 +216,8 @@ namespace Laclasse
             mapper.Add("/api/edulib", new Textbook.EduLibService(setup.textbook.eduLib, dbUrl));
 
             mapper.Add("/api/gar", new GAR.Resources(setup.gar, logger));
+
+            mapper.Add("/docs", new ElFinder(setup.doc.url, setup.doc.path, setup.server.temporaryDirectory, blobs, setup.http.defaultCacheDuration, dbUrl, setup, docs));
 
             // if the request is not already handled, try static files
             server.Add(new StaticFiles(setup.server.publicFiles, setup.http.defaultCacheDuration));

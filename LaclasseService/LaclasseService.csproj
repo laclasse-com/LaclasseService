@@ -178,6 +178,7 @@
     <Compile Include="Doc\ArchiveZip.cs" />
     <Compile Include="Doc\OnlyOffice.cs" />
     <Compile Include="GAR\Resources.cs" />
+    <Compile Include="Doc\ElFinder.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

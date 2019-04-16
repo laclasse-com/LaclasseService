@@ -3,7 +3,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2018 Metropole de Lyon
+// Copyright (c) 2018-2019 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
 using Laclasse.Authentication;
@@ -51,6 +52,8 @@ namespace Laclasse.Doc
         public long size { get { return GetField(nameof(size), 0L); } set { SetField(nameof(size), value); } }
         [ModelField]
         public DateTime ctime { get { return GetField(nameof(ctime), DateTime.Now); } set { SetField(nameof(ctime), value); } }
+        [ModelField]
+        public DateTime? dtime { get { return GetField<DateTime?>(nameof(dtime), null); } set { SetField(nameof(dtime), value); } }
         [ModelField]
         public string sha1 { get { return GetField<string>(nameof(sha1), null); } set { SetField(nameof(sha1), value); } }
         [ModelField]
@@ -78,19 +81,29 @@ namespace Laclasse.Doc
         public T Define;
     }
 
-    public class Blobs : Directory.ModelService<Blob>
+    public class Blobs : Directory.ModelService<Blob>, IDisposable
     {
+        Logger logger;
         string dbUrl;
         string path;
         string tempDir;
         Storage.Storage storage;
 
-        public Blobs(string dbUrl, string path, string tempDir) : base(dbUrl)
+        Thread cleanThread;
+        object cleanLock = new object();
+        bool cleanStop = false;
+
+        public Blobs(Logger logger, string dbUrl, string path, string tempDir) : base(dbUrl)
         {
+            this.logger = logger;
             this.dbUrl = dbUrl;
             this.path = path;
             this.tempDir = tempDir;
             this.storage = new Storage.Storage(path, tempDir);
+
+            cleanThread = new Thread(ThreadStart);
+            cleanThread.Name = "BlobCleanThread";
+            cleanThread.Start();
 
             BeforeAsync = async (p, c) => await c.EnsureIsSuperAdminAsync();
 
@@ -147,6 +160,59 @@ namespace Laclasse.Doc
             };
         }
 
+        void ThreadStart()
+        {
+            logger.Log(LogLevel.Info, "Blob Clean Thread START");
+            bool stop = false;
+            lock (cleanLock)
+            {
+                while (!stop)
+                {
+                    try
+                    {
+                        using (var db = DB.Create(dbUrl, true))
+                        {
+                            var task = db.SelectAsync<Blob>("SELECT * FROM `blob` WHERE `dtime` IS NOT NULL AND TIMESTAMPDIFF(SECOND, `dtime`, NOW()) >= 3600");
+                            task.Wait();
+                            var removeBlobs = task.Result;
+
+                            logger.Log(LogLevel.Info, $"Blob clean needed: {removeBlobs.Count}");
+                            foreach (var blob in removeBlobs)
+                            {
+                                bool deleted = false;
+                                ModelList<Blob> children = null;
+                                task = db.SelectAsync<Blob>("SELECT * FROM `blob` WHERE `parent_id` = ?", blob.id);
+                                task.Wait();
+                                children = task.Result;
+
+                                var deleteChildrenTask = db.DeleteAsync("DELETE FROM `blob` WHERE `parent_id` = ?", blob.id);
+                                deleteChildrenTask.Wait();
+
+                                var deleteTask = blob.DeleteAsync(db);
+                                deleteTask.Wait();
+                                deleted = deleteTask.Result;
+                                if (deleted)
+                                {
+                                    storage.Remove(blob.id);
+                                    if (children != null)
+                                        children.ForEach((b) => storage.Remove(b.id));
+                                }
+                            }
+                            var commitTask = db.CommitAsync();
+                            commitTask.Wait();
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Log(LogLevel.Error, $"Blob Thread Exception: {e.ToString()}");
+                    }
+                    Monitor.Wait(cleanLock, TimeSpan.FromHours(1));
+                    stop = cleanStop;
+                }
+            }
+            logger.Log(LogLevel.Info, "Blob Thread STOP");
+        }
+
 
         public async Task<Blob> GetBlobAsync(DB db, string id)
         {
@@ -156,7 +222,7 @@ namespace Laclasse.Doc
 
         public async Task<Blob> SearchSameBlobAsync(DB db, Blob blob)
         {
-            var blobs = await db.SelectAsync<Blob>("SELECT * FROM `blob` WHERE `parent_id` IS NULL AND `size` = ? AND `sha1` = ? AND `md5` = ?", blob.size, blob.sha1, blob.md5);
+            var blobs = await db.SelectAsync<Blob>("SELECT * FROM `blob` WHERE `parent_id` IS NULL AND `size` = ? AND `sha1` = ? AND `md5` = ? AND `dtime` IS NULL", blob.size, blob.sha1, blob.md5);
             Blob res = null;
             if (blobs.Count > 0)
             {
@@ -219,20 +285,11 @@ namespace Laclasse.Doc
 
             if (blob.parent_id != null && blob.name != null)
             {
-                removeChildren = await db.SelectAsync<Blob>("SELECT * FROM `blob` WHERE `parent_id` = ? AND `name` = ?", blob.parent_id, blob.name);
+                removeChildren = await db.SelectAsync<Blob>("SELECT * FROM `blob` WHERE `parent_id` = ? AND `name` = ? AND `dtime` IS NULL", blob.parent_id, blob.name);
                 foreach (var child in removeChildren)
-                    await child.DeleteAsync(db);
+                    await new Blob { id = child.id, dtime = DateTime.Now, parent_id = null }.UpdateAsync(db);
             }
             await blob.SaveAsync(db);
-
-            // If needed remove the old blob at the transaction commit
-            if (removeChildren != null)
-            {
-                db.AddCommitAction(() =>
-                {
-                    removeChildren.ForEach((b) => storage.Remove(b.id));
-                });
-            }
             return blob;
         }
 
@@ -241,22 +298,11 @@ namespace Laclasse.Doc
             bool deleted = false;
             if (id == null)
                 return false;
-            ModelList<Blob> children = null;
             var blob = new Blob { id = id };
             if (await blob.LoadAsync(db))
             {
-                children = await db.SelectAsync<Blob>("SELECT * FROM `blob` WHERE `parent_id` = ?", id);
-                await db.DeleteAsync("DELETE FROM `blob` WHERE `parent_id` = ?", id);
-                deleted = await blob.DeleteAsync(db);
-            }
-            if (deleted)
-            {
-                db.AddCommitAction(() =>
-                {
-                    storage.Remove(id);
-                    if (children != null)
-                        children.ForEach((b) => storage.Remove(b.id));
-                });
+                blob.dtime = DateTime.Now;
+                deleted = await blob.UpdateAsync(db);
             }
             return deleted;
         }
@@ -386,6 +432,15 @@ namespace Laclasse.Doc
                 Stream = fileContentStream,
                 Define = define
             };
+        }
+
+        public void Dispose()
+        {
+            lock (cleanLock)
+            {
+                cleanStop = true;
+                Monitor.PulseAll(cleanLock);
+            }
         }
     }
 }

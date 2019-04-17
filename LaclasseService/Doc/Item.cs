@@ -706,11 +706,15 @@ namespace Laclasse.Doc
         public override async Task<JsonObject> ToJsonAsync(bool expand)
         {
             var json = await base.ToJsonAsync(expand);
-            using (var stream = await GetContentAsync())
-            using (var streamReader = new StreamReader(stream))
+            try
             {
-                json["url"] = await streamReader.ReadLineAsync();
+                using (var stream = await GetContentAsync())
+                using (var streamReader = new StreamReader(stream))
+                {
+                    json["url"] = await streamReader.ReadLineAsync();
+                }
             }
+            catch (WebException) { }
             return json;
         }
     }

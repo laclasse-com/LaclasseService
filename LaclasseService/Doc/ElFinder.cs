@@ -29,6 +29,7 @@
 using System;
 using System.Threading.Tasks;
 using Erasme.Http;
+using Erasme.Json;
 using Laclasse.Authentication;
 
 namespace Laclasse.Doc
@@ -59,7 +60,7 @@ namespace Laclasse.Doc
                 c.Response.Headers["location"] = "/portail/#app.doc";
             };
 
-            GetAsync["/connector"] = async (p, c) =>
+            GetAsync["/api/connector"] = async (p, c) =>
             {
                 string cmd = null;
                 if (c.Request.QueryString.ContainsKey("cmd"))
@@ -86,7 +87,65 @@ namespace Laclasse.Doc
                         await db.CommitAsync();
                     }
                 }
+                else if (cmd == "open")
+                {
+                    if (c.Request.QueryString.ContainsKey("target"))
+                    {
+                        var target = c.Request.QueryString["target"];
+                        var id = long.Parse(target.Substring(1));
+                        using (DB db = await DB.CreateAsync(dbUrl, true))
+                        {
+                            var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = docs, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                            var item = await context.GetByIdAsync(id);
+                            if (item != null)
+                            {
+                                if (!(await item.RightsAsync()).Read)
+                                    throw new WebException(403, "Insufficient rights");
+
+                                var files = new JsonArray();
+                                if (item is Folder)
+                                {
+                                    var children = await ((Folder)item).GetFilteredChildrenAsync();
+                                    foreach (var child in children)
+                                        files.Add(await ItemToElFinderAsync(child));
+                                }
+
+                                c.Response.StatusCode = 200;
+                                c.Response.Content = new JsonObject
+                                {
+                                    ["cwd"] = await ItemToElFinderAsync(item),
+                                    ["files"] = files
+                                };
+                            }
+                            await db.CommitAsync();
+                        }
+                    }
+                    else if (c.Request.QueryString.ContainsKey("tree"))
+                    {
+                        // TODO
+                    }
+                }
+            };
+
+            PostAsync["/api/connector"] = async (p, c) =>
+            {
+                await Task.Delay(10);
             };
 		}
+
+        async Task<JsonValue> ItemToElFinderAsync(Item item)
+        {
+            var rights = await item.RightsAsync();
+            return new JsonObject
+            {
+                ["hash"] = $"l{item.node.id}",
+                ["phash"] = item.node.parent_id == null ? null : $"l{item.node.parent_id}",
+                ["name"] = item.node.name,
+                ["mime"] = item.node.mime,
+                ["read"] = rights.Read,
+                ["write"] = rights.Write,
+                ["locked"] = rights.Locked,
+            };
+        }
 	}
 }

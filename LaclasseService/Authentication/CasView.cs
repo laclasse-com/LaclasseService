@@ -585,7 +585,7 @@ namespace Laclasse.Authentication {
                                         <img src=""images/education-nationale.svg"" style=""width: 24px; height: 24px; align-self: center;"">
                                         <div style=""flex-grow: 1; margin-left: 10px; text-align: center; align-self: center;"">Éducation Nationale Profs/Agents</div>
                                     </a>
-                                    <!--a class=""btn"" style=""margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #000000; display: flex; flex-direction: row; ");
+                                    <a class=""btn"" style=""margin-top: 40px; padding: 6px; padding-left: 10px; background-color: #000000; display: flex; flex-direction: row; ");
             
             #line default
             #line hidden
@@ -612,7 +612,7 @@ namespace Laclasse.Authentication {
             this.Write(@">
                                         <img src=""images/grandlyon-connect.svg"" style=""width: 24px; height: 24px; align-self: center;"">
                                         <div style=""flex-grow: 1; margin-left: 10px; text-align: center; align-self: center;"">GrandLyon Connect</div>
-                                    </a-->
+                                    </a>
     							</div>
                                 <div style=""position: relative; min-width: 80px; min-height: 80px;"">
                                     <div class=""authSeparator""></div>

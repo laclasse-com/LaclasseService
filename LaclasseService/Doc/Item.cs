@@ -1077,7 +1077,7 @@ namespace Laclasse.Doc
                             await structure.LoadExpandFieldAsync(db, nameof(structure.groups));
                         }
                         // check if all classes exists and create missing ones
-                        var newGroups = structure.groups.FindAll((group) => group.type == Directory.GroupType.CLS && !children.Any((child) => child.node.name == group.name));
+                        var newGroups = structure.groups.FindAll((group) => group.type == Directory.GroupType.CLS && !children.Any((child) => child.node.name == ClasseGroupe.SanitizeGroupName(group.name)));
                         foreach (var group in newGroups)
                         {
                             var fileDefinition = new FileDefinition<Node>
@@ -1086,7 +1086,7 @@ namespace Laclasse.Doc
                                 {
                                     mime = "classe",
                                     parent_id = node.id,
-                                    name = group.name,
+                                    name = ClasseGroupe.SanitizeGroupName(group.name),
                                     classe_id = group.id
                                 }
                             };
@@ -1114,12 +1114,12 @@ namespace Laclasse.Doc
 
                     // users that are not TUT, ELV or ENS sees all existing groups
                     if (profiles.Any((p) => p != "TUT" && p != "ELV" && p != "ENS"))
-                        children = children.Where((child) => structGroups.Any((g) => g.name == child.node.name));
+                        children = children.Where((child) => structGroups.Any((g) => ClasseGroupe.SanitizeGroupName(g.name) == child.node.name));
                     // TUT, ELV and ENS only sees their groups
                     else
                     {
                         var userGroups = structGroups.Where((g) => context.user.user.groups.Any((ug) => ug.group_id == g.id) || context.user.user.children_groups.Any((ug) => ug.group_id == g.id));
-                        children = children.Where((child) => userGroups.Any((g) => g.name == child.node.name));
+                        children = children.Where((child) => userGroups.Any((g) => ClasseGroupe.SanitizeGroupName(g.name) == child.node.name));
                     }
                 }
 
@@ -1173,7 +1173,7 @@ namespace Laclasse.Doc
                             rights.Write = false;
                         }
                         var groups = await ((Structure)root).GetStructureGroupsAsync();
-                        var group = groups.SingleOrDefault((g) => g.name == node.name && g.type == type);
+                        var group = groups.SingleOrDefault((g) => ClasseGroupe.SanitizeGroupName(g.name) == node.name && g.type == type);
                         // if the name correspond to an existing group in the structure
                         if (group != null)
                         {
@@ -1196,6 +1196,13 @@ namespace Laclasse.Doc
                 await ProcessAdvancedParentRightsAsync(this, rights);
             }
             return rights;
+        }
+
+        public static string SanitizeGroupName(string name)
+        {
+            name = name.Replace('/', '_');
+            name = name.Replace('\\', '_');
+            return name;
         }
     }
 
@@ -1251,7 +1258,7 @@ namespace Laclasse.Doc
                             await structure.LoadExpandFieldAsync(db, nameof(structure.groups));
                         }
                         // check if all classes exists and create missing ones
-                        var newGroups = structure.groups.FindAll((group) => group.type == Directory.GroupType.GRP && !children.Any((child) => child.node.name == group.name));
+                        var newGroups = structure.groups.FindAll((group) => group.type == Directory.GroupType.GRP && !children.Any((child) => child.node.name == ClasseGroupe.SanitizeGroupName(group.name)));
                         foreach (var group in newGroups)
                         {
                             var fileDefinition = new FileDefinition<Node>
@@ -1260,7 +1267,7 @@ namespace Laclasse.Doc
                                 {
                                     mime = "groupe",
                                     parent_id = node.id,
-                                    name = group.name,
+                                    name = ClasseGroupe.SanitizeGroupName(group.name),
                                     groupe_id = group.id
                                 }
                             };
@@ -1288,12 +1295,12 @@ namespace Laclasse.Doc
 
                     // users that are not TUT, ELV or ENS sees all existing groups
                     if (profiles.Any((p) => p != "TUT" && p != "ELV" && p != "ENS"))
-                        children = children.Where((child) => structGroups.Any((g) => g.name == child.node.name));
+                        children = children.Where((child) => structGroups.Any((g) => ClasseGroupe.SanitizeGroupName(g.name) == child.node.name));
                     // TUT, ELV and ENS only sees their groups
                     else
                     {
                         var userGroups = structGroups.Where((g) => context.user.user.groups.Any((ug) => ug.group_id == g.id) || context.user.user.children_groups.Any((ug) => ug.group_id == g.id));
-                        children = children.Where((child) => userGroups.Any((g) => g.name == child.node.name));
+                        children = children.Where((child) => userGroups.Any((g) => ClasseGroupe.SanitizeGroupName(g.name) == child.node.name));
                     }
                 }
 

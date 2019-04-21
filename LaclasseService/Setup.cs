@@ -168,6 +168,7 @@ namespace Laclasse
         public string authorizeUrl;
         public string userInfoUrl;
         public string tokenUrl;
+        public string logoutUrl;
         public string clientId;
         public string password;
     }

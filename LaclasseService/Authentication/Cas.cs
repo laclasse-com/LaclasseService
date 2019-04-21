@@ -298,7 +298,13 @@ namespace Laclasse.Authentication
 
                 // delete the session
                 if (c.Request.Cookies.ContainsKey(cookieName))
+                {
+                    var session = await sessions.GetSessionAsync(c.Request.Cookies[cookieName]);
+                    // if the session is GrandLyon Connect, redirect to the GrandLyon Connect logout service
+                    if (session != null && session.idp == Idp.CUT && authenticationSetup.cutSso.logoutUrl != null)
+                        destination = authenticationSetup.cutSso.logoutUrl;
                     await sessions.DeleteSessionAsync(c.Request.Cookies[cookieName]);
+                }
 
                 // clean all cookies
                 foreach (var cookie in c.Request.Cookies.Keys)

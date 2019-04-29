@@ -25,6 +25,7 @@ namespace Laclasse.Doc {
 <html>
     <head>
         <meta http-equiv=""Content-Type"" content=""text/html; charset=utf-8"">
+        <meta name=""viewport"" content=""width=device-width, initial-scale=1.0, minimum-scale=1"">
         <script type=""text/javascript"" src=""/onlyoffice/web-apps/apps/api/documents/api.js""></script>
 <style>
 html, body, .placeholder {
@@ -50,122 +51,122 @@ var config = {
             #line default
             #line hidden
             
-            #line 30 ""
+            #line 31 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( fileType ));
             
             #line default
             #line hidden
             
-            #line 30 ""
+            #line 31 ""
             this.Write("\",\n        \"key\": \"");
             
             #line default
             #line hidden
             
-            #line 31 ""
+            #line 32 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( node.id + "REV" + node.rev ));
             
             #line default
             #line hidden
             
-            #line 31 ""
+            #line 32 ""
             this.Write("\",\n        \"title\": \"");
             
             #line default
             #line hidden
             
-            #line 32 ""
+            #line 33 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( node.name ));
             
             #line default
             #line hidden
             
-            #line 32 ""
+            #line 33 ""
             this.Write("\",\n        \"url\": \"");
             
             #line default
             #line hidden
             
-            #line 33 ""
+            #line 34 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( downloadUrl ));
             
             #line default
             #line hidden
             
-            #line 33 ""
+            #line 34 ""
             this.Write("\",\n        \"permissions\": {\n            \"comment\": true,\n            \"download\": " +
                     "true,\n            \"edit\": ");
             
             #line default
             #line hidden
             
-            #line 37 ""
+            #line 38 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( edit ? "true" : "false" ));
             
             #line default
             #line hidden
             
-            #line 37 ""
+            #line 38 ""
             this.Write(",\n            \"print\": true,\n            \"review\": ");
             
             #line default
             #line hidden
             
-            #line 39 ""
+            #line 40 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( edit ? "true" : "false" ));
             
             #line default
             #line hidden
             
-            #line 39 ""
+            #line 40 ""
             this.Write("\n        }\n    },\n    \"documentType\": \"");
             
             #line default
             #line hidden
             
-            #line 42 ""
+            #line 43 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( documentType ));
             
             #line default
             #line hidden
             
-            #line 42 ""
+            #line 43 ""
             this.Write("\",\n    \"editorConfig\": {\n        \"callbackUrl\": \"");
             
             #line default
             #line hidden
             
-            #line 44 ""
+            #line 45 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( callbackUrl ));
             
             #line default
             #line hidden
             
-            #line 44 ""
+            #line 45 ""
             this.Write("\",\n        \"lang\": \"fr-FR\",\n        \"user\": {\n            \"id\": \"");
             
             #line default
             #line hidden
             
-            #line 47 ""
+            #line 48 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( user.id ));
             
             #line default
             #line hidden
             
-            #line 47 ""
+            #line 48 ""
             this.Write("\",\n            \"name\": \"");
             
             #line default
             #line hidden
             
-            #line 48 ""
+            #line 49 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( user.firstname + " " + user.lastname ));
             
             #line default
             #line hidden
             
-            #line 48 ""
+            #line 49 ""
             this.Write("\"\n        },\n        \"customization\": {\n            \"forcesave\": true,\n          " +
                     "  \"logo\": {\n                \"image\": \"/portail/img/logo-onlyoffice.png\"\n        " +
                     "    }\n        }\n    },\n    \"type\": \"");
@@ -173,13 +174,13 @@ var config = {
             #line default
             #line hidden
             
-            #line 57 ""
+            #line 58 ""
             this.Write(this.ToStringHelper.ToStringWithCulture( mode == OnlyOfficeMode.Mobile ? "mobile" : "desktop" ));
             
             #line default
             #line hidden
             
-            #line 57 ""
+            #line 58 ""
             this.Write("\",\n    \"width\": \"100%\",\n    \"height\": \"100%\"\n};\n\nvar docEditor = new DocsAPI.DocE" +
                     "ditor(\"placeholder\", config);\n        </script>\n    </body>\n</html>");
             

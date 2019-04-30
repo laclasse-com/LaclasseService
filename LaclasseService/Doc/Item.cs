@@ -248,6 +248,7 @@ namespace Laclasse.Doc
 
             string thumbnailTempFile = null;
             Blob thumbnailBlob = null;
+            Node nodeDiff = new Node { id = node.id };
 
             if (tempFile != null)
                 context.docs.BuildThumbnail(context.tempDir, tempFile, blob.mimetype, out thumbnailTempFile, out thumbnailBlob);
@@ -261,7 +262,7 @@ namespace Laclasse.Doc
                 if (sameBlob != null)
                 {
                     blob = sameBlob;
-                    node.blob_id = sameBlob.id;
+                    nodeDiff.blob_id = sameBlob.id;
                     // delete the temporary file if commit is done
                     context.db.AddCommitAction(() =>
                     {
@@ -271,20 +272,20 @@ namespace Laclasse.Doc
                 else
                 {
                     blob = await context.blobs.CreateBlobFromTempFileAsync(context.db, blob, tempFile);
-                    node.blob_id = blob.id;
+                    nodeDiff.blob_id = blob.id;
                 }
                 if (oldBlobId == node.blob_id)
                     oldBlobId = null;
 
-                node.size = blob.size;
-                node.rev++;
+                nodeDiff.size = blob.size;
+                nodeDiff.rev = node.rev + 1;
+                nodeDiff.mtime = DateTime.Now;
                 if (context.user.IsUser)
                 {
                     // update the last owner
-                    node.owner = context.user.user.id;
-                    node.owner_firstname = context.user.user.firstname;
-                    node.owner_lastname = context.user.user.lastname;
-                    node.mtime = (long)(DateTime.Now - DateTime.Parse("1970-01-01T00:00:00Z")).TotalSeconds;
+                    nodeDiff.owner = context.user.user.id;
+                    nodeDiff.owner_firstname = context.user.user.firstname;
+                    nodeDiff.owner_lastname = context.user.user.lastname;
                 }
             }
 
@@ -295,7 +296,7 @@ namespace Laclasse.Doc
             {
                 var define = fileDefinition.Define;
                 if (define.IsSet(nameof(Node.name)))
-                    node.name = define.name;
+                    nodeDiff.name = define.name;
                 if (define.IsSet(nameof(Node.parent_id)))
                 {
                     // check destination rights
@@ -322,18 +323,18 @@ namespace Laclasse.Doc
                         if (parents.Any((p) => p.node.id == node.id))
                             throw new WebException(400, "Cant move a node inside subfolders");
                     }
-                    node.parent_id = define.parent_id;
+                    nodeDiff.parent_id = define.parent_id;
                 }
                 if (define.IsSet(nameof(Node.rights)))
                 {
-                    node.rights = define.rights;
+                    nodeDiff.rights = define.rights;
                 }
                 if (define.IsSet(nameof(Node.return_date)) && node.mime == "rendu")
                 {
                     // restricted user can change this
                     if (context.user.IsRestrictedUser)
                         throw new WebException(403, "Insufficient rights");
-                    node.return_date = define.return_date;
+                    nodeDiff.return_date = define.return_date;
                 }
             }
 
@@ -341,7 +342,7 @@ namespace Laclasse.Doc
             {
                 thumbnailBlob.parent_id = blob.id;
                 thumbnailBlob = await context.blobs.CreateBlobFromTempFileAsync(context.db, thumbnailBlob, thumbnailTempFile);
-                node.has_tmb = true;
+                nodeDiff.has_tmb = true;
             }
 
             if (oldParent != null)
@@ -355,7 +356,9 @@ namespace Laclasse.Doc
                     await parent.OnBeforeChildChangedAsync(this, ChildAction.Update, fileDefinition);
             }
 
-            await node.UpdateAsync(context.db);
+            Console.WriteLine("Item.ChangeAsync => " + nodeDiff.Fields.Dump());
+
+            await nodeDiff.UpdateAsync(context.db);
             await node.LoadAsync(context.db, true);
 
             // delete old blob if any
@@ -506,7 +509,8 @@ namespace Laclasse.Doc
             }
             node.size = blob.size;
             node.rev = 0;
-            node.mtime = (long)(DateTime.Now - DateTime.Parse("1970-01-01T00:00:00Z")).TotalSeconds;
+            node.ctime = DateTime.Now;
+            node.mtime = DateTime.Now;
 
             if (context.user.IsUser)
             {

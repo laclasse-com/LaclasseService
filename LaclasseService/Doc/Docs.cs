@@ -125,7 +125,9 @@ namespace Laclasse.Doc
         [ModelField]
         public long size { get { return GetField(nameof(size), 0L); } set { SetField(nameof(size), value); } }
         [ModelField]
-        public long mtime { get { return GetField(nameof(mtime), 0L); } set { SetField(nameof(mtime), value); } }
+        public DateTime ctime { get { return GetField(nameof(ctime), DateTime.Now); } set { SetField(nameof(ctime), value); } }
+        [ModelField]
+        public DateTime mtime { get { return GetField(nameof(mtime), DateTime.Now); } set { SetField(nameof(mtime), value); } }
         [ModelField]
         public string mime { get { return GetField<string>(nameof(mime), null); } set { SetField(nameof(mime), value); } }
         [ModelField]
@@ -1160,7 +1162,8 @@ namespace Laclasse.Doc
                 var dstNode = new Node
                 {
                     rev = 0,
-                    mtime = (long)(DateTime.Now - DateTime.Parse("1970-01-01T00:00:00Z")).TotalSeconds
+                    ctime = DateTime.Now,
+                    mtime = DateTime.Now
                 };
                 if (json.ContainsKey("name"))
                     dstNode.name = (string)json["name"];

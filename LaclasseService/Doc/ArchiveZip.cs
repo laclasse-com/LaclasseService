@@ -32,7 +32,7 @@ namespace Laclasse.Doc
                     }
                     else
                     {
-                        var mtime = new DateTime(1970, 1, 1) + TimeSpan.FromSeconds(item.node.mtime);
+                        var mtime = item.node.mtime;
                         var zipEntry = new ZipEntry(ZipEntry.CleanName(path + item.node.name));
                         zipEntry.DateTime = mtime;
                         zipEntry.IsUnicodeText = true;
@@ -84,7 +84,7 @@ namespace Laclasse.Doc
                     }
                     else
                     {
-                        var mtime = new DateTime(1970, 1, 1) + TimeSpan.FromSeconds(item.node.mtime);
+                        var mtime = item.node.mtime;
                         var zipEntry = new ZipEntry(ZipEntry.CleanName(path + item.node.name));
                         zipEntry.DateTime = mtime;
                         zipEntry.IsUnicodeText = true;

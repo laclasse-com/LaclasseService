@@ -51,7 +51,8 @@ var config = {
         "customization": {
             "forcesave": true,
             "logo": {
-                "image": "/portail/img/logo-onlyoffice.png"
+                "image": "/portail/img/logo-onlyoffice.png",
+                "url": "/"
             }
         }
     },

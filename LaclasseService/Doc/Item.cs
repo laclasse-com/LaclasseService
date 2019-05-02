@@ -355,9 +355,7 @@ namespace Laclasse.Doc
                 else
                     await parent.OnBeforeChildChangedAsync(this, ChildAction.Update, fileDefinition);
             }
-
-            Console.WriteLine("Item.ChangeAsync => " + nodeDiff.Fields.Dump());
-
+            
             await nodeDiff.UpdateAsync(context.db);
             await node.LoadAsync(context.db, true);
 
@@ -840,7 +838,39 @@ namespace Laclasse.Doc
                         _children.Add(child);
                 }
             }
+
+            // update the mtime of the folder
+            node.mtime = DateTime.Now;
+            var nodeDiff = new Node { id = node.id, mtime = node.mtime };
+            // update the size of the folder
+            if (action == ChildAction.Create || action == ChildAction.MoveIn)
+            {
+                node.size += child.node.size;
+                nodeDiff.size = node.size;
+            }
+            else if (action == ChildAction.Delete || action == ChildAction.MoveOut)
+            {
+                node.size = Math.Max(0, node.size - child.node.size);
+                nodeDiff.size = node.size;
+            }
+            else if (action == ChildAction.Update && this is Folder)
+            {
+                var folder = this as Folder;
+                var newSize = (await folder.GetChildrenAsync()).Sum(c => c.node.size);
+                if (newSize != node.size)
+                {
+                    node.size = newSize;
+                    nodeDiff.size = newSize;
+                }
+            }
+
+            await nodeDiff.UpdateAsync(context.db);
+
             await base.OnChildChangedAsync(child, action);
+
+            var parent = await GetParentAsync() as Folder;
+            if (parent != null)
+                await parent.OnChildChangedAsync(this, ChildAction.Update);
         }
 
         public static async Task<Folder> CreateAsync(Context context, string name, long parentId)
@@ -1401,7 +1431,7 @@ namespace Laclasse.Doc
 
         public static async Task<GroupeLibre> GetOrCreateAsync(Context context, int groupId, string groupName)
         {
-            var groupsNodes = await context.db.SelectAsync<Node>("SELECT * FROM `node` WHERE `groupe_libre_id`= ?", groupId);
+            var groupsNodes = await context.db.SelectExpandAsync<Node>("SELECT * FROM `node` WHERE `groupe_libre_id`= ?", new object[] { groupId });
             if (groupsNodes.Count > 0)
                 return Item.ByNode(context, groupsNodes[0]) as GroupeLibre;
             return await CreateAsync(context, groupId, groupName);

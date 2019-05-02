@@ -1676,14 +1676,14 @@ namespace Laclasse.Doc
             try
             {
                 // ensure user has a "cartable"
-                var cartables = await context.db.SelectAsync<Node>("SELECT * FROM `node` WHERE `cartable_uid`=?", currentUser.user.id);
+                var cartables = await context.db.SelectExpandAsync<Node>("SELECT * FROM `node` WHERE `cartable_uid`=?", new[] { currentUser.user.id });
                 if (cartables.Count == 0)
                     roots.Add(await Cartable.CreateAsync(context, currentUser.user.id));
                 else
                     roots.Add(Item.ByNode(context, cartables[0]));
                 // ensure the structures exists
                 var structuresIds = currentUser.user.profiles.Select((up) => up.structure_id).Distinct();
-                var exitsStructures = (await context.db.SelectAsync<Node>($"SELECT * FROM `node` WHERE {DB.InFilter("etablissement_uai", structuresIds)}"));
+                var exitsStructures = (await context.db.SelectExpandAsync<Node>($"SELECT * FROM `node` WHERE {DB.InFilter("etablissement_uai", structuresIds)}", new object[] { }));
                 var exitsStructuresIds = exitsStructures.Select(s => s.etablissement_uai);
                 foreach (var structureId in structuresIds.Except(exitsStructuresIds))
                     roots.Add(await Structure.CreateAsync(context, structureId));

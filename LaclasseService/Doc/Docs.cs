@@ -185,6 +185,10 @@ namespace Laclasse.Doc
         [ModelField]
         public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
         [ModelField]
+        public long size { get { return GetField(nameof(size), 0L); } set { SetField(nameof(size), value); } }
+        [ModelField]
+        public DateTime mtime { get { return GetField(nameof(mtime), DateTime.MinValue); } set { SetField(nameof(mtime), value); } }
+        [ModelField]
         public bool is_deleted { get { return GetField(nameof(is_deleted), false); } set { SetField(nameof(is_deleted), value); } }
     }
 
@@ -199,6 +203,10 @@ namespace Laclasse.Doc
         [ModelField]
         public string lastname { get { return GetField<string>(nameof(lastname), null); } set { SetField(nameof(lastname), value); } }
         [ModelField]
+        public long size { get { return GetField(nameof(size), 0L); } set { SetField(nameof(size), value); } }
+        [ModelField]
+        public DateTime mtime { get { return GetField(nameof(mtime), DateTime.MinValue); } set { SetField(nameof(mtime), value); } }
+        [ModelField]
         public bool is_deleted { get { return GetField(nameof(is_deleted), false); } set { SetField(nameof(is_deleted), value); } }
     }
 
@@ -210,6 +218,10 @@ namespace Laclasse.Doc
         public long node_id { get { return GetField(nameof(node_id), 0L); } set { SetField(nameof(node_id), value); } }
         [ModelField]
         public string name { get { return GetField<string>(nameof(name), null); } set { SetField(nameof(name), value); } }
+        [ModelField]
+        public long size { get { return GetField(nameof(size), 0L); } set { SetField(nameof(size), value); } }
+        [ModelField]
+        public DateTime mtime { get { return GetField(nameof(mtime), DateTime.MinValue); } set { SetField(nameof(mtime), value); } }
         [ModelField]
         public bool is_deleted { get { return GetField(nameof(is_deleted), false); } set { SetField(nameof(is_deleted), value); } }
     }
@@ -491,6 +503,48 @@ namespace Laclasse.Doc
                 c.Response.StatusCode = 200;
             };
 
+            PostAsync["/rebuildsize"] = async (p, c) =>
+            {
+                await c.EnsureIsSuperAdminAsync();
+                var json = await c.Request.ReadAsJsonAsync();
+                foreach (var jsonNodeId in json as JsonArray)
+                {
+                    var nodeId = (long)jsonNodeId;
+                    using (DB db = await DB.CreateAsync(dbUrl, true))
+                    {
+                        Func<Node, Task<Tuple<long, DateTime>>> UpdateNodeAsync = null;
+                        UpdateNodeAsync = async (Node node) =>
+                        {                                
+                            var children = await db.SelectAsync<Node>($"SELECT * FROM `node` WHERE `parent_id`=?", node.id);
+                            long totalSize = 0;
+                            long totalCount = 0;
+                            DateTime maxTime = DateTime.MinValue;
+                            foreach (var child in children)
+                            {
+                                var res = await UpdateNodeAsync(child);
+                                totalSize += res.Item1;
+                                totalCount++;
+                                maxTime = res.Item2 > maxTime ? res.Item2 : maxTime;
+                            }
+                            if (totalCount == 0 && node.mime.Contains("/"))
+                                totalSize = node.size;
+                            maxTime = node.mtime > maxTime ? node.mtime : maxTime;
+
+                            var nodeDiff = new Node { id = node.id, size = totalSize, mtime = maxTime };
+                            await nodeDiff.UpdateAsync(db);
+
+                            return new Tuple<long, DateTime>(totalSize, maxTime);
+                        };
+
+                        var rootNodes = await db.SelectAsync<Node>($"SELECT * FROM `node` WHERE `id`=?", nodeId);
+                        if (rootNodes.Count == 1)
+                            await UpdateNodeAsync(rootNodes[0]);
+                        await db.CommitAsync();
+                    }
+                }
+                c.Response.StatusCode = 200;
+            };
+
             GetAsync["/generatemissingtmb"] = async (p, c) =>
             {
                 await c.EnsureIsSuperAdminAsync();
@@ -634,6 +688,8 @@ namespace Laclasse.Doc
                     {
                         structure_id = node.etablissement_uai,
                         node_id = node.id,
+                        size = node.size,
+                        mtime = node.mtime,
                         is_deleted = true
                     };
                     if (structuresDict.ContainsKey(node.etablissement_uai))
@@ -693,6 +749,8 @@ namespace Laclasse.Doc
                         node_id = node.id,
                         firstname = node.owner_firstname,
                         lastname = node.owner_lastname,
+                        size = node.size,
+                        mtime = node.mtime,
                         is_deleted = true
                     };
                     if (usersDict.ContainsKey(node.cartable_uid))
@@ -736,6 +794,8 @@ namespace Laclasse.Doc
                         group_id = (int)node.groupe_libre_id,
                         node_id = node.id,
                         name = node.name,
+                        size = node.size,
+                        mtime = node.mtime,
                         is_deleted = true
                     };
                     if (groupsDict.ContainsKey((int)node.groupe_libre_id))

@@ -1339,7 +1339,7 @@ namespace Laclasse.Doc
                                 if (c.Request.QueryString.ContainsKey("attachment"))
                                     attachment = "&attachment";
                                 c.Response.StatusCode = 307;
-                                c.Response.Headers["location"] = $"content?rev={item.node.rev}{attachment}";
+                                c.Response.Headers["location"] = $"?rev={item.node.rev}{attachment}";
                             }
                             else
                             {
@@ -1350,6 +1350,8 @@ namespace Laclasse.Doc
                                     c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
                                 if (c.Request.QueryString.ContainsKey("attachment"))
                                     c.Response.Headers["content-disposition"] = $"attachment; filename=\"{item.node.name.Replace('"', ' ')}\"";
+                                else
+                                    c.Response.Headers["content-disposition"] = $"filename=\"{item.node.name.Replace('"', ' ')}\"";
                                 c.Response.Content = await item.GetContentAsync();
                             }
                         }

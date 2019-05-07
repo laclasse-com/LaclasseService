@@ -57,3 +57,13 @@
 /home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MySqlConnector.dll
 /home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MailKit.dll
 /home/nelson/Programmation/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MimeKit.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/.NETFramework,Version=v4.7.1.AssemblyAttribute.cs
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/Laclasse.Doc.sample.docx
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/Laclasse.Doc.sample.pptx
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/obj/x86/Debug/Laclasse.Doc.sample.xlsx
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Buffers.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Numerics.Vectors.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Runtime.CompilerServices.Unsafe.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Threading.Tasks.Extensions.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Memory.dll
+/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MySqlConnector.dll

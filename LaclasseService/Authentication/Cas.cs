@@ -619,12 +619,11 @@ namespace Laclasse.Authentication
                 var queryFields = new Dictionary<string, List<string>>();
                 queryFields["emails.type"] = new List<string>(new string[] { "Academique" });
                 queryFields["emails.address"] = new List<string>(new string[] { ctemail });
-                //JsonValue userResult;
-                //using (DB db = await DB.CreateAsync(dbUrl))
-                //	userResult = (await Model.SearchAsync<User>(db, new string[] { "emails.type", "emails.adresse" }, queryFields)).Data.SingleOrDefault();
-                var userResult = (await users.SearchUserAsync(queryFields)).Data.SingleOrDefault();
+                var usersFound = (await users.SearchUserAsync(queryFields)).Data;
 
-                if (userResult == null)
+                //var userResult = (await users.SearchUserAsync(queryFields)).Data.SingleOrDefault();
+
+                if (usersFound.Count == 0)
                 {
                     c.Response.StatusCode = 200;
                     c.Response.Headers["content-type"] = "text/html; charset=utf-8";
@@ -636,6 +635,14 @@ namespace Laclasse.Authentication
 							dans laclasse.com avant de pouvoir vous connecter en utilisant votre compte Académique."
                     }).TransformText();
                     return;
+                }
+                var userResult = usersFound[0];
+                if (usersFound.Count > 1)
+                {
+                    // prefer an AAF user
+                    userResult = usersFound.FirstOrDefault(u => u.aaf_jointure_id != null);
+                    if (userResult == null)
+                        userResult = usersFound[0];
                 }
                 preTicket.uid = userResult.id;
                 preTicket.idp = Idp.AAF;

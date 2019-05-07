@@ -89,7 +89,7 @@ namespace Laclasse.Doc
                 }
                 else if (cmd == "open")
                 {
-                    if (c.Request.QueryString.ContainsKey("target"))
+                    if (c.Request.QueryString.ContainsKey("target") && c.Request.QueryString["target"] != "")
                     {
                         var target = c.Request.QueryString["target"];
                         var id = long.Parse(target.Substring(1));

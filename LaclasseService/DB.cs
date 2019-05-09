@@ -1825,6 +1825,11 @@ namespace Laclasse
             return await cmd.ExecuteNonQueryAsync();
         }
 
+        public async Task<int> ExecuteNonQueryAsync(string query, params object[] args)
+        {
+            return await NonQueryAsync(query, args);
+        }
+
         public async Task<object> ExecuteScalarAsync(string query, params object[] args)
         {
             var cmd = new MySqlCommand(query, connection);

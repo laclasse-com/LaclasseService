@@ -159,11 +159,9 @@ namespace Laclasse.Authentication
                 foreach (var b in BitConverter.GetBytes(DateTime.Now.Ticks))
                     sb.Append(b.ToString("X2"));
 
-                bool duplicate;
                 int tryCount = 0;
                 do
                 {
-                    duplicate = false;
                     sessionId = sb + StringExt.RandomString(10);
                     try
                     {
@@ -183,19 +181,32 @@ namespace Laclasse.Authentication
                     }
                     catch (MySql.Data.MySqlClient.MySqlException e)
                     {
+                        // if it is not a duplicate ticketId re throw the Exception
+                        if (e.Number != 1062)
+                            throw;
                         sessionId = null;
-                        // if the ticketId is already taken, try another
-                        duplicate = (e.Number == 1062);
-                        tryCount++;
                     }
+                    tryCount++;
                 }
-                while (duplicate && (tryCount < 10));
+                while (sessionId == null && tryCount < 10);
                 if (sessionId == null)
                     throw new Exception("Session create fails. Impossible generate a sessionId");
                 // if its not a long session, only 1 short session is allowed at a time
                 // invalidate previous sessions
                 if (!isTech && !longSession)
-                    await db.DeleteAsync($"DELETE FROM `session` WHERE `{nameof(session.long_session)}` = FALSE AND `{nameof(session.tech)}` = FALSE AND `{nameof(session.id)}` != ? AND {nameof(session.user)} = ?", sessionId, user);
+                {
+                    try
+                    {
+                        await db.DeleteAsync($"DELETE FROM `session` WHERE `{nameof(session.long_session)}` = FALSE AND `{nameof(session.tech)}` = FALSE AND `{nameof(session.id)}` != ? AND {nameof(session.user)} = ?", sessionId, user);
+                    }
+                    catch (MySql.Data.MySqlClient.MySqlException e)
+                    {
+                        // if a dead lock is detected while deleting, accept
+                        // to delete later. Else re throw the exception
+                        if (e.Number != 1213)
+                            throw;
+                    }
+                }
             }
             return session;
         }
@@ -213,7 +224,17 @@ namespace Laclasse.Authentication
                 // delete old sessions
                 using (DB db = await DB.CreateAsync(dbUrl))
                 {
-                    await db.DeleteAsync("DELETE FROM `session` WHERE (`long_session` = FALSE AND TIMESTAMPDIFF(SECOND, start, NOW()) >= ?) OR (`long_session` = TRUE AND TIMESTAMPDIFF(SECOND, start, NOW()) >= ?)", sessionTimeout, sessionLongTimeout);
+                    try
+                    {
+                        await db.DeleteAsync("DELETE FROM `session` WHERE (`long_session` = FALSE AND TIMESTAMPDIFF(SECOND, start, NOW()) >= ?) OR (`long_session` = TRUE AND TIMESTAMPDIFF(SECOND, start, NOW()) >= ?)", sessionTimeout, sessionLongTimeout);
+                    }
+                    catch (MySql.Data.MySqlClient.MySqlException e)
+                    {
+                        // if a dead lock is detected while deleting, accept
+                        // to delete later. Else re throw the exception
+                        if (e.Number != 1213)
+                            throw;
+                    }
                 }
             }
         }

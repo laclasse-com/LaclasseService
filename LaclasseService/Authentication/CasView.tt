@@ -386,7 +386,7 @@ function onContactBack(e) {
 
     							<div style="margin-bottom: 0px; flex: 1;">
     								<div class="title">avec votre compte Laclasse.com :</div>
-    								<form method="post" action="login">
+    								<form method="post" action="login" onsubmit="document.getElementById('connectbtn').disabled = true">
     			            			<input type="hidden" name="service" value="<#= Web.HttpUtility.HtmlEncode(service) #>">
     			            			<input type="hidden" name="state" value="<#= state #>">
     			            			<input type="hidden" name="ticket" value="<#= ticket #>">
@@ -401,7 +401,7 @@ function onContactBack(e) {
                                           </svg>
                                         </div> rester connecté</label>
                                         <br><br>
-    									<input class="btn" style="display: block; width: calc(100% - 10px);" name="submit" type="submit" value="SE CONNECTER">
+    									<input id="connectbtn" class="btn" style="display: block; width: calc(100% - 10px);" name="submit" type="submit" value="SE CONNECTER">
     								</form>
                                     <div style="display: flex; flex-wrap: wrap; flex-direction: row; margin-top: 20px;">
                                         <a href="#" onclick="onRescue()">Mot de passe oublié ?</a>

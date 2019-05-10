@@ -621,7 +621,7 @@ namespace Laclasse.Authentication {
 
     							<div style=""margin-bottom: 0px; flex: 1;"">
     								<div class=""title"">avec votre compte Laclasse.com :</div>
-    								<form method=""post"" action=""login"">
+    								<form method=""post"" action=""login"" onsubmit=""document.getElementById('connectbtn').disabled = true"">
     			            			<input type=""hidden"" name=""service"" value=""");
             
             #line default
@@ -671,28 +671,29 @@ namespace Laclasse.Authentication {
                     "8.34-8.34-2.83 2.83 11.17 11.17 24-24-2.83-2.83z\"/>\n                            " +
                     "              </svg>\n                                        </div> rester conne" +
                     "cté</label>\n                                        <br><br>\n    \t\t\t\t\t\t\t\t\t<input" +
-                    " class=\"btn\" style=\"display: block; width: calc(100% - 10px);\" name=\"submit\" typ" +
-                    "e=\"submit\" value=\"SE CONNECTER\">\n    \t\t\t\t\t\t\t\t</form>\n                           " +
-                    "         <div style=\"display: flex; flex-wrap: wrap; flex-direction: row; margin" +
-                    "-top: 20px;\">\n                                        <a href=\"#\" onclick=\"onRes" +
-                    "cue()\">Mot de passe oublié ?</a>\n                                        <a styl" +
-                    "e=\"flex-grow: 1; text-align: right;\" href=\"#\" onclick=\"onContact()\">Contact</a>\n" +
-                    "                                    </div>\n                                </div" +
-                    ">\n                            </div>\n\t\t\t\t\t\t</div>\n\n\t   \t\t\t\t\t<!-- lost password -" +
-                    "->\n\t\t\t\t\t\t<div style=\"display: none\" id=\"rescue-content\">\n\t\t\t\t\t\t\t<div class=\"boxH" +
-                    "eader\">\n\t\t\t\t\t\t\t\t<a href=\"#back\" onclick=\"onRescueBack()\" style=\"float: left;\">\n\t" +
-                    "\t\t\t\t\t\t\t\t<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" height=\"28\" viewBox=\"" +
-                    "0 0 48 48\">\n\t\t\t\t\t\t\t\t\t\t<path style=\"fill:#444444;fill-opacity:1;stroke:none\" d=\"M" +
-                    "40 22H15.86l11.18-11.18L24 8l-16 16 16 16 2.82-2.82L15.66 26H40v-4z\"/>\n\t\t\t\t\t\t\t\t\t" +
-                    "</svg>\n\t\t\t\t\t\t\t\t</a> Mot de passe oublié\n\t\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t\t<div style=\"margin" +
-                    "-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\tMerci de renseigner une adresse email (a" +
-                    "utre que celle de l\'ENT) ou un numéro de\n\t\t\t\t\t\t\t\t\ttéléphone portable: les vôtres" +
-                    " ou ceux d\'un de vos parents.<br>\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\tPar exemple:\n\t\t\t\t\t\t\t\t\t<" +
-                    "ul>\n\t\t\t\t\t\t\t\t\t\t<li>pour un compte enseignant, votre adresse email académique.\n\t\t\t" +
-                    "\t\t\t\t\t\t\t<li>pour un élève, l\'adresse email de votre mère.\n\t\t\t\t\t\t\t\t\t\t<li>pour un p" +
-                    "arent, votre numéro de téléphone portable que vous avez communiqué lors de l\'ins" +
-                    "cription\n\t\t\t\t\t\t\t\t\t</ul>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t<form method=\"post\" action=\"login" +
-                    "\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"service\" value=\"");
+                    " id=\"connectbtn\" class=\"btn\" style=\"display: block; width: calc(100% - 10px);\" n" +
+                    "ame=\"submit\" type=\"submit\" value=\"SE CONNECTER\">\n    \t\t\t\t\t\t\t\t</form>\n           " +
+                    "                         <div style=\"display: flex; flex-wrap: wrap; flex-direct" +
+                    "ion: row; margin-top: 20px;\">\n                                        <a href=\"#" +
+                    "\" onclick=\"onRescue()\">Mot de passe oublié ?</a>\n                               " +
+                    "         <a style=\"flex-grow: 1; text-align: right;\" href=\"#\" onclick=\"onContact" +
+                    "()\">Contact</a>\n                                    </div>\n                     " +
+                    "           </div>\n                            </div>\n\t\t\t\t\t\t</div>\n\n\t   \t\t\t\t\t<!--" +
+                    " lost password -->\n\t\t\t\t\t\t<div style=\"display: none\" id=\"rescue-content\">\n\t\t\t\t\t\t\t" +
+                    "<div class=\"boxHeader\">\n\t\t\t\t\t\t\t\t<a href=\"#back\" onclick=\"onRescueBack()\" style=\"" +
+                    "float: left;\">\n\t\t\t\t\t\t\t\t\t<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"28\" heigh" +
+                    "t=\"28\" viewBox=\"0 0 48 48\">\n\t\t\t\t\t\t\t\t\t\t<path style=\"fill:#444444;fill-opacity:1;s" +
+                    "troke:none\" d=\"M40 22H15.86l11.18-11.18L24 8l-16 16 16 16 2.82-2.82L15.66 26H40v" +
+                    "-4z\"/>\n\t\t\t\t\t\t\t\t\t</svg>\n\t\t\t\t\t\t\t\t</a> Mot de passe oublié\n\t\t\t\t\t\t\t</div>\n\n\t\t\t\t\t\t\t<d" +
+                    "iv style=\"margin-bottom: 20px;\">\n\t\t\t\t\t\t\t\t<div>\n\t\t\t\t\t\t\t\t\tMerci de renseigner une " +
+                    "adresse email (autre que celle de l\'ENT) ou un numéro de\n\t\t\t\t\t\t\t\t\ttéléphone port" +
+                    "able: les vôtres ou ceux d\'un de vos parents.<br>\n\t\t\t\t\t\t\t\t\t<br>\n\t\t\t\t\t\t\t\t\tPar exe" +
+                    "mple:\n\t\t\t\t\t\t\t\t\t<ul>\n\t\t\t\t\t\t\t\t\t\t<li>pour un compte enseignant, votre adresse email" +
+                    " académique.\n\t\t\t\t\t\t\t\t\t\t<li>pour un élève, l\'adresse email de votre mère.\n\t\t\t\t\t\t\t" +
+                    "\t\t\t<li>pour un parent, votre numéro de téléphone portable que vous avez communiq" +
+                    "ué lors de l\'inscription\n\t\t\t\t\t\t\t\t\t</ul>\n\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t<form method=\"pos" +
+                    "t\" action=\"login\">\n\t\t    \t        \t\t\t<input type=\"hidden\" name=\"service\" value=\"" +
+                    "");
             
             #line default
             #line hidden

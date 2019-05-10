@@ -132,6 +132,9 @@ namespace Laclasse.Directory
             if (!Dir.Exists(structureDir))
                 Dir.CreateDirectory(structureDir);
 
+            // API only available to authenticated users
+            BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
+
             GetAsync["/{id}/subjects"] = async (p, c) =>
             {
                 c.Response.StatusCode = 200;

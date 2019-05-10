@@ -164,17 +164,7 @@ namespace Laclasse.Doc
         public virtual Task<Stream> GetContentAsync()
         {
             Stream stream = null;
-            if (node.content != null)
-            {
-                var fullPath = Path.GetFullPath(ContentToPath(node.content));
-                // check if full path is in the base directory
-                if (!fullPath.StartsWith(context.storageDir, StringComparison.InvariantCulture))
-                    throw new WebException(403, "Invalid file path");
-                if (!File.Exists(fullPath))
-                    throw new WebException(404, "Content not found");
-                stream = File.OpenRead(fullPath);
-            }
-            else if (node.blob_id != null)
+            if (node.blob_id != null)
                 stream = context.blobs.GetBlobStream(node.blob_id);
             else
                 stream = new MemoryStream();
@@ -625,33 +615,6 @@ namespace Laclasse.Doc
                 return extensionToMimeTypes[extension];
             var mimetype = FileContent.MimeType(shortName);
             return mimetype;
-        }
-
-        string ContentToPath(string content)
-        {
-            string basePath = context.storageDir;
-            string filePath = null;
-            var tab = content.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-            if (tab[0] == "users")
-            {
-                var userId = tab[1].ToLowerInvariant();
-                var userPath = $"{userId[0]}/{userId[1]}/{userId[2]}/{userId.Substring(3, 2)}/{userId.Substring(5)}";
-                var remainPath = String.Join("/", tab, 2, tab.Length - 2);
-                filePath = $"{basePath}users/{userPath}/{remainPath}";
-            }
-            else if (tab[0] == "etablissements")
-            {
-                var structureId = tab[1].ToLowerInvariant();
-                var remainPath = String.Join("/", tab, 2, tab.Length - 2);
-                filePath = $"{basePath}etablissements/{structureId}/{remainPath}";
-            }
-            else if (tab[0] == "groupes_libres")
-            {
-                var groupId = tab[1];
-                var remainPath = String.Join("/", tab, 2, tab.Length - 2);
-                filePath = $"{basePath}groupes_libres/{groupId}/{remainPath}";
-            }
-            return filePath;
         }
 
         static Item()

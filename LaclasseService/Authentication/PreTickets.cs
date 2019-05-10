@@ -15,6 +15,7 @@ namespace Laclasse.Authentication
         string _uid;
         Idp _idp;
         XmlDocument _SAMLRequest;
+        string _RelayState;
 
         public PreTicket()
         {
@@ -61,6 +62,20 @@ namespace Laclasse.Authentication
             {
                 lock (instanceLock)
                     _service = value;
+            }
+        }
+
+        public string RelayState
+        {
+            get
+            {
+                lock (instanceLock)
+                    return _RelayState;
+            }
+            set
+            {
+                lock (instanceLock)
+                    _RelayState = value;
             }
         }
 

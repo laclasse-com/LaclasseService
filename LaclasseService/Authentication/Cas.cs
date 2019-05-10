@@ -405,12 +405,12 @@ namespace Laclasse.Authentication
                 if (saml2ServerCert == null)
                     return;
 
-                var RelayState = c.Request.QueryString["RelayState"];
                 var SAMLRequest = c.Request.QueryString["SAMLRequest"];
                 var preTicket = HandleSamlRequest(SAMLRequest);
-                preTicket.service = RelayState;
+                if (c.Request.QueryString.ContainsKey("RelayState"))
+                    preTicket.RelayState = c.Request.QueryString["RelayState"];
 
-                var client = await GetClientFromServiceAsync(RelayState);
+                var client = await GetClientFromServiceAsync(preTicket.service);
                 if (client == null)
                 {
                     c.Response.StatusCode = 200;
@@ -2533,9 +2533,16 @@ namespace Laclasse.Authentication
             dom.PreserveWhitespace = true;
             dom.LoadXml(SAMLRequest);
 
+            var ns = new XmlNamespaceManager(dom.NameTable);
+            var samlp = "urn:oasis:names:tc:SAML:2.0:protocol";
+            ns.AddNamespace("samlp", samlp);
+            var authnRequest = dom.DocumentElement.SelectSingleNode("//samlp:AuthnRequest", ns);
+            var AssertionConsumerServiceURL = authnRequest.Attributes["AssertionConsumerServiceURL"].Value;
+
             var preTicket = new PreTicket
             {
                 wantTicket = false,
+                service = AssertionConsumerServiceURL,
                 SAMLRequest = dom
             };
             preTickets.Add(preTicket);
@@ -2586,12 +2593,16 @@ namespace Laclasse.Authentication
 
             c.Response.StatusCode = 200;
             c.Response.Headers["content-type"] = "text/html; charset=utf8";
-            c.Response.Content = $@"<!DOCTYPE html>
+            var content = $@"<!DOCTYPE html>
 <html>
     <center>
         <form method=""POST"" action=""{preTicket.service}"">
-            <input type=""hidden"" name=""SAMLResponse"" value=""{samlResponseBase64String}"">
-            <input type=""hidden"" name=""RelayState"" value=""{preTicket.service}"">
+            <input type=""hidden"" name=""SAMLResponse"" value=""{samlResponseBase64String}"">";
+
+            if (preTicket.RelayState != null)
+                content += $@"<input type=""hidden"" name=""RelayState"" value=""{preTicket.RelayState}"">";
+
+            content += $@"
             <input type=""submit"" value=""redirection"">
         </form>
     </center>
@@ -2601,6 +2612,7 @@ window.onload = function() {{
 }}
     </script>
 </html>";
+            c.Response.Content = content;
         }
     }
 }

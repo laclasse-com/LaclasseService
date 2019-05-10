@@ -395,6 +395,7 @@ namespace Laclasse.Doc
         internal Blobs blobs;
         Dictionary<string, List<IFilePlugin>> mimePlugins = new Dictionary<string, List<IFilePlugin>>();
         List<IFilePlugin> allPlugins = new List<IFilePlugin>();
+        readonly SemaphoreSlim nodeChangeLock = new SemaphoreSlim(1, 1);
 
         internal class TempFile
         {
@@ -514,7 +515,7 @@ namespace Laclasse.Doc
                     {
                         Func<Node, Task<Tuple<long, DateTime>>> UpdateNodeAsync = null;
                         UpdateNodeAsync = async (Node node) =>
-                        {                                
+                        {
                             var children = await db.SelectAsync<Node>($"SELECT * FROM `node` WHERE `parent_id`=?", node.id);
                             long totalSize = 0;
                             long totalCount = 0;
@@ -964,27 +965,35 @@ namespace Laclasse.Doc
             PostAsync["/"] = async (p, c) =>
             {
                 var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
+                await nodeChangeLock.WaitAsync();
                 try
                 {
-                    using (var db = await DB.CreateAsync(dbUrl, true))
+                    try
                     {
-                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
-                        var item = await Item.CreateAsync(context, fileDefinition);
-                        await db.CommitAsync();
-                        c.Response.StatusCode = 200;
-                        c.Response.Content = await item.ToJsonAsync(true);
+                        using (var db = await DB.CreateAsync(dbUrl, true))
+                        {
+                            var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                            var item = await Item.CreateAsync(context, fileDefinition);
+                            await db.CommitAsync();
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = await item.ToJsonAsync(true);
+                        }
+                    }
+                    // catch MySQL duplicate name exception
+                    catch (MySql.Data.MySqlClient.MySqlException e)
+                    {
+                        if (e.Number == 1062)
+                        {
+                            c.Response.StatusCode = 400;
+                            c.Response.Content = new JsonObject { ["error"] = "Duplicate name", ["code"] = 1 };
+                        }
+                        else
+                            throw;
                     }
                 }
-                // catch MySQL duplicate name exception
-                catch (MySql.Data.MySqlClient.MySqlException e)
+                finally
                 {
-                    if (e.Number == 1062)
-                    {
-                        c.Response.StatusCode = 400;
-                        c.Response.Content = new JsonObject { ["error"] = "Duplicate name", ["code"] = 1 };
-                    }
-                    else
-                        throw;
+                    nodeChangeLock.Release();
                 }
             };
 
@@ -992,32 +1001,39 @@ namespace Laclasse.Doc
             {
                 var id = long.Parse((string)p["id"]);
                 var fileDefinition = await Blobs.GetFileDefinitionAsync<Node>(c);
-
+                await nodeChangeLock.WaitAsync();
                 try
                 {
-                    using (DB db = await DB.CreateAsync(dbUrl, true))
+                    try
                     {
-                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
-                        var item = await context.GetByIdAsync(id);
-                        await item.ChangeAsync(fileDefinition);
-                        await db.CommitAsync();
-                        if (item != null)
+                        using (DB db = await DB.CreateAsync(dbUrl, true))
                         {
-                            c.Response.StatusCode = 200;
-                            c.Response.Content = await item.ToJsonAsync(true);
+                            var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                            var item = await context.GetByIdAsync(id);
+                            await item.ChangeAsync(fileDefinition);
+                            await db.CommitAsync();
+                            if (item != null)
+                            {
+                                c.Response.StatusCode = 200;
+                                c.Response.Content = await item.ToJsonAsync(true);
+                            }
                         }
                     }
-                }
-                // catch MySQL duplicate name exception
-                catch (MySql.Data.MySqlClient.MySqlException e)
-                {
-                    if (e.Number == 1062)
+                    // catch MySQL duplicate name exception
+                    catch (MySql.Data.MySqlClient.MySqlException e)
                     {
-                        c.Response.StatusCode = 400;
-                        c.Response.Content = new JsonObject { ["error"] = "Duplicate name", ["code"] = 1 };
+                        if (e.Number == 1062)
+                        {
+                            c.Response.StatusCode = 400;
+                            c.Response.Content = new JsonObject { ["error"] = "Duplicate name", ["code"] = 1 };
+                        }
+                        else
+                            throw;
                     }
-                    else
-                        throw;
+                }
+                finally
+                {
+                    nodeChangeLock.Release();
                 }
             };
 
@@ -1320,9 +1336,9 @@ namespace Laclasse.Doc
                     return;
                 }
 
-                using (var db = await DB.CreateAsync(dbUrl))
+                using (var db = await DB.CreateAsync(dbUrl, true))
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = authUser, directoryDbUrl = directoryDbUrl, httpContext = c };
                     var item = await context.GetByIdAsync(id);
                     if (item != null)
                     {

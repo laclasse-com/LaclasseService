@@ -1584,7 +1584,7 @@ namespace Laclasse.Doc
         {
             await base.OnBeforeChildChangedAsync(child, action, fileDefinition);
             var name = child.node.name;
-            if (action == ChildAction.Create || action == ChildAction.MoveIn || action == ChildAction.Update)
+            if (action == ChildAction.Create || action == ChildAction.MoveIn)
             {
                 name = BuildChildName(name, context.user.user.lastname, context.user.user.firstname);
                 child.node.name = await ChildsConflictFreeNameAsync(name, " version");

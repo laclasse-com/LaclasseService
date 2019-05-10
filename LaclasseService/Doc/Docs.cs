@@ -82,6 +82,7 @@ namespace Laclasse.Doc
         public OnlyOfficeFileType fileType = OnlyOfficeFileType.docx;
         public OnlyOfficeMode mode = OnlyOfficeMode.Desktop;
         public Node node = null;
+        public OnlyOfficeSession session = null;
         public Directory.User user = null;
         public string downloadUrl = null;
         public string callbackUrl = null;
@@ -386,6 +387,7 @@ namespace Laclasse.Doc
 
     public class Docs : HttpRouting
     {
+        Logger logger;
         string dbUrl;
         string path;
         string tempDir;
@@ -444,8 +446,9 @@ namespace Laclasse.Doc
         };
 
 
-        public Docs(string dbUrl, string path, string tempDir, Blobs blobs, int cacheDuration, string directoryDbUrl, Setup globalSetup)
+        public Docs(Logger logger, string dbUrl, string path, string tempDir, Blobs blobs, int cacheDuration, string directoryDbUrl, Setup globalSetup)
         {
+            this.logger = logger;
             this.dbUrl = dbUrl;
             this.path = path;
             this.tempDir = tempDir;
@@ -1081,6 +1084,7 @@ namespace Laclasse.Doc
                         documentType = documentType,
                         fileType = fileType,
                         node = item.node,
+                        session = session,
                         user = authUser.user,
                         edit = rights.Write,
                         downloadUrl = $"{c.SelfURL()}/file?session={session.id}",
@@ -1124,16 +1128,24 @@ namespace Laclasse.Doc
 
                 var session = await GetOnlyOfficeSessionAsync(c.Request.QueryString["session"]);
                 if (session == null)
+                {
+                    logger.Log(LogLevel.Error, $"OnlyOffice session '{c.Request.QueryString["session"]}' not found");
                     throw new WebException(403, "Invalid session");
+                }
 
                 var id = long.Parse((string)p["id"]);
                 if (id != session.node_id)
+                {
+                    logger.Log(LogLevel.Error, $"OnlyOffice session '{session.id}' invalid node. session node id: {session.node_id}, url node id: {id}");
                     throw new WebException(403, "Invalid session node");
+                }
 
                 var json = await c.Request.ReadAsJsonAsync();
+                logger.Log(LogLevel.Debug, $"OnlyOffice session '{session.id}' node id: {session.node_id}. Message: {json.ToString()}");
                 // document close with no changes
                 if (json.ContainsKey("status") && json["status"] == 4)
                 {
+                    logger.Log(LogLevel.Info, $"OnlyOffice session '{session.id}' node id: {session.node_id}, receive status 4. Delete all session for this node");
                     await DeleteOnlyOfficeSessionForNodeAsync(session.node_id);
                 }
                 // final save or intermediate forcesave
@@ -1141,7 +1153,10 @@ namespace Laclasse.Doc
                 {
                     // if save is need check is the session has the right
                     if (!session.write)
+                    {
+                        logger.Log(LogLevel.Error, $"OnlyOffice session '{session.id}' node id: {session.node_id}, missing write right");
                         throw new WebException(403, "Insufficient rights");
+                    }
 
                     Node node = null;
                     using (var db = await DB.CreateAsync(dbUrl, true))
@@ -1224,7 +1239,10 @@ namespace Laclasse.Doc
                     }
                     // if it was the last save, delete sessions
                     if (json["status"] == 2)
+                    {
+                        logger.Log(LogLevel.Info, $"OnlyOffice session '{session.id}' node id: {session.node_id}. status 2 (last save). Delete all session for this node");
                         await DeleteOnlyOfficeSessionForNodeAsync(session.node_id);
+                    }
                 }
                 c.Response.StatusCode = 200;
                 c.Response.Content = new JsonObject { ["error"] = 0 };

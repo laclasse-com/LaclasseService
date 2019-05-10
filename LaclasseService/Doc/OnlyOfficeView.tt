@@ -29,7 +29,7 @@ html, body, .placeholder {
 var config = {
     "document": {
         "fileType": "<#= fileType #>",
-        "key": "<#= node.id + "REV" + node.rev #>",
+        "key": "<#= session.key #>",
         "title": "<#= node.name #>",
         "url": "<#= downloadUrl #>",
         "permissions": {

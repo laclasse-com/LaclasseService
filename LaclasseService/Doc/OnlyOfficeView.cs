@@ -64,7 +64,7 @@ var config = {
             #line hidden
             
             #line 32 ""
-            this.Write(this.ToStringHelper.ToStringWithCulture( node.id + "REV" + node.rev ));
+            this.Write(this.ToStringHelper.ToStringWithCulture( session.key ));
             
             #line default
             #line hidden

@@ -196,7 +196,8 @@ namespace Laclasse
 
             var blobs = new Blobs(logger, setup.doc.url, Path.Combine(setup.server.storage, "blobs"), setup.server.temporaryDirectory);
             mapper.Add("/api/blobs", blobs);
-            mapper.Add("/api/docs/onlyoffice/sessions", new OnlyOfficeSessions(setup.doc.url));
+            var onlyOfficeSessions = new OnlyOfficeSessions(logger, setup.doc.url, setup.server.publicUrl);
+            mapper.Add("/api/docs/onlyoffice/sessions", onlyOfficeSessions);
             var docs = new Docs(logger, setup.doc.url, setup.doc.path, setup.server.temporaryDirectory, blobs, setup.http.defaultCacheDuration, dbUrl, setup);
             mapper.Add("/api/docs", docs);
 
@@ -287,7 +288,7 @@ namespace Laclasse
             dayScheduler.Dispose();
             blobs.Dispose();
             smsService.Dispose();
-
+            onlyOfficeSessions.Dispose();
         }
     }
 }

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Erasme.Http;
@@ -85,10 +87,10 @@ namespace Laclasse.Doc
         // curl -X POST http://daniel.erasme.lan/onlyoffice/coauthoring/CommandService.ashx
         // -H "Content-Type: application/json" -d
         // '{"key": "3180REV3", "c": "info"}'
-        public static async Task<JsonValue> GetInfoAsync(HttpContext httpContext, string key)
+        public static async Task<JsonValue> GetInfoAsync(string publicUrl, string key)
         {
             JsonValue res = null;
-            var uri = new Uri(new Uri(httpContext.SelfURL()), "/onlyoffice/coauthoring/CommandService.ashx");
+            var uri = new Uri(new Uri(publicUrl), "/onlyoffice/coauthoring/CommandService.ashx");
             using (HttpClient client = await HttpClient.CreateAsync(uri))
             {
                 HttpClientRequest request = new HttpClientRequest();
@@ -103,16 +105,14 @@ namespace Laclasse.Doc
                 await client.SendRequestAsync(request);
                 HttpClientResponse response = await client.GetResponseAsync();
                 if (response.StatusCode == 200)
-                {
                     res = await response.ReadAsJsonAsync();
-                }
             }
             return res;
         }
 
         public async Task<JsonValue> GetInfoAsync()
         {
-            return await GetInfoAsync(context.httpContext, await GetEditingKeyAsync());
+            return await GetInfoAsync(context.httpContext.SelfURL(), await GetEditingKeyAsync());
         }
 
 
@@ -120,10 +120,10 @@ namespace Laclasse.Doc
         // curl -X POST http://daniel.erasme.lan/onlyoffice/coauthoring/CommandService.ashx
         // -H "Content-Type: application/json" -d
         // '{"key": "3180REV3", "c": "forcesave"}'
-        public static async Task<JsonValue> ForceSaveAsync(HttpContext httpContext, string key)
+        public static async Task<JsonValue> ForceSaveAsync(string publicUrl, string key)
         {
             JsonValue res = null;
-            var uri = new Uri(new Uri(httpContext.SelfURL()), "/onlyoffice/coauthoring/CommandService.ashx");
+            var uri = new Uri(new Uri(publicUrl), "/onlyoffice/coauthoring/CommandService.ashx");
             using (HttpClient client = await HttpClient.CreateAsync(uri))
             {
                 HttpClientRequest request = new HttpClientRequest();
@@ -151,7 +151,7 @@ namespace Laclasse.Doc
         // '{"key": "3180REV3", "c": "forcesave"}'
         public async Task<JsonValue> ForceSaveAsync()
         {
-            return await ForceSaveAsync(context.httpContext, await GetEditingKeyAsync());
+            return await ForceSaveAsync(context.httpContext.SelfURL(), await GetEditingKeyAsync());
         }
 
         //# Thumbnail avec OnlyOffice
@@ -187,6 +187,42 @@ namespace Laclasse.Doc
                 }
             }
             return resFileUrl;
+        }
+
+        // Get OnlyOffice editing status for a given item
+        // curl -X POST http://daniel.erasme.lan/onlyoffice/coauthoring/CommandService.ashx
+        // -H "Content-Type: application/json" -d
+        // '{"key": "3180REV3", "c": "info"}'
+        public static async Task<JsonValue> DisconnectUserAsync(string publicUrl, string key, string userId)
+        {
+            JsonValue res = null;
+            var uri = new Uri(new Uri(publicUrl), "/onlyoffice/coauthoring/CommandService.ashx");
+            using (HttpClient client = await HttpClient.CreateAsync(uri))
+            {
+                HttpClientRequest request = new HttpClientRequest();
+                request.Method = "POST";
+                request.Path = uri.PathAndQuery;
+                request.Headers["accept"] = "application/json";
+                request.Content = new JsonObject
+                {
+                    ["key"] = key,
+                    ["c"] = "drop",
+                    ["users"] = new JsonArray(new JsonPrimitive[] { new JsonPrimitive(userId) })
+
+                };
+                await client.SendRequestAsync(request);
+                HttpClientResponse response = await client.GetResponseAsync();
+                if (response.StatusCode == 200)
+                {
+                    res = await response.ReadAsJsonAsync();
+                }
+            }
+            return res;
+        }
+
+        public async Task<JsonValue> DisconnectUserAsync(string userId)
+        {
+            return await DisconnectUserAsync(context.httpContext.SelfURL(), await GetEditingKeyAsync(), userId);
         }
 
         public static void NodeToFileType(Node node, out OnlyOfficeDocumentType documentType, out OnlyOfficeFileType fileType)
@@ -277,22 +313,61 @@ namespace Laclasse.Doc
         }
     }
 
-    public class OnlyOfficeSessions : Directory.ModelService<OnlyOfficeSession>
+    public class OnlyOfficeSessions : Directory.ModelService<OnlyOfficeSession>, IDisposable
     {
-        public OnlyOfficeSessions(string dbUrl) : base(dbUrl)
+        string dbUrl;
+        Logger logger;
+        string publicUrl;
+        Thread sessionStatusThread;
+
+        object sessionStatusLock = new object();
+        bool sessionStatusStop = false;
+
+        public OnlyOfficeSessions(Logger logger, string dbUrl, string publicUrl) : base(dbUrl)
         {
+            this.dbUrl = dbUrl;
+            this.logger = logger;
+            this.publicUrl = publicUrl;
+
+            sessionStatusThread = new Thread(ThreadStart);
+            sessionStatusThread.Name = "OnlyOfficeSessionStatusThread";
+            sessionStatusThread.Start();
+
             BeforeAsync = async (p, c) => await c.EnsureIsSuperAdminAsync();
+
+            Get["/checkall"] = (p, c) =>
+            {
+                lock (sessionStatusLock)
+                    Monitor.Pulse(sessionStatusLock);
+                c.Response.StatusCode = 200;
+            };
 
             GetAsync["/{id}/info"] = async (p, c) =>
             {
-                var id = (string)p["id"];
+                var id = long.Parse((string)p["id"]);
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
                     var session = new OnlyOfficeSession { id = id };
                     if (await session.LoadAsync(db))
                     {
                         c.Response.StatusCode = 200;
-                        c.Response.Content = await OnlyOffice.GetInfoAsync(c, session.key);
+                        c.Response.Content = await OnlyOffice.GetInfoAsync(publicUrl, session.key);
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
+            DeleteAsync["/{id}/users/{userId}"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+                var userId = (string)p["userId"];
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var session = new OnlyOfficeSession { id = id };
+                    if (await session.LoadAsync(db))
+                    {
+                        await OnlyOffice.DisconnectUserAsync(publicUrl, session.key, userId);
+                        c.Response.StatusCode = 200;
                     }
                     await db.CommitAsync();
                 }
@@ -300,18 +375,89 @@ namespace Laclasse.Doc
 
             GetAsync["/{id}/forcesave"] = async (p, c) =>
             {
-                var id = (string)p["id"];
+                var id = long.Parse((string)p["id"]);
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
                     var session = new OnlyOfficeSession { id = id };
                     if (await session.LoadAsync(db))
                     {
                         c.Response.StatusCode = 200;
-                        c.Response.Content = await OnlyOffice.ForceSaveAsync(c, session.key);
+                        c.Response.Content = await OnlyOffice.ForceSaveAsync(publicUrl, session.key);
                     }
                     await db.CommitAsync();
                 }
             };
+        }
+
+        void ThreadStart()
+        {
+            logger.Log(LogLevel.Info, "OnlyOffice sessions Thread START");
+            bool stop = false;
+            lock (sessionStatusLock)
+            {
+                while (!stop)
+                {
+                    try
+                    {
+                        ModelList<OnlyOfficeSession> sessions;
+                        using (var db = DB.Create(dbUrl, true))
+                        {
+                            var task = db.SelectAsync<OnlyOfficeSession>("SELECT * FROM `onlyoffice_session` WHERE TIMESTAMPDIFF(SECOND, `ctime`, NOW()) > 30");
+                            task.Wait();
+                            sessions = task.Result;
+                        }
+
+                        logger.Log(LogLevel.Info, $"OnlyOffice sessions count: {sessions.Count()}");
+
+                        if (sessions.Any())
+                        {
+                            foreach (var session in sessions)
+                            {
+                                var task = OnlyOffice.GetInfoAsync(publicUrl, session.key);
+                                task.Wait();
+                                var json = task.Result;
+
+                                if (json != null && json.ContainsKey("error") && json["error"] is JsonPrimitive && ((JsonPrimitive)json["error"]).JsonType == JsonType.Number)
+                                {
+                                    int error = json["error"];
+                                    if (error == 1)
+                                    {
+                                        logger.Log(LogLevel.Error, $"OnlyOffice session {session.id} not found for key {session.key}. Delete the session");
+                                        using (var db = DB.Create(dbUrl))
+                                            session.Delete(db);
+                                    }
+                                    else if (error == 2)
+                                        logger.Log(LogLevel.Error, $"OnlyOffice session {session.id} with key {session.key}. Callback url not valid");
+                                    else if (error == 3)
+                                        logger.Log(LogLevel.Error, $"OnlyOffice session {session.id} with key {session.key}. Internal server error.");
+                                    else if (error == 5)
+                                        logger.Log(LogLevel.Error, $"OnlyOffice session {session.id} with key {session.key}. Command not correct.");
+                                    else if (error == 6)
+                                        logger.Log(LogLevel.Error, $"OnlyOffice session {session.id} with key {session.key}. Invalid token.");
+                                    else if (error != 0 && error != 4)
+                                        logger.Log(LogLevel.Error, $"OnlyOffice session {session.id} with key {session.key}. Unknown error code {error}.");
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Log(LogLevel.Error, $"OnlyOffice Thread Exception: {e.ToString()}");
+                    }
+                    Monitor.Wait(sessionStatusLock, TimeSpan.FromHours(1));
+                    stop = sessionStatusStop;
+                }
+            }
+            logger.Log(LogLevel.Info, "OnlyOffice session Thread STOP");
+        }
+
+        public void Dispose()
+        {
+            lock (sessionStatusLock)
+            {
+                sessionStatusStop = true;
+                Monitor.PulseAll(sessionStatusLock);
+            }
         }
     }
 }

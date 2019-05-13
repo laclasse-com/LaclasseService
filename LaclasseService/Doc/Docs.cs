@@ -3,7 +3,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2018 Metropole de Lyon
+// Copyright (c) 2018-2019 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -231,7 +231,7 @@ namespace Laclasse.Doc
     public class OnlyOfficeSession : Model
     {
         [ModelField]
-        public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
+        public long id { get { return GetField<long>(nameof(id), 0L); } set { SetField(nameof(id), value); } }
         [ModelField]
         public string key { get { return GetField<string>(nameof(key), null); } set { SetField(nameof(key), value); } }
         [ModelField]
@@ -239,9 +239,26 @@ namespace Laclasse.Doc
         [ModelField]
         public DateTime ctime { get { return GetField(nameof(ctime), DateTime.MinValue); } set { SetField(nameof(ctime), value); } }
         [ModelField]
-        public bool write { get { return GetField(nameof(write), false); } set { SetField(nameof(write), value); } }
+        public string read_token { get { return GetField<string>(nameof(read_token), null); } set { SetField(nameof(read_token), value); } }
+        [ModelField]
+        public string write_token { get { return GetField<string>(nameof(write_token), null); } set { SetField(nameof(write_token), value); } }
         [ModelField]
         public int rev { get { return GetField(nameof(rev), 0); } set { SetField(nameof(rev), value); } }
+        [ModelExpandField(Name = nameof(users), ForeignModel = typeof(OnlyOfficeSessionUser))]
+        public ModelList<OnlyOfficeSessionUser> users { get { return GetField<ModelList<OnlyOfficeSessionUser>>(nameof(users), null); } set { SetField(nameof(users), value); } }
+    }
+
+    [Model(Table = "onlyoffice_session_user", PrimaryKey = nameof(id), DB = "DOCS")]
+    public class OnlyOfficeSessionUser : Model
+    {
+        [ModelField]
+        public long id { get { return GetField(nameof(id), 0L); } set { SetField(nameof(id), value); } }
+        [ModelField(Required = true, ForeignModel = typeof(OnlyOfficeSession))]
+        public long onlyoffice_session_id { get { return GetField(nameof(onlyoffice_session_id), 0L); } set { SetField(nameof(onlyoffice_session_id), value); } }
+        [ModelField(Required = true)]
+        public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
+        [ModelField]
+        public DateTime ctime { get { return GetField(nameof(ctime), DateTime.MinValue); } set { SetField(nameof(ctime), value); } }
     }
 
     /// <summary>
@@ -1075,7 +1092,9 @@ namespace Laclasse.Doc
                     if (!rights.Read)
                         throw new WebException(403, "Rights needed");
 
-                    var session = await CreateOnlyOfficeSessionAsync(item, rights.Write);
+                    var session = await CreateOnlyOfficeSessionAsync(item);
+                    var token = rights.Write ? session.write_token : session.read_token;
+
                     c.Response.StatusCode = 200;
                     c.Response.Headers["content-type"] = "text/html; charset=utf-8";
                     c.Response.Content = new OnlyOfficeView
@@ -1087,8 +1106,8 @@ namespace Laclasse.Doc
                         session = session,
                         user = authUser.user,
                         edit = rights.Write,
-                        downloadUrl = $"{c.SelfURL()}/file?session={session.id}",
-                        callbackUrl = $"{c.SelfURL()}?session={session.id}"
+                        downloadUrl = $"{c.SelfURL()}/file?session={token}",
+                        callbackUrl = $"{c.SelfURL()}?session={token}"
                     }.TransformText();
                 }
             };
@@ -1098,18 +1117,17 @@ namespace Laclasse.Doc
                 if (!c.Request.QueryString.ContainsKey("session"))
                     throw new WebException(403, "Insufficient rights");
 
-                var session = await GetOnlyOfficeSessionAsync(c.Request.QueryString["session"]);
-                if (session == null)
-                    throw new WebException(403, "Invalid session");
+                var sessionId = c.Request.QueryString["session"];
+                var nodeId = long.Parse((string)p["id"]);
 
-                var id = long.Parse((string)p["id"]);
-                if (id != session.node_id)
-                    throw new WebException(403, "Invalid session node");
+                var session = await GetOnlyOfficeSessionByNodeAsync(nodeId);
+                if (session == null || (session.read_token != sessionId && session.write_token != sessionId))
+                    throw new WebException(403, "Invalid session");
 
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
                     var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
-                    var item = await context.GetByIdAsync(id);
+                    var item = await context.GetByIdAsync(nodeId);
                     if (item != null)
                     {
                         c.Response.StatusCode = 200;
@@ -1125,43 +1143,45 @@ namespace Laclasse.Doc
             {
                 if (!c.Request.QueryString.ContainsKey("session"))
                     throw new WebException(403, "Insufficient rights");
-
-                var session = await GetOnlyOfficeSessionAsync(c.Request.QueryString["session"]);
-                if (session == null)
+                var token = c.Request.QueryString["session"];
+                var nodeId = long.Parse((string)p["id"]);
+                var session = await GetOnlyOfficeSessionByNodeAsync(nodeId);
+                if (session == null || (token != session.read_token && token != session.write_token))
                 {
-                    logger.Log(LogLevel.Error, $"OnlyOffice session '{c.Request.QueryString["session"]}' not found");
+                    logger.Log(LogLevel.Error, $"OnlyOffice session '{token}' not found");
                     throw new WebException(403, "Invalid session");
                 }
 
-                var id = long.Parse((string)p["id"]);
-                if (id != session.node_id)
-                {
-                    logger.Log(LogLevel.Error, $"OnlyOffice session '{session.id}' invalid node. session node id: {session.node_id}, url node id: {id}");
-                    throw new WebException(403, "Invalid session node");
-                }
-
                 var json = await c.Request.ReadAsJsonAsync();
-                logger.Log(LogLevel.Debug, $"OnlyOffice session '{session.id}' node id: {session.node_id}. Message: {json.ToString()}");
+                logger.Log(LogLevel.Debug, $"OnlyOffice session '{token}' node id: {session.node_id}. Message: {json.ToString()}");
+
+                if (json is JsonObject && ((JsonObject)json).ContainsKey("actions"))
+                    await UpdateOnlyOfficeSessionUsersAsync(json as JsonObject, nodeId);
+
                 // document close with no changes
                 if (json.ContainsKey("status") && json["status"] == 4)
                 {
-                    logger.Log(LogLevel.Info, $"OnlyOffice session '{session.id}' node id: {session.node_id}, receive status 4. Delete all session for this node");
+                    logger.Log(LogLevel.Info, $"OnlyOffice session '{token}' node id: {session.node_id}, receive status 4. Delete all session for this node");
                     await DeleteOnlyOfficeSessionForNodeAsync(session.node_id);
+                }
+                else if (json.ContainsKey("status") && json["status"] == 1 && json.ContainsKey("users") && json["users"] is JsonArray)
+                {
+                    await CheckOnlyOfficeSessionConnectedUsersAsync(nodeId, json["users"] as JsonArray);
                 }
                 // final save or intermediate forcesave
                 else if (json.ContainsKey("status") && json.ContainsKey("url") && (json["status"] == 2 || json["status"] == 6))
                 {
                     // if save is need check is the session has the right
-                    if (!session.write)
+                    if (token != session.write_token)
                     {
-                        logger.Log(LogLevel.Error, $"OnlyOffice session '{session.id}' node id: {session.node_id}, missing write right");
+                        logger.Log(LogLevel.Error, $"OnlyOffice session '{token}' node id: {session.node_id}, missing write right");
                         throw new WebException(403, "Insufficient rights");
                     }
 
                     Node node = null;
                     using (var db = await DB.CreateAsync(dbUrl, true))
                     {
-                        node = new Node { id = id };
+                        node = new Node { id = nodeId };
                         if (!await node.LoadAsync(db))
                             return;
                     }
@@ -1216,7 +1236,7 @@ namespace Laclasse.Doc
                         {
                             var authUser = new AuthenticatedUser { application = new Directory.Application() };
                             var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = authUser, directoryDbUrl = directoryDbUrl, httpContext = c };
-                            item = await context.GetByIdAsync(id) as OnlyOffice;
+                            item = await context.GetByIdAsync(nodeId) as OnlyOffice;
                             if (item != null)
                                 await item.ChangeAsync(fileDefinition);
                             await db.CommitAsync();
@@ -1224,10 +1244,10 @@ namespace Laclasse.Doc
                         // signal that the document content was updated
                         lock (onlyOfficeCallbacksLock)
                         {
-                            if (onlyOfficeCallbacks.ContainsKey(id))
+                            if (onlyOfficeCallbacks.ContainsKey(nodeId))
                             {
-                                var list = onlyOfficeCallbacks[id];
-                                onlyOfficeCallbacks.Remove(id);
+                                var list = onlyOfficeCallbacks[nodeId];
+                                onlyOfficeCallbacks.Remove(nodeId);
                                 foreach (var cb in list)
                                     cb.SetResult(item);
                             }
@@ -1938,60 +1958,130 @@ namespace Laclasse.Doc
             }
         }
 
-        async Task<OnlyOfficeSession> CreateOnlyOfficeSessionAsync(OnlyOffice item, bool write)
+        async Task<OnlyOfficeSession> CreateOnlyOfficeSessionAsync(OnlyOffice item)
         {
             OnlyOfficeSession session = null;
-            using (DB db = await DB.CreateAsync(dbUrl))
+            using (DB db = await DB.CreateAsync(dbUrl, true))
             {
-                string key = $"{item.node.id}REV{item.node.rev}";
-                var sessions = await db.SelectAsync<OnlyOfficeSession>("SELECT * FROM `onlyoffice_session` WHERE `node_id` = ?", item.node.id);
-                session = sessions.SingleOrDefault((s) => s.write == write);
-                if (sessions.Count > 0)
-                    key = sessions[0].key;
+                var sessions = await db.SelectExpandAsync<OnlyOfficeSession>("SELECT * FROM `onlyoffice_session` WHERE `node_id` = ?", new object[] { item.node.id });
+                session = sessions.FirstOrDefault();
                 if (session == null)
                 {
                     session = new OnlyOfficeSession
                     {
-                        id = StringExt.RandomString(32),
-                        key = key,
+                        key = $"{item.node.id}REV{item.node.rev}",
                         node_id = item.node.id,
-                        write = write,
+                        rev = item.node.rev,
+                        write_token = StringExt.RandomString(32),
+                        read_token = StringExt.RandomString(32),
                         ctime = DateTime.Now
                     };
-                    await session.SaveAsync(db);
+                    await session.SaveAsync(db, true);
                 }
+                await db.CommitAsync();
             }
             return session;
         }
 
-        async Task<OnlyOfficeSession> GetOnlyOfficeSessionAsync(string id)
+        async Task<OnlyOfficeSession> GetOnlyOfficeSessionByNodeAsync(long nodeId)
         {
-            OnlyOfficeSession session = null;
+            ModelList<OnlyOfficeSession> sessions;
             using (DB db = await DB.CreateAsync(dbUrl))
             {
                 // delete too old sessions
                 await db.DeleteAsync("DELETE FROM `onlyoffice_session` WHERE (TIMESTAMPDIFF(SECOND, ctime, NOW()) >= ?)", 3600 * 12);
-
-                session = new OnlyOfficeSession { id = id };
-                if (!await session.LoadAsync(db))
-                    session = null;
+                sessions = await db.SelectExpandAsync<OnlyOfficeSession>($"SELECT * FROM `onlyoffice_session` WHERE `{nameof(OnlyOfficeSession.node_id)}`", new object[] { nodeId });
             }
-            return session;
+            return sessions.FirstOrDefault();
         }
 
-        async Task DeleteOnlyOfficeSessionAsync(string id)
+        async Task DelayDeleteOnlyOfficeSessionForNodeAsync(long nodeId)
         {
+            // wait 5 seconds before trying to delete
+            await Task.Delay(5000);
             using (DB db = await DB.CreateAsync(dbUrl))
-            {
-                var session = new OnlyOfficeSession { id = id };
-                await session.DeleteAsync(db);
-            }
+                await db.DeleteAsync("DELETE FROM `onlyoffice_session` WHERE `node_id` = ? AND `id` NOT IN (SELECT DISTINCT(`onlyoffice_session_id`) FROM `onlyoffice_session_user`)", nodeId);
         }
 
         async Task DeleteOnlyOfficeSessionForNodeAsync(long nodeId)
         {
+            await DeleteOnlyOfficeSessionUsersForNodeAsync(nodeId);
+            // delay the real delete in case of reopen in the mean time
+            // not awaiting if what we want
+            DelayDeleteOnlyOfficeSessionForNodeAsync(nodeId);
+        }
+
+        async Task DeleteOnlyOfficeSessionUsersForNodeAsync(long nodeId)
+        {
             using (DB db = await DB.CreateAsync(dbUrl))
-                await db.DeleteAsync("DELETE FROM `onlyoffice_session` WHERE `node_id` = ?", nodeId);
+                await db.DeleteAsync("DELETE FROM `onlyoffice_session_user` WHERE `onlyoffice_session_id` IN (SELECT `id` FROM `onlyoffice_session` WHERE `node_id` = ?)", nodeId);
+        }
+
+        async Task UpdateOnlyOfficeSessionUsersAsync(JsonObject json, long nodeId)
+        {
+            if (json.ContainsKey("actions") && json["actions"] is JsonArray)
+            {
+                var actions = json["actions"] as JsonArray;
+                using (DB db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var res = await db.ExecuteScalarAsync("SELECT `id` FROM `onlyoffice_session` WHERE `node_id` = ? LIMIT 1", nodeId);
+                    if (res == null)
+                        return;
+                    long sessionId = (long)res;
+
+                    foreach (var action in actions)
+                    {
+                        if (action.ContainsKey("userid") && action["userid"] is JsonPrimitive && (action["userid"] as JsonPrimitive).JsonType == JsonType.String)
+                        {
+                            string userid = action["userid"];
+                            if (action.ContainsKey("type") && action["type"] is JsonPrimitive && (action["type"] as JsonPrimitive).JsonType == JsonType.Number)
+                            {
+                                // new user
+                                if (action["type"] == 1)
+                                {
+                                    if ((long)await db.ExecuteScalarAsync("SELECT COUNT(`id`) FROM `onlyoffice_session_user` WHERE `user_id` = ? AND `onlyoffice_session_id` = ?", userid, sessionId) == 0)
+                                    {
+                                        await new OnlyOfficeSessionUser
+                                        {
+                                            onlyoffice_session_id = sessionId,
+                                            user_id = userid
+                                        }.SaveAsync(db);
+                                    }
+                                }
+                                // user leave
+                                else if (action["type"] == 0)
+                                {
+                                    await db.DeleteAsync("DELETE FROM `onlyoffice_session_user` WHERE `onlyoffice_session_id` = ? AND `user_id` = ?", sessionId, userid);
+                                }
+                            }
+                        }
+                    }
+                    await db.CommitAsync();
+                }
+            }
+        }
+
+        async Task CheckOnlyOfficeSessionConnectedUsersAsync(long nodeId, JsonArray users)
+        {
+            var ids = users.Select(u => (string)u).Where(u => Regex.IsMatch(u, "^[A-Za-z0-9]{1,128}$"));
+            using (DB db = await DB.CreateAsync(dbUrl, true))
+            {
+                var res = await db.ExecuteScalarAsync("SELECT `id` FROM `onlyoffice_session` WHERE `node_id` = ? LIMIT 1", nodeId);
+                if (res == null)
+                    return;
+                long sessionId = (long)res;
+                // get all known connected users
+                var sessionUsers = await db.SelectAsync<OnlyOfficeSessionUser>("SELECT * FROM `onlyoffice_session_user` WHERE `onlyoffice_session_id` = ?", sessionId);
+                // delete all users not present on OnlyOffice
+                await db.DeleteAsync($"DELETE FROM `onlyoffice_session_user` WHERE `onlyoffice_session_id` = ? AND {DB.NotInFilter("user_id",ids)}", sessionId);
+                foreach (var id in ids)
+                {
+                    // add users in OnlyOffice but not know
+                    if (!sessionUsers.Any(u => u.user_id == id))
+                        await new OnlyOfficeSessionUser { user_id = id, onlyoffice_session_id = sessionId }.SaveAsync(db);
+                }
+                await db.CommitAsync();
+            }
         }
     }
 }

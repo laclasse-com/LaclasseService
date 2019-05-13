@@ -640,6 +640,13 @@ namespace Laclasse
             return res;
         }
 
+        public bool Delete(DB db)
+        {
+            var task = DeleteAsync(db);
+            task.Wait();
+            return task.Result;
+        }
+
         public static async Task<SearchResult<T>> SearchAsync<T>(DB db, HttpContext c, SqlFilter sqlFilter = new SqlFilter()) where T : Model, new()
         {
             Dictionary<string, List<string>> parsedQuery;

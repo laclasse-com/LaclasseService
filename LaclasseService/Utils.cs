@@ -277,13 +277,18 @@ namespace Laclasse
 
     public static class StringExt
     {
+        static Random rand = new Random();
+
         public static string RandomString(int size = 10, string randchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
         {
             // generate the random id
-            var rand = new Random();
+
             var sb = new StringBuilder(size);
-            for (int i = 0; i < size; i++)
-                sb.Append(randchars[rand.Next(randchars.Length)]);
+            lock (rand)
+            {
+                for (int i = 0; i < size; i++)
+                    sb.Append(randchars[rand.Next(randchars.Length)]);
+            }
             return sb.ToString();
         }
     }

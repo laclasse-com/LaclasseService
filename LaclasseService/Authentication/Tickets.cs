@@ -104,8 +104,9 @@ namespace Laclasse.Authentication
                     }
                     catch (MySql.Data.MySqlClient.MySqlException e)
                     {
-                        // if it is not the ticketId already taken, re throw the Exception
-                        if (e.Number != 1062)
+                        // if it is not the ticketId already taken or
+                        // a deadlock, re throw the Exception
+                        if (e.Number != 1062 && e.Number != 1213)
                             throw;
                         ticketId = null;
                     }

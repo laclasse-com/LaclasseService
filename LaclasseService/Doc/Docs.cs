@@ -1990,7 +1990,7 @@ namespace Laclasse.Doc
             {
                 // delete too old sessions
                 await db.DeleteAsync("DELETE FROM `onlyoffice_session` WHERE (TIMESTAMPDIFF(SECOND, ctime, NOW()) >= ?)", 3600 * 12);
-                sessions = await db.SelectExpandAsync<OnlyOfficeSession>($"SELECT * FROM `onlyoffice_session` WHERE `{nameof(OnlyOfficeSession.node_id)}`", new object[] { nodeId });
+                sessions = await db.SelectExpandAsync<OnlyOfficeSession>($"SELECT * FROM `onlyoffice_session` WHERE `{nameof(OnlyOfficeSession.node_id)}` = ?", new object[] { nodeId });
             }
             return sessions.FirstOrDefault();
         }

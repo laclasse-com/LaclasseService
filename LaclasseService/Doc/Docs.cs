@@ -1675,7 +1675,7 @@ namespace Laclasse.Doc
                     {
                         var file = new TempFile
                         {
-                            Id = Guid.NewGuid() + "-" + StringExt.RandomString(),
+                            Id = Guid.NewGuid() + "-" + StringExt.RandomSecureString(),
                             Mime = mimetype,
                             Stream = fileStream
                         };
@@ -1972,8 +1972,8 @@ namespace Laclasse.Doc
                         key = $"{item.node.id}REV{item.node.rev}",
                         node_id = item.node.id,
                         rev = item.node.rev,
-                        write_token = StringExt.RandomString(32),
-                        read_token = StringExt.RandomString(32),
+                        write_token = StringExt.RandomSecureString(32),
+                        read_token = StringExt.RandomSecureString(32),
                         ctime = DateTime.Now
                     };
                     await session.SaveAsync(db, true);

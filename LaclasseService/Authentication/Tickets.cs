@@ -5,7 +5,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2017 Metropole de Lyon
+// Copyright (c) 2017-2019 Metropole de Lyon
 // Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -90,7 +90,7 @@ namespace Laclasse.Authentication
                 int tryCount = 0;
                 do
                 {
-                    ticketId = "ST-" + sb + StringExt.RandomString(13);
+                    ticketId = "ST-" + sb + StringExt.RandomSecureString(13);
                     try
                     {
                         ticket = new Ticket
@@ -213,7 +213,7 @@ namespace Laclasse.Authentication
                     {
                         mode = mode,
                         user_id = user,
-                        id = "ST-" + sb + StringExt.RandomString(13),
+                        id = "ST-" + sb + StringExt.RandomSecureString(13),
                         code = StringExt.RandomString(4, "0123456789")
                     };
                     try

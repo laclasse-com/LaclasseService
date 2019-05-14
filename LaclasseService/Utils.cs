@@ -4,6 +4,7 @@
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
 // Copyright (c) 2017 Daniel LACROIX
+// Copyright (c) 2019 Metropole de Lyon
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +34,7 @@ using System.Globalization;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Security.Cryptography;
 using Erasme.Json;
 using Erasme.Http;
 
@@ -278,6 +280,7 @@ namespace Laclasse
     public static class StringExt
     {
         static Random rand = new Random();
+        static RNGCryptoServiceProvider provider = new RNGCryptoServiceProvider();
 
         public static string RandomString(int size = 10, string randchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
         {
@@ -288,6 +291,20 @@ namespace Laclasse
             {
                 for (int i = 0; i < size; i++)
                     sb.Append(randchars[rand.Next(randchars.Length)]);
+            }
+            return sb.ToString();
+        }
+
+        public static string RandomSecureString(int size = 10, string randchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+        {
+            // generate the random id
+
+            var sb = new StringBuilder(size);
+            for (int i = 0; i < size; i++)
+            {
+                var bytes = new byte[1];
+                provider.GetBytes(bytes);
+                sb.Append(randchars[bytes[0] % randchars.Length]);
             }
             return sb.ToString();
         }

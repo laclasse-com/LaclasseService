@@ -162,7 +162,7 @@ namespace Laclasse.Authentication
                 int tryCount = 0;
                 do
                 {
-                    sessionId = sb + StringExt.RandomString(10);
+                    sessionId = sb + StringExt.RandomSecureString(10);
                     try
                     {
                         session = new Session

@@ -1183,9 +1183,13 @@ namespace Laclasse.Doc
                     {
                         node = new Node { id = nodeId };
                         if (!await node.LoadAsync(db))
+                        {
+                            logger.Log(LogLevel.Error, $"OnlyOffice session '{token}', ERROR cant find node id: {session.node_id}");
                             return;
+                        }
                     }
 
+                    Node define = null;
                     HttpClient client;
                     HttpClientResponse response;
                     var uri = new Uri(json["url"]);
@@ -1198,29 +1202,56 @@ namespace Laclasse.Doc
                         await client.SendRequestAsync(request);
                         response = await client.GetResponseAsync();
                         if (response.StatusCode != 200)
+                        {
+                            logger.Log(LogLevel.Error, $"OnlyOffice session '{token}', node id: {session.node_id}, status: {json["status"]}. ERROR while loading url: {json["url"]}, got HTTP {response.StatusCode}");
                             return;
+                        }
                         // check if convert is needed
                         if (node.mime != response.Headers["content-type"])
                         {
+                            logger.Log(LogLevel.Info, $"OnlyOffice session '{token}', node id: {session.node_id}. Convert needed");
                             OnlyOfficeFileType fromFileType;
                             OnlyOfficeDocumentType fromDocumentType;
                             OnlyOffice.MimeToFileType(response.Headers["content-type"], out fromDocumentType, out fromFileType);
                             OnlyOfficeFileType toFileType;
                             OnlyOfficeDocumentType toDocumentType;
                             OnlyOffice.MimeToFileType(node.mime, out toDocumentType, out toFileType);
-                            var convertUrl = await OnlyOffice.ConvertAsync(c, json["url"], fromFileType, toFileType);
-                            if (convertUrl == null)
-                                return;
-                            client.Dispose();
-                            uri = new Uri(convertUrl);
-                            client = await HttpClient.CreateAsync(uri);
-                            request = new HttpClientRequest();
-                            request.Method = "GET";
-                            request.Path = uri.PathAndQuery;
-                            await client.SendRequestAsync(request);
-                            response = await client.GetResponseAsync();
-                            if (response.StatusCode != 200)
-                                return;
+                            // if convert is possible, convert
+                            if (OnlyOffice.CanConvert(fromFileType, toFileType))
+                            {
+
+                                var convertUrl = await OnlyOffice.ConvertAsync(logger, c, json["url"], fromFileType, toFileType);
+                                if (convertUrl == null)
+                                {
+                                    logger.Log(LogLevel.Error, $"OnlyOffice session '{token}', node id: {session.node_id}. Convert URL FAILS");
+                                    return;
+                                }
+                                client.Dispose();
+                                uri = new Uri(convertUrl);
+                                logger.Log(LogLevel.Info, $"OnlyOffice session '{token}', node id: {session.node_id}. Convert URL: {convertUrl}");
+
+                                client = await HttpClient.CreateAsync(uri);
+                                request = new HttpClientRequest();
+                                request.Method = "GET";
+                                request.Path = uri.PathAndQuery;
+                                await client.SendRequestAsync(request);
+                                response = await client.GetResponseAsync();
+                                if (response.StatusCode != 200)
+                                {
+                                    logger.Log(LogLevel.Error, $"OnlyOffice session '{token}', node id: {session.node_id}, status: {json["status"]}. ERROR while loading convert url: {convertUrl}, got HTTP {response.StatusCode}");
+                                    return;
+                                }
+                            }
+                            // convert is not possible, change the type of saved file
+                            else
+                            {
+                                define = new Node
+                                {
+                                    name = Path.GetFileNameWithoutExtension(node.name) + "." + fromFileType.ToString(),
+                                    mime = response.Headers["content-type"]
+                                };
+                                logger.Log(LogLevel.Info, $"OnlyOffice session '{token}', node id: {session.node_id}, status: {json["status"]}. Convert not possible change the file type. New name {define.name}. New mime: {define.mime}");
+                            }
                         }
 
                         // update the file
@@ -1230,6 +1261,8 @@ namespace Laclasse.Doc
                             Mimetype = response.Headers["content-type"],
                             Stream = response.InputStream
                         };
+                        if (define != null)
+                            fileDefinition.Define = define;
 
                         OnlyOffice item = null;
                         using (DB db = await DB.CreateAsync(dbUrl, true))

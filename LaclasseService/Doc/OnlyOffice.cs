@@ -154,21 +154,43 @@ namespace Laclasse.Doc
             return await ForceSaveAsync(context.httpContext.SelfURL(), await GetEditingKeyAsync());
         }
 
+        public static bool CanConvert(OnlyOfficeFileType fromFileType, OnlyOfficeFileType toFileType)
+        {
+            bool canConvert = false;
+            switch (fromFileType)
+            {
+                case OnlyOfficeFileType.docx:
+                    canConvert = toFileType == OnlyOfficeFileType.odt ||
+                    toFileType == OnlyOfficeFileType.rtf ||
+                    toFileType == OnlyOfficeFileType.txt;
+                    break;
+                case OnlyOfficeFileType.xlsx:
+                    canConvert = toFileType == OnlyOfficeFileType.csv ||
+                    toFileType == OnlyOfficeFileType.ods;
+                    break;
+                case OnlyOfficeFileType.pptx:
+                    canConvert = toFileType == OnlyOfficeFileType.odp;
+                    break;
+            }
+            return canConvert;
+        }
+
         //# Thumbnail avec OnlyOffice
         //        curl -X POST http://hostname/onlyoffice/ConvertService.ashx
         // -H "Content-Type: application/json" -d
         // '{"async": false, "outputtype":"jpg","thumbnail":{"aspect": 0, "width": 64, "height": 64 },"filetype":"docx","url": "http://hostname/api/docs/3180/content"}'
-        public static async Task<string> ConvertAsync(HttpContext c, string fileUrl, OnlyOfficeFileType fileType, OnlyOfficeFileType destFileType)
+        public static async Task<string> ConvertAsync(Logger logger, HttpContext c, string fileUrl, OnlyOfficeFileType fileType, OnlyOfficeFileType destFileType)
         {
             string resFileUrl = null;
             var uri = new Uri(new Uri(c.SelfURL()), "/onlyoffice/ConvertService.ashx");
+            logger.Log(LogLevel.Info, $"OnlyOffice ConvertService URL: {uri}");
             using (HttpClient client = await HttpClient.CreateAsync(uri))
             {
                 HttpClientRequest request = new HttpClientRequest();
                 request.Method = "POST";
                 request.Path = uri.PathAndQuery;
                 request.Headers["accept"] = "application/json";
-                request.Content = new JsonObject
+                var jsonContent = new JsonObject
                 {
                     ["key"] = Guid.NewGuid().ToString(),
                     ["async"] = false,
@@ -177,14 +199,19 @@ namespace Laclasse.Doc
                     ["outputtype"] = destFileType.ToString(),
                     ["url"] = fileUrl
                 };
+                request.Content = jsonContent;
+                logger.Log(LogLevel.Debug, $"OnlyOffice ConvertService send message for file convert (url: {uri.ToString()}). Response: {jsonContent.ToString()}");
                 await client.SendRequestAsync(request);
                 HttpClientResponse response = await client.GetResponseAsync();
                 if (response.StatusCode == 200)
                 {
                     var json = await response.ReadAsJsonAsync();
+                    logger.Log(LogLevel.Debug, $"OnlyOffice ConvertService for file convert (url: {uri.ToString()}). Response: {json.ToString()}");
                     if (json.ContainsKey("fileUrl"))
                         resFileUrl = json["fileUrl"];
                 }
+                else
+                    logger.Log(LogLevel.Error, $"OnlyOffice ERROR while asking for file convert (url: {uri.ToString()}) for file {fileUrl}. Got HTTP {response.StatusCode}");
             }
             return resFileUrl;
         }

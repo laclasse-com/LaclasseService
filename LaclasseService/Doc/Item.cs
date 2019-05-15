@@ -287,6 +287,8 @@ namespace Laclasse.Doc
                 var define = fileDefinition.Define;
                 if (define.IsSet(nameof(Node.name)))
                     nodeDiff.name = define.name;
+                if (define.IsSet(nameof(Node.mime)))
+                    nodeDiff.mime = define.mime;
                 if (define.IsSet(nameof(Node.parent_id)))
                 {
                     // check destination rights
@@ -1170,7 +1172,7 @@ namespace Laclasse.Doc
                             rights.Write = false;
                         }
                         var groups = await ((Structure)root).GetStructureGroupsAsync();
-                        var group = groups.SingleOrDefault((g) => ClasseGroupe.SanitizeGroupName(g.name) == node.name && g.type == type);
+                        var group = groups.FirstOrDefault((g) => ClasseGroupe.SanitizeGroupName(g.name) == node.name && g.type == type);
                         // if the name correspond to an existing group in the structure
                         if (group != null)
                         {

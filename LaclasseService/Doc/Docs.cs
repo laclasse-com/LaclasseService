@@ -1165,8 +1165,8 @@ namespace Laclasse.Doc
                             return;
                         }
                     }
-                    // if the message is just user connected changes, no problem
-                    if (json.ContainsKey("status") && json["status"] == 1)
+                    // if the message is just user connected changes or close without changes, no problem
+                    if (json.ContainsKey("status") && (json["status"] == 1 || json["status"] == 4))
                     {
                         c.Response.StatusCode = 200;
                         c.Response.Content = new JsonObject { ["error"] = 0 };

@@ -1173,7 +1173,7 @@ namespace Laclasse.Doc
                         return;
                     }
 
-                    logger.Log(LogLevel.Error, $"OnlyOffice session '{token}' not found");
+                    logger.Log(LogLevel.Error, $"OnlyOffice session '{token}' not found. Node id {nodeId}");
                     throw new WebException(403, "Invalid session");
                 }
 

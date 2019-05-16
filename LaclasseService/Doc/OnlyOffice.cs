@@ -371,7 +371,7 @@ namespace Laclasse.Doc
 
             GetAsync["/{id}/info"] = async (p, c) =>
             {
-                var id = long.Parse((string)p["id"]);
+                var id = (string)p["id"];
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
                     var session = new OnlyOfficeSession { id = id };
@@ -386,7 +386,7 @@ namespace Laclasse.Doc
 
             DeleteAsync["/{id}/users/{userId}"] = async (p, c) =>
             {
-                var id = long.Parse((string)p["id"]);
+                var id = (string)p["id"];
                 var userId = (string)p["userId"];
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
@@ -402,7 +402,7 @@ namespace Laclasse.Doc
 
             GetAsync["/{id}/forcesave"] = async (p, c) =>
             {
-                var id = long.Parse((string)p["id"]);
+                var id = (string)p["id"];
                 using (DB db = await DB.CreateAsync(dbUrl, true))
                 {
                     var session = new OnlyOfficeSession { id = id };

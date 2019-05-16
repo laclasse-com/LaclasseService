@@ -231,17 +231,13 @@ namespace Laclasse.Doc
     public class OnlyOfficeSession : Model
     {
         [ModelField]
-        public long id { get { return GetField<long>(nameof(id), 0L); } set { SetField(nameof(id), value); } }
+        public string id { get { return GetField<string>(nameof(id), null); } set { SetField(nameof(id), value); } }
         [ModelField]
         public string key { get { return GetField<string>(nameof(key), null); } set { SetField(nameof(key), value); } }
         [ModelField]
         public long node_id { get { return GetField(nameof(node_id), 0L); } set { SetField(nameof(node_id), value); } }
         [ModelField]
         public DateTime ctime { get { return GetField(nameof(ctime), DateTime.MinValue); } set { SetField(nameof(ctime), value); } }
-        [ModelField]
-        public string read_token { get { return GetField<string>(nameof(read_token), null); } set { SetField(nameof(read_token), value); } }
-        [ModelField]
-        public string write_token { get { return GetField<string>(nameof(write_token), null); } set { SetField(nameof(write_token), value); } }
         [ModelField]
         public int rev { get { return GetField(nameof(rev), 0); } set { SetField(nameof(rev), value); } }
         [ModelExpandField(Name = nameof(users), ForeignModel = typeof(OnlyOfficeSessionUser))]
@@ -254,7 +250,7 @@ namespace Laclasse.Doc
         [ModelField]
         public long id { get { return GetField(nameof(id), 0L); } set { SetField(nameof(id), value); } }
         [ModelField(Required = true, ForeignModel = typeof(OnlyOfficeSession))]
-        public long onlyoffice_session_id { get { return GetField(nameof(onlyoffice_session_id), 0L); } set { SetField(nameof(onlyoffice_session_id), value); } }
+        public string onlyoffice_session_id { get { return GetField<string>(nameof(onlyoffice_session_id), null); } set { SetField(nameof(onlyoffice_session_id), value); } }
         [ModelField(Required = true)]
         public string user_id { get { return GetField<string>(nameof(user_id), null); } set { SetField(nameof(user_id), value); } }
         [ModelField]
@@ -1093,7 +1089,7 @@ namespace Laclasse.Doc
                         throw new WebException(403, "Rights needed");
 
                     var session = await CreateOnlyOfficeSessionAsync(item);
-                    var token = rights.Write ? session.write_token : session.read_token;
+                    var token = session.id;
 
                     c.Response.StatusCode = 200;
                     c.Response.Headers["content-type"] = "text/html; charset=utf-8";
@@ -1121,7 +1117,7 @@ namespace Laclasse.Doc
                 var nodeId = long.Parse((string)p["id"]);
 
                 var session = await GetOnlyOfficeSessionByNodeAsync(nodeId);
-                if (session == null || (session.read_token != sessionId && session.write_token != sessionId))
+                if (session == null || session.id != sessionId)
                     throw new WebException(403, "Invalid session");
 
                 using (DB db = await DB.CreateAsync(dbUrl, true))
@@ -1150,7 +1146,7 @@ namespace Laclasse.Doc
                 logger.Log(LogLevel.Debug, $"OnlyOffice session '{token}'. Node id: {nodeId}. Message: {json.ToString()}");
 
                 var session = await GetOnlyOfficeSessionByNodeAsync(nodeId);
-                if (session == null || (token != session.read_token && token != session.write_token))
+                if (session == null || token != session.id)
                 {
                     // try to load the node
                     Node node = null;
@@ -1177,12 +1173,6 @@ namespace Laclasse.Doc
                     throw new WebException(403, "Invalid session");
                 }
 
-                if (session.node_id != nodeId)
-                {
-                    logger.Log(LogLevel.Error, $"OnlyOffice session '{token}' node_id != {session.node_id} POST node_id {nodeId}");
-                    throw new WebException(403, "Invalid session");
-                }
-
                 if (json is JsonObject && ((JsonObject)json).ContainsKey("actions"))
                     await UpdateOnlyOfficeSessionUsersAsync(json as JsonObject, nodeId);
 
@@ -1199,20 +1189,15 @@ namespace Laclasse.Doc
                 // final save or intermediate forcesave
                 else if (json.ContainsKey("status") && json.ContainsKey("url") && (json["status"] == 2 || json["status"] == 6))
                 {
-                    // if save is need check is the session has the right
-                    if (token != session.write_token)
-                    {
-                        logger.Log(LogLevel.Error, $"OnlyOffice session '{token}' node id: {session.node_id}, missing write right");
-                        throw new WebException(403, "Insufficient rights");
-                    }
-
                     Node node = null;
                     using (var db = await DB.CreateAsync(dbUrl, true))
                     {
+                        // if the node no more exists. No problem
                         node = new Node { id = nodeId };
                         if (!await node.LoadAsync(db))
                         {
-                            logger.Log(LogLevel.Error, $"OnlyOffice session '{token}', ERROR cant find node id: {session.node_id}");
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = new JsonObject { ["error"] = 0 };
                             return;
                         }
                     }
@@ -2030,11 +2015,10 @@ namespace Laclasse.Doc
                 {
                     session = new OnlyOfficeSession
                     {
+                        id = StringExt.RandomSecureString(32),
                         key = $"{item.node.id}REV{item.node.rev}",
                         node_id = item.node.id,
                         rev = item.node.rev,
-                        write_token = StringExt.RandomSecureString(32),
-                        read_token = StringExt.RandomSecureString(32),
                         ctime = DateTime.Now
                     };
                     await session.SaveAsync(db, true);
@@ -2088,7 +2072,7 @@ namespace Laclasse.Doc
                     var res = await db.ExecuteScalarAsync("SELECT `id` FROM `onlyoffice_session` WHERE `node_id` = ? LIMIT 1", nodeId);
                     if (res == null)
                         return;
-                    long sessionId = (long)res;
+                    string sessionId = (string)res;
 
                     foreach (var action in actions)
                     {
@@ -2130,7 +2114,7 @@ namespace Laclasse.Doc
                 var res = await db.ExecuteScalarAsync("SELECT `id` FROM `onlyoffice_session` WHERE `node_id` = ? LIMIT 1", nodeId);
                 if (res == null)
                     return;
-                long sessionId = (long)res;
+                string sessionId = (string)res;
                 // get all known connected users
                 var sessionUsers = await db.SelectAsync<OnlyOfficeSessionUser>("SELECT * FROM `onlyoffice_session_user` WHERE `onlyoffice_session_id` = ?", sessionId);
                 // delete all users not present on OnlyOffice

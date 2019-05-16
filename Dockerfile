@@ -9,5 +9,6 @@ RUN msbuild LaclasseService/LaclasseService.csproj
 FROM mono:latest
 WORKDIR /app
 COPY --from=build-env /app/LaclasseService/bin/Debug .
+RUN apt update && apt -y install mediainfo poppler-utils imagemagick ffmpeg
 VOLUME /var/lib/laclasse
 CMD [ "mono", "/app/LaclasseService.exe", "-c", "/var/lib/laclasse/etc/laclasse.conf" ]

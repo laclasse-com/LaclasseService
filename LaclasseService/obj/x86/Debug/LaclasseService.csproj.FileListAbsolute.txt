@@ -81,7 +81,6 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Threading.Overlapped.dll
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Xml.XPath.XDocument.dll
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/BCrypt.Net.dll
-/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/Erasme.Cloud.dll
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/Erasme.Http.dll
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MailKit.dll
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/MimeKit.dll
@@ -96,7 +95,6 @@
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Threading.Tasks.Extensions.dll
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/SharpZipLib.dll.mdb
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/Erasme.Http.pdb
-/home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/Erasme.Cloud.dll.mdb
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Buffers.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Numerics.Vectors.xml
 /home/daniel/Programmation/laclasse/laclasse-service/LaclasseService/LaclasseService/bin/Debug/System.Runtime.CompilerServices.Unsafe.xml

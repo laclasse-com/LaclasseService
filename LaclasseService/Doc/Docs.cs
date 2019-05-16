@@ -1792,7 +1792,7 @@ namespace Laclasse.Doc
                     string previewPath;
                     string error;
 
-                    if (Erasme.Cloud.Preview.PreviewService.BuildPreview(
+                    if (Preview.Preview.BuildPreview(
                         tempDir, tempFile, mimetype,
                         128, 128, out previewMimetype, out previewPath, out error))
                     {

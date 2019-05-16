@@ -53,11 +53,7 @@
     <Reference Include="Erasme.Http">
       <HintPath>lib\Erasme.Http.dll</HintPath>
     </Reference>
-    <Reference Include="Erasme.Cloud">
-      <HintPath>lib\Erasme.Cloud.dll</HintPath>
-    </Reference>
     <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.ComponentModel" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Configuration.Install" />
@@ -179,6 +175,11 @@
     <Compile Include="Doc\OnlyOffice.cs" />
     <Compile Include="GAR\Resources.cs" />
     <Compile Include="Doc\ElFinder.cs" />
+    <Compile Include="Doc\Preview\UrlPreview.cs" />
+    <Compile Include="Doc\Preview\IPreview.cs" />
+    <Compile Include="Doc\Preview\PdfPreview.cs" />
+    <Compile Include="Doc\Preview\ImageVideoPreview.cs" />
+    <Compile Include="Doc\Preview\Preview.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -210,6 +211,7 @@
     <Folder Include="Textbook\" />
     <Folder Include="Utils\" />
     <Folder Include="GAR\" />
+    <Folder Include="Doc\Preview\" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Doc\sample.docx" />

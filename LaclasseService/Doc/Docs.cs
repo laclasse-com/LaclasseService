@@ -1145,15 +1145,43 @@ namespace Laclasse.Doc
                     throw new WebException(403, "Insufficient rights");
                 var token = c.Request.QueryString["session"];
                 var nodeId = long.Parse((string)p["id"]);
+
+                var json = await c.Request.ReadAsJsonAsync();
+                logger.Log(LogLevel.Debug, $"OnlyOffice session '{token}'. Node id: {nodeId}. Message: {json.ToString()}");
+
                 var session = await GetOnlyOfficeSessionByNodeAsync(nodeId);
                 if (session == null || (token != session.read_token && token != session.write_token))
                 {
+                    // try to load the node
+                    Node node = null;
+                    using (var db = await DB.CreateAsync(dbUrl, true))
+                    {
+                        // if the node no more exist, nothing to do
+                        node = new Node { id = nodeId };
+                        if (!await node.LoadAsync(db))
+                        {
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = new JsonObject { ["error"] = 0 };
+                            return;
+                        }
+                    }
+                    // if the message is just user connected changes, no problem
+                    if (json.ContainsKey("status") && json["status"] == 1)
+                    {
+                        c.Response.StatusCode = 200;
+                        c.Response.Content = new JsonObject { ["error"] = 0 };
+                        return;
+                    }
+
                     logger.Log(LogLevel.Error, $"OnlyOffice session '{token}' not found");
                     throw new WebException(403, "Invalid session");
                 }
 
-                var json = await c.Request.ReadAsJsonAsync();
-                logger.Log(LogLevel.Debug, $"OnlyOffice session '{token}' node id: {session.node_id}. Message: {json.ToString()}");
+                if (session.node_id != nodeId)
+                {
+                    logger.Log(LogLevel.Error, $"OnlyOffice session '{token}' node_id != {session.node_id} POST node_id {nodeId}");
+                    throw new WebException(403, "Invalid session");
+                }
 
                 if (json is JsonObject && ((JsonObject)json).ContainsKey("actions"))
                     await UpdateOnlyOfficeSessionUsersAsync(json as JsonObject, nodeId);

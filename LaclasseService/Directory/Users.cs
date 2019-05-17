@@ -3,7 +3,7 @@
 // Author(s):
 //  Daniel Lacroix <dlacroix@erasme.org>
 // 
-// Copyright (c) 2017-2018 Metropole de Lyon
+// Copyright (c) 2017-2019 Metropole de Lyon
 // Copyright (c) 2017 Daniel LACROIX
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -114,7 +114,7 @@ namespace Laclasse.Directory
                 login = await Users.FindAvailableLoginAsync(db, firstname, lastname);
 
             if (!IsSet(nameof(password)))
-                password = "clear:" + StringExt.RandomString(4, "ABCDEFGHIJKLMNPQRSTUVWXYZ") + StringExt.RandomString(4, "23456789");
+                password = "clear:" + StringExt.RandomSecureString(10, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNPQRSTUVWXYZ23456789");
 
             bool res = await base.InsertAsync(db);
 

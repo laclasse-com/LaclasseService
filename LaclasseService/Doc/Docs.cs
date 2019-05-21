@@ -66,7 +66,9 @@ namespace Laclasse.Doc
         // presentation
         pptx, // application/vnd.openxmlformats-officedocument.presentationml.presentation
         ppt,  // application/vnd.ms-powerpoint
-        odp   // application/vnd.oasis.opendocument.presentation
+        odp,   // application/vnd.oasis.opendocument.presentation
+
+        pdf
     }
 
     public enum OnlyOfficeDocumentType
@@ -400,7 +402,7 @@ namespace Laclasse.Doc
 
     public class Docs : HttpRouting
     {
-        Logger logger;
+        internal Logger logger;
         string dbUrl;
         string path;
         string tempDir;
@@ -1232,7 +1234,6 @@ namespace Laclasse.Doc
                             // if convert is possible, convert
                             if (OnlyOffice.CanConvert(fromFileType, toFileType))
                             {
-
                                 var convertUrl = await OnlyOffice.ConvertAsync(logger, c, json["url"], fromFileType, toFileType);
                                 if (convertUrl == null)
                                 {
@@ -1312,6 +1313,34 @@ namespace Laclasse.Doc
                 }
                 c.Response.StatusCode = 200;
                 c.Response.Content = new JsonObject { ["error"] = 0 };
+            };
+
+            GetAsync["/{id}/pdf"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+                using (var db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                    var item = await context.GetByIdAsync(id);
+                    if (item != null && item is OnlyOffice)
+                    {
+                        // check file read right
+                        var rights = await item.RightsAsync();
+                        if (!rights.Read)
+                            throw new WebException(403, "Insufficient rights");
+
+                        var stream = await ((OnlyOffice)item).GetPdfStreamAsync();
+                        if (stream != null)
+                        {
+                            var content = new FileContent(stream);
+                            content.Headers["content-type"] = "application/pdf";
+                            content.FileName = item.node.name + ".pdf";
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = content;
+                        }
+                    }
+                    await db.CommitAsync();
+                }
             };
 
             PostAsync["/{id}/copy"] = async (p, c) =>

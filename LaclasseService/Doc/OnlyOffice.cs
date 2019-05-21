@@ -175,6 +175,77 @@ namespace Laclasse.Doc
             return canConvert;
         }
 
+        public async Task<Stream> GetPdfStreamAsync()
+        {
+            await node.blob.LoadExpandFieldAsync(context.db, "children");
+            Console.WriteLine(node.blob.children.Dump());
+
+            var pdfBlob = node.blob.children.Find(child => child.name == "pdf");
+            if (pdfBlob != null)
+                return context.blobs.GetBlobStream(pdfBlob.id);
+
+            Stream pdfStream = null;
+            OnlyOfficeDocumentType documentType;
+            OnlyOfficeFileType fileType;
+            NodeToFileType(node, out documentType, out fileType);
+            var file = new Docs.TempFile
+            {
+                Id = Guid.NewGuid() + "-" + StringExt.RandomSecureString(),
+                Mime = node.mime,
+                Stream = await GetContentAsync()
+            };
+            lock (context.docs.tempFilesLock)
+            {
+                context.docs.tempFiles[file.Id] = file;
+            }
+            try
+            {
+                var fileUri = new Uri(new Uri(context.docs.globalSetup.server.publicUrl), $"/api/docs/tempFile/{file.Id}");
+                var convertUrl = await ConvertAsync(context.docs.logger, context.httpContext, fileUri.ToString(), fileType, OnlyOfficeFileType.pdf);
+                if (convertUrl != null)
+                {
+                    var convertUri = new Uri(convertUrl);
+                    using (var client = HttpClient.Create(convertUri))
+                    {
+                        HttpClientResponse response;
+                        HttpClientRequest request = new HttpClientRequest();
+                        request.Method = "GET";
+                        request.Path = convertUri.PathAndQuery;
+                        client.SendRequest(request);
+                        response = client.GetResponse();
+                        if (response.StatusCode == 200)
+                        {
+                            var fileDefinition = new FileDefinition
+                            {
+                                Stream = response.InputStream,
+                                Mimetype = "application/pdf",
+                                Name = "pdf"
+                            };
+
+                            pdfBlob = new Blob
+                            {
+                                parent_id = node.blob_id,
+                                id = Guid.NewGuid().ToString(),
+                                name = "pdf",
+                                mimetype = "application/pdf"
+                            };
+                            pdfBlob = await context.blobs.CreateBlobAsync(context.db, fileDefinition, pdfBlob);
+                            pdfStream = context.blobs.GetBlobStream(pdfBlob.id);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                lock (context.docs.tempFilesLock)
+                {
+                    context.docs.tempFiles.Remove(file.Id);
+                }
+                file.Stream.Close();
+            }
+            return pdfStream;
+        }
+
         //# Thumbnail avec OnlyOffice
         //        curl -X POST http://hostname/onlyoffice/ConvertService.ashx
         // -H "Content-Type: application/json" -d

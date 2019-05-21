@@ -99,8 +99,12 @@ namespace Laclasse.Directory
 
     public class StructureRss : HttpRouting
     {
+        Logger logger;
+
         public StructureRss(Logger logger, string dbUrl)
         {
+            this.logger = logger;
+
             // API only available to authenticated users
             BeforeAsync = async (p, c) => await c.EnsureIsAuthenticatedAsync();
 
@@ -222,9 +226,9 @@ namespace Laclasse.Directory
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
-                    logger.Log(LogLevel.Error, $"invalid RSS feed '{key}'");
+                    logger.Log(LogLevel.Error, $"invalid RSS feed '{key}'. Exception: {e}");
                     items = null;
                 }
                 return items;
@@ -254,7 +258,7 @@ namespace Laclasse.Directory
             };
         }
 
-        static async Task<XDocument> LoadXmlAsync(Uri url, int maxRedirect = 5)
+        async Task<XDocument> LoadXmlAsync(Uri url, int maxRedirect = 5)
         {
             using (var client = await HttpClient.CreateAsync(url, 5000, 10000))
             {
@@ -268,12 +272,16 @@ namespace Laclasse.Directory
                 if ((response.StatusCode == 301 || response.StatusCode == 302) && response.Headers.ContainsKey("location"))
                 {
                     if (maxRedirect <= 0)
+                    {
+                        logger.Log(LogLevel.Error, $"While loading '{url}' got too many HTTP REDIRECT");
                         return null;
+                    }
                     var redirectUrl = new Uri(url, response.Headers["location"]);
                     return await LoadXmlAsync(redirectUrl, maxRedirect - 1);
                 }
                 if (response.StatusCode == 200)
                     return XDocument.Load(response.InputStream);
+                logger.Log(LogLevel.Error, $"While loading '{url}' got HTTP {response.StatusCode}");
             }
             return null;
         }

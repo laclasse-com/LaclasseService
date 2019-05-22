@@ -574,12 +574,12 @@ namespace Laclasse.Doc
             {
                 await c.EnsureIsSuperAdminAsync();
                 var json = await c.Request.ReadAsJsonAsync();
-
-                using (DB db = await DB.CreateAsync(dbUrl, true))
+                foreach (var id in json as JsonArray)
                 {
-                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
-                    foreach (var id in json as JsonArray)
+
+                    using (DB db = await DB.CreateAsync(dbUrl, true))
                     {
+                        var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
                         var item = await context.GetByIdAsync(id);
                         if (item != null && item.node.size > 0)
                         {
@@ -589,8 +589,8 @@ namespace Laclasse.Doc
                             }
                             catch (WebException) { }
                         }
+                        await db.CommitAsync();
                     }
-                    await db.CommitAsync();
                 }
                 c.Response.StatusCode = 200;
             };
@@ -1343,6 +1343,34 @@ namespace Laclasse.Doc
                 }
             };
 
+            GetAsync["/{id}/html"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+                using (var db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                    var item = await context.GetByIdAsync(id);
+                    if (item != null && item is Pad)
+                    {
+                        // check file read right
+                        var rights = await item.RightsAsync();
+                        if (!rights.Read)
+                            throw new WebException(403, "Insufficient rights");
+
+                        var stream = await ((Pad)item).GetContentAsync();
+                        if (stream != null)
+                        {
+                            var content = new FileContent(stream);
+                            content.Headers["content-type"] = "text/html";
+                            content.FileName = item.node.name + ".html";
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = content;
+                        }
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
             PostAsync["/{id}/copy"] = async (p, c) =>
             {
                 var id = long.Parse((string)p["id"]);
@@ -1764,7 +1792,7 @@ namespace Laclasse.Doc
                             var task = OnlyOfficeGenerateThumbAsync(fileUri.AbsoluteUri, OnlyOfficeMimes[mimetype]);
                             task.Wait();
                             Console.WriteLine($"THUMB URL: {task.Result}");
-                            // TODO: dowload the file
+                            // TODO: download the file
 
                             var thumbUri = new Uri(task.Result);
                             using (var client = HttpClient.Create(thumbUri))

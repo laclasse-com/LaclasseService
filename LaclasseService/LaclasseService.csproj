@@ -183,6 +183,7 @@
     <Compile Include="Doc\Preview\PdfPreview.cs" />
     <Compile Include="Doc\Preview\ImageVideoPreview.cs" />
     <Compile Include="Doc\Preview\Preview.cs" />
+    <Compile Include="Doc\Preview\HtmlPreview.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

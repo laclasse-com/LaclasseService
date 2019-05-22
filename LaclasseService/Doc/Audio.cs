@@ -31,9 +31,9 @@ namespace Laclasse.Doc
         {
             await node.blob.LoadExpandFieldAsync(context.db, "children");
 
-            var imageBlob = node.blob.children.Find(child => child.name == "webaudio");
-            if (imageBlob != null)
-                return context.blobs.GetBlobStream(imageBlob.id);
+            var audioBlob = node.blob.children.Find(child => child.name == "webaudio");
+            if (audioBlob != null)
+                return context.blobs.GetBlobStream(audioBlob.id);
 
             Stream audioStream = null;
             var stream = await GetContentAsync();
@@ -107,8 +107,10 @@ namespace Laclasse.Doc
                     process.WaitForExit();
                 }
             }
-            catch { }
-            return (File.Exists(audioFile)) ? audioFile : null;
+            catch {
+                audioFile = null;
+            }
+            return (audioFile != null && File.Exists(audioFile)) ? audioFile : null;
         }
     }
 }

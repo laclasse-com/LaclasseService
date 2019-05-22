@@ -665,6 +665,20 @@ namespace Laclasse.Doc
             RegisterFileExtension(".wma", "audio/x-ms-wma");
             Register(Audio.MimeToExtension.Keys, (context, node) => new Audio(context, node));
 
+            RegisterFileExtension(".mp4", "video/mp4");
+            RegisterFileExtension(".flv", "video/x-flv");
+            RegisterFileExtension(".wmv", "video/x-ms-wmv");
+            RegisterFileExtension(".ogv", "video/ogg");
+            RegisterFileExtension(".mov", "video/quicktime");
+            RegisterFileExtension(".mkv", "video/x-matroska");
+            RegisterFileExtension(".webm", "video/webm");
+            RegisterFileExtension(".3gp", "video/3gpp");
+            RegisterFileExtension(".mpg", "video/mpeg");
+            RegisterFileExtension(".mpeg", "video/mpeg");
+            RegisterFileExtension(".asf", "video/x-ms-asf");
+            RegisterFileExtension(".avi", "video/avi");
+            Register(Video.MimeToExtension.Keys, (context, node) => new Video(context, node));
+
             Register("*", (context, node) => new Document(context, node));
         }
     }

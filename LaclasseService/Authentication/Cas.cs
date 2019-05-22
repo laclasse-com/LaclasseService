@@ -151,7 +151,7 @@ namespace Laclasse.Authentication
                             c.Response.Content = (new CasView
                             {
                                 title = "Échec",
-                                error = @"<p>Le service vers lequel vous souhaité aller n'est pas autorisé.</p>"
+                                error = @"<p>Le service vers lequel vous souhaitez aller n'est pas autorisé.</p>"
                             }).TransformText();
                         }
                         else
@@ -194,7 +194,7 @@ namespace Laclasse.Authentication
                             c.Response.Content = (new CasView
                             {
                                 title = "Échec",
-                                error = @"<p>Le service vers lequel vous souhaité aller n'est pas autorisé.</p>"
+                                error = @"<p>Le service vers lequel vous souhaitez aller n'est pas autorisé.</p>"
                             }).TransformText();
                             return;
                         }

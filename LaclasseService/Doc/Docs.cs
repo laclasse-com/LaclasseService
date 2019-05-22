@@ -1371,6 +1371,63 @@ namespace Laclasse.Doc
                 }
             };
 
+            GetAsync["/{id}/webimage"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+                using (var db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                    var item = await context.GetByIdAsync(id);
+                    if (item != null && item is Image)
+                    {
+                        // check file read right
+                        var rights = await item.RightsAsync();
+                        if (!rights.Read)
+                            throw new WebException(403, "Insufficient rights");
+
+                        var stream = await ((Image)item).GetWebImageStreamAsync();
+                        if (stream != null)
+                        {
+                            var content = new FileContent(stream);
+                            content.Headers["content-type"] = "image/jpeg";
+                            content.FileName = item.node.name + ".jpg";
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = content;
+                        }
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
+            GetAsync["/{id}/webaudio"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+                using (var db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                    var item = await context.GetByIdAsync(id);
+                    if (item != null && item is Audio)
+                    {
+                        // check file read right
+                        var rights = await item.RightsAsync();
+                        if (!rights.Read)
+                            throw new WebException(403, "Insufficient rights");
+
+                        var stream = await ((Audio)item).GetWebAudioStreamAsync();
+                        if (stream != null)
+                        {
+                            var content = new FileContent(stream);
+                            content.Headers["content-type"] = "audio/mp3";
+                            content.FileName = item.node.name + ".mp3";
+                            c.Response.StatusCode = 200;
+                            c.Response.SupportRanges = true;
+                            c.Response.Content = content;
+                        }
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
             PostAsync["/{id}/copy"] = async (p, c) =>
             {
                 var id = long.Parse((string)p["id"]);

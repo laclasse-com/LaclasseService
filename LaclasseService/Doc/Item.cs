@@ -653,6 +653,18 @@ namespace Laclasse.Doc
 
             Register(Docs.OnlyOfficeMimes.Keys, (context, node) => new OnlyOffice(context, node));
 
+            Register(Image.MimeToExtension.Keys, (context, node) => new Image(context, node));
+
+            RegisterFileExtension(".wav", "audio/x-wav");
+            RegisterFileExtension(".wma", "audio/x-ms-wma");
+            RegisterFileExtension(".mp3", "audio/mpeg");
+            RegisterFileExtension(".m4a", "audio/mp4");
+            RegisterFileExtension(".weba", "audio/webm");
+            RegisterFileExtension(".ogg", "audio/ogg");
+            RegisterFileExtension(".aac", "audio/aac");
+            RegisterFileExtension(".wma", "audio/x-ms-wma");
+            Register(Audio.MimeToExtension.Keys, (context, node) => new Audio(context, node));
+
             Register("*", (context, node) => new Document(context, node));
         }
     }
@@ -1403,7 +1415,7 @@ namespace Laclasse.Doc
         }
     }
 
-    public class Pad : Folder
+    public class Pad : Document
     {
         public Pad(Context context, Node node) : base(context, node)
         {

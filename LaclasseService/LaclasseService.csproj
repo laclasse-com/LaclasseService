@@ -184,6 +184,8 @@
     <Compile Include="Doc\Preview\ImageVideoPreview.cs" />
     <Compile Include="Doc\Preview\Preview.cs" />
     <Compile Include="Doc\Preview\HtmlPreview.cs" />
+    <Compile Include="Doc\Image.cs" />
+    <Compile Include="Doc\Audio.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

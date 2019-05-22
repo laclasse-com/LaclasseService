@@ -46,8 +46,8 @@ namespace Laclasse.Doc.Preview
                 preview = new PdfPreview(temporaryDirectory);
             else if (mimetype == "text/uri-list")
                 preview = new UrlPreview(temporaryDirectory);
-            else if (mimetype == "application/x-laclasse-pad")
-                preview = new HtmlPreview(temporaryDirectory);
+            //else if (mimetype == "application/x-laclasse-pad")
+            //    preview = new HtmlPreview(temporaryDirectory);
 
             if (preview != null)
             {

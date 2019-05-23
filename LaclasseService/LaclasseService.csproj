@@ -118,9 +118,6 @@
     <Compile Include="Authentication\Sessions.cs" />
     <Compile Include="Authentication\Tickets.cs" />
     <Compile Include="Authentication\CasClient.cs" />
-    <Compile Include="Authentication\CasView.cs">
-      <DependentUpon>CasView.tt</DependentUpon>
-    </Compile>
     <Compile Include="ContextInjector.cs" />
     <Compile Include="Authentication\ContextExtensions.cs" />
     <Compile Include="Directory\PortailFlux.cs" />
@@ -164,9 +161,6 @@
     <Compile Include="Storage\Storage.cs" />
     <Compile Include="Doc\Blobs.cs" />
     <Compile Include="Doc\IFilePlugin.cs" />
-    <Compile Include="Doc\OnlyOfficeView.cs">
-      <DependentUpon>OnlyOfficeView.tt</DependentUpon>
-    </Compile>
     <Compile Include="Doc\Item.cs" />
     <Compile Include="BonApp\BonApp.cs" />
     <Compile Include="Textbook\EduLib.cs" />
@@ -187,21 +181,34 @@
     <Compile Include="Doc\Image.cs" />
     <Compile Include="Doc\Audio.cs" />
     <Compile Include="Doc\Video.cs" />
+    <Compile Include="Doc\AccessDenyView.cs">
+      <DependentUpon>AccessDenyView.cshtml</DependentUpon>
+    </Compile>
+    <Compile Include="Doc\OnlyOfficeView.cs">
+      <DependentUpon>OnlyOfficeView.cshtml</DependentUpon>
+    </Compile>
+    <Compile Include="Authentication\CasView.cs">
+      <DependentUpon>CasView.tt</DependentUpon>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
     <None Include="packages.config" />
-    <None Include="Authentication\CasView.tt">
-      <Generator>TextTemplatingFilePreprocessor</Generator>
-      <LastGenOutput>CasView.cs</LastGenOutput>
-    </None>
     <None Include="lib\Erasme.Http.dll" />
     <None Include="lib\Erasme.Http.dll.mdb" />
     <None Include="lib\SharpZipLib.dll" />
     <None Include="lib\SharpZipLib.dll.mdb" />
-    <None Include="Doc\OnlyOfficeView.tt">
-      <Generator>TextTemplatingFilePreprocessor</Generator>
+    <None Include="Doc\AccessDenyView.cshtml">
+      <Generator>RazorTemplatePreprocessor</Generator>
+      <LastGenOutput>AccessDenyView.cs</LastGenOutput>
+    </None>
+    <None Include="Doc\OnlyOfficeView.cshtml">
+      <Generator>RazorTemplatePreprocessor</Generator>
       <LastGenOutput>OnlyOfficeView.cs</LastGenOutput>
+    </None>
+    <None Include="Authentication\CasView.tt">
+      <Generator>TextTemplatingFilePreprocessor</Generator>
+      <LastGenOutput>CasView.cs</LastGenOutput>
     </None>
   </ItemGroup>
   <ItemGroup>

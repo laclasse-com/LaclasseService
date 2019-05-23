@@ -1,9 +1,4 @@
-﻿<#@ template language="C#" #>
-<#@ assembly name="System.Core" #>
-<#@ import namespace="System.Linq" #>
-<#@ import namespace="System.Text" #>
-<#@ import namespace="System.Collections.Generic" #>
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
@@ -28,25 +23,25 @@ html, body, .placeholder {
         <script>
 var config = {
     "document": {
-        "fileType": "<#= fileType #>",
-        "key": "<#= session.key #>",
-        "title": "<#= node.name #>",
-        "url": "<#= downloadUrl #>",
+        "fileType": "@fileType",
+        "key": "@session.key",
+        "title": "@node.name",
+        "url": "@downloadUrl",
         "permissions": {
             "comment": true,
             "download": true,
-            "edit": <#= edit ? "true" : "false" #>,
+            "edit": @(edit ? "true" : "false"),
             "print": true,
-            "review": <#= edit ? "true" : "false" #>
+            "review": @(edit ? "true" : "false")
         }
     },
-    "documentType": "<#= documentType #>",
+    "documentType": "@documentType",
     "editorConfig": {
-        "callbackUrl": "<#= callbackUrl #>",
+        "callbackUrl": "@callbackUrl",
         "lang": "fr-FR",
         "user": {
-            "id": "<#= user.id #>",
-            "name": "<#= user.firstname + " " + user.lastname #>"
+            "id": "@user.id",
+            "name": "@(user.firstname + " " + user.lastname)"
         },
         "customization": {
             "forcesave": true,
@@ -56,7 +51,7 @@ var config = {
             }
         }
     },
-    "type": "<#= mode == OnlyOfficeMode.Mobile ? "mobile" : "desktop" #>",
+    "type": "@(mode == OnlyOfficeMode.Mobile ? "mobile" : "desktop")",
     "width": "100%",
     "height": "100%"
 };

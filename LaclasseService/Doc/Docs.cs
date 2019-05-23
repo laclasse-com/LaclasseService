@@ -1088,7 +1088,12 @@ namespace Laclasse.Doc
                     OnlyOffice.NodeToFileType(item.node, out documentType, out fileType);
 
                     if (!rights.Read)
-                        throw new WebException(403, "Rights needed");
+                    {
+                        c.Response.StatusCode = 403;
+                        c.Response.Headers["content-type"] = "text/html";
+                        c.Response.Content = new AccessDenyView().GenerateString();
+                        return;
+                    }
 
                     var session = await CreateOnlyOfficeSessionAsync(item);
                     var token = session.id;
@@ -1106,7 +1111,7 @@ namespace Laclasse.Doc
                         edit = rights.Write,
                         downloadUrl = $"{c.SelfURL()}/file?session={token}",
                         callbackUrl = $"{c.SelfURL()}?session={token}"
-                    }.TransformText();
+                    }.GenerateString();
                 }
             };
 
@@ -1573,6 +1578,8 @@ namespace Laclasse.Doc
                         if (!rights.Read)
                         {
                             c.Response.StatusCode = 403;
+                            c.Response.Headers["content-type"] = "text/html";
+                            c.Response.Content = new AccessDenyView().GenerateString();
                         }
                         else
                         {

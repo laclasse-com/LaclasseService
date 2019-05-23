@@ -18,14 +18,33 @@ using System.Text;
 
 
 [System.CodeDom.Compiler.GeneratedCodeAttribute("RazorTemplatePreprocessor", "2.6.0.0")]
-public partial class OnlyOfficeView : OnlyOfficeViewBase
+public partial class AccessDenyView : AccessDenyViewBase
 {
 
 #line hidden
 
 public override void Execute()
 {
-WriteLiteral("<!DOCTYPE html>\n<html>\n    <head>\n        <meta");
+WriteLiteral("<!DOCTYPE html>\n<html>\n    <head>\n        <title>403 Accès refusé</title>\n       " +
+" <meta");
+
+WriteLiteral(" http-equiv=\"Content-Type\"");
+
+WriteLiteral(" content=\"text/html; charset=utf-8\"");
+
+WriteLiteral("/>\n        <meta");
+
+WriteLiteral(" name=\"apple-mobile-web-app-capable\"");
+
+WriteLiteral(" content=\"yes\"");
+
+WriteLiteral(">\n        <meta");
+
+WriteLiteral(" name=\"mobile-web-app-capable\"");
+
+WriteLiteral(" content=\"yes\"");
+
+WriteLiteral(">\n        <meta");
 
 WriteLiteral(" http-equiv=\"Content-Type\"");
 
@@ -35,138 +54,142 @@ WriteLiteral(">\n        <meta");
 
 WriteLiteral(" name=\"viewport\"");
 
-WriteLiteral(" content=\"width=device-width, initial-scale=1.0, minimum-scale=1\"");
+WriteLiteral(" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable" +
+"=no\"");
 
-WriteLiteral(">\n        <script");
-
-WriteLiteral(" type=\"text/javascript\"");
-
-WriteLiteral(" src=\"/onlyoffice/web-apps/apps/api/documents/api.js\"");
-
-WriteLiteral(@"></script>
-<style>
-html, body, .placeholder {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    top: 0px;
-    bottom: 0px;
-    left: 0px;
-    margin: 0px;
-    padding: 0px;
-    overscroll-behavior-y: none;
+WriteLiteral(@">
+        <style>
+body {
+    color: #444;
+    background-color: #f5f5f5;
+    font-family: ""Open Sans"", sans-serif;
+    font-size: 20px;
 }
-</style>
+
+a {
+    color: white;
+}
+
+.logo {
+    width: 55%;
+    opacity: 0.6;
+    position: absolute;
+    left: -5%;
+    top: -5%;
+    -webkit-user-select: none;
+}
+
+.btn {
+    display: inline-block;
+    font-size: 16px;
+    text-transform: uppercase;
+    padding: 10px 20px;
+    border: 1px solid white;
+    border-radius: 0;
+    background-color: #444;
+    margin: 5px;
+    color: white;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background-color: #555;
+}
+        </style>
     </head>
     <body>
-        <div");
+        <img");
 
-WriteLiteral(" id=\"placeholder\"");
+WriteLiteral(" draggable=\"false\"");
 
-WriteLiteral("></div>\n        <script>\nvar config = {\n    \"document\": {\n        \"fileType\": \"");
+WriteLiteral(" class=\"logo\"");
 
+WriteLiteral(" src=\"data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiP" +
+"z4NCjwhLS0gR2VuZXJhdG9yOiBBZG9iZSBJbGx1c3RyYXRvciAxNi4wLjAsIFNWRyBFeHBvcnQgUGx1Z" +
+"y1JbiAuIFNWRyBWZXJzaW9uOiA2LjAwIEJ1aWxkIDApICAtLT4NCjwhRE9DVFlQRSBzdmcgUFVCTElDI" +
+"CItLy9XM0MvL0RURCBTVkcgMS4xLy9FTiIgImh0dHA6Ly93d3cudzMub3JnL0dyYXBoaWNzL1NWRy8xL" +
+"jEvRFREL3N2ZzExLmR0ZCI+DQo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkNhbHF1ZV8xIiB4bWxucz0ia" +
+"HR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xO" +
+"Tk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgd2lkdGg9IjEyNy41NjFweCIgaGVpZ2h0PSIxMjcuN" +
+"TYxcHgiIHZpZXdCb3g9IjAgMCAxMjcuNTYxIDEyNy41NjEiIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgM" +
+"CAwIDEyNy41NjEgMTI3LjU2MSINCgkgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8Zz4NCgk8cGF0aCBma" +
+"WxsPSIjRkZGRkZGIiBkPSJNNjMuNzc4LDkuMTM1QzMzLjYxOCw5LjEzOCw5LjEzNiwzMy42MTQsOS4xM" +
+"zYsNjMuNzc4YzAsMzAuMTYyLDI0LjQ4MSw1NC42NDUsNTQuNjQzLDU0LjY0Ng0KCQljMzAuMTcxLTAuM" +
+"DAyLDU0LjY0NS0yNC40ODMsNTQuNjQ2LTU0LjY0NkMxMTguNDIzLDMzLjYxNCw5My45NDksOS4xMzgsN" +
+"jMuNzc4LDkuMTM1eiBNNzUuMjczLDkwLjU2Mg0KCQljMi43NzYtMS40NzQsNS4zNTEtMy4yODEsNy42N" +
+"i01LjM3N2MxLjY1OS0xLjUwOSw0LjIyOC0xLjM4MSw1LjczMywwLjI3OGMxLjUwNiwxLjY2MiwxLjM4M" +
+"Sw0LjIyOS0wLjI3OCw1LjczNA0KCQljLTIuODExLDIuNTQ3LTUuOTM2LDQuNzQ4LTkuMzE1LDYuNTM5Y" +
+"y0xLjk4MywxLjA0OS00LjQzOCwwLjI5My01LjQ4OS0xLjY4OEM3Mi41MzQsOTQuMDY3LDczLjI5LDkxL" +
+"jYxLDc1LjI3Myw5MC41NjJ6DQoJCSBNOTIuMzEyLDczLjcyNGMwLTIuMjQyLDEuODE1LTQuMDYyLDQuM" +
+"DYtNC4wNjJjMS4zMjQtMC4wMDIsMi40ODYtMC41MjQsMy4zNTktMS4zOTFjMC44NjUtMC44NzMsMS4zO" +
+"S0yLjAzMSwxLjM5Mi0zLjM1NXYtNy4xNDENCgkJYy0wLjAwMi0xLjMyNi0wLjUyNS0yLjQ4OC0xLjM5M" +
+"i0zLjM1OWMtMC44NzMtMC44NjctMi4wMzUtMS4zOS0zLjM1OS0xLjM5MmMtMS4zMjYsMC4wMDItMi40O" +
+"SwwLjUyMy0zLjM2LDEuMzkyDQoJCWMtMC44NjUsMC44NzEtMS4zOTEsMi4wMzMtMS4zOTMsMy4zNTljM" +
+"CwyLjI0Mi0xLjgxNyw0LjA2MS00LjA2LDQuMDYxYy0yLjI0MywwLTQuMDYyLTEuODE3LTQuMDYyLTQuM" +
+"DYxDQoJCWMwLjAwMy03LjExNSw1Ljc2Ny0xMi44NywxMi44NzMtMTIuODcxYzAuMDc3LDAsMC4xNTIsM" +
+"C4wMSwwLjIyOSwwLjAxMmMtMi4zMTYtNC4wNjItNS4zMzQtNy42NzQtOC45MzUtMTAuNjE5DQoJCWMtN" +
+"i41MzEtNS4zMzYtMTQuODQtOC41MjgtMjMuOTM3LTguNTNjLTEwLjQ2MywwLjAwMi0xOS44OTYsNC4yM" +
+"jktMjYuNzU4LDExLjA4MmMtMi43ODcsMi43OTEtNS4xMzQsNi4wMTUtNi45NDQsOS41NTUNCgkJYzEuM" +
+"DY3LTAuMjMsMi4xNzItMC4zNTksMy4zMDktMC4zNTljOC42LDAuMDAyLDE1LjU2Nyw2Ljk3LDE1LjU3L" +
+"DE1LjU3MnY5LjMzOGMwLDIuMDcyLDAuODI1LDMuOTA4LDIuMTc5LDUuMjY5DQoJCWMxLjM1NywxLjM1N" +
+"CwzLjE5MywyLjE3OCw1LjI2NywyLjE4YzIuMjQxLDAsNC4wNjEsMS44MTgsNC4wNjEsNC4wNjFjMCwyL" +
+"jI0My0xLjgxNyw0LjA2LTQuMDYxLDQuMDYNCgkJYy04LjYwMSwwLTE1LjU2NC02Ljk2Ny0xNS41NjQtM" +
+"TUuNTY2di05LjMzOGMtMC4wMDQtMi4wNy0wLjgyOC0zLjkxLTIuMTg0LTUuMjcxYy0xLjM2MS0xLjM1N" +
+"C0zLjE5Ny0yLjE4MS01LjI2OC0yLjE4Mw0KCQljLTIuMDcsMC4wMDItMy45MDksMC44MjgtNS4yNzEsM" +
+"i4xODNjLTAuOTkzLDAuOTk4LTEuNjkyLDIuMjU0LTIsMy42NjhjLTAuMTExLDEuMTg2LTAuMTc2LDIuM" +
+"zgzLTAuMTc2LDMuNTk2DQoJCWMwLjAwMiwxMC40NjEsNC4yMjksMTkuODk1LDExLjA4MiwyNi43NTJjN" +
+"i44Niw2Ljg1NCwxNi4yOTUsMTEuMDgsMjYuNzU4LDExLjA4MmMyLjI0MiwwLDQuMDYxLDEuODE4LDQuM" +
+"DYxLDQuMDYxDQoJCWMwLDIuMjQzLTEuODE3LDQuMDYyLTQuMDYxLDQuMDYyYy0yNS4zODMtMC4wMDItN" +
+"DUuOTU3LTIwLjU3LTQ1Ljk2MS00NS45NTVjMC0wLjUxNiwwLjAyMS0xLjAyNSwwLjAzOS0xLjUzNw0KC" +
+"QljLTAuMDE4LTAuMTUyLTAuMDQ1LTAuMjk5LTAuMDQ1LTAuNDU1YzAtMC44OTUsMC4wOTItMS43NjYsM" +
+"C4yMzctMi42MTljMi4zMTQtMjMuMjIzLDIxLjkwMy00MS4zNDksNDUuNzI5LTQxLjM1MQ0KCQljMTEuM" +
+"DE3LTAuMDAyLDIxLjE2NiwzLjg5MSwyOS4wNzgsMTAuMzY2YzcuOTEzLDYuNDc1LDEzLjYzMywxNS41N" +
+"DMsMTUuODU0LDI1LjkyNGMwLjAwNCwwLjAwOSwwLjAwMiwwLjAxOCwwLjAwNCwwLjAyNg0KCQljMC4zN" +
+"zMsMS4yMDUsMC41NzQsMi40ODQsMC41NzYsMy44MTJ2Ny4xNDFjLTAuMDA1LDcuMTExLTUuNzY2LDEyL" +
+"jg2My0xMi44NzEsMTIuODY3Qzk0LjEyOCw3Ny43ODQsOTIuMzEyLDc1Ljk2Niw5Mi4zMTIsNzMuNzI0e" +
+"g0KCQkgTTYzLjI2NSw2Mi4zOTJjMCwyLjM0NC0xLjkwNCw0LjI1NC00LjI1NCw0LjI1NGMtMi4zNDQsM" +
+"C00LjI0OC0xLjkxLTQuMjQ4LTQuMjU0YzAtMi4zNTUsMS45MDQtNC4yNjEsNC4yNDgtNC4yNjENCgkJQ" +
+"zYxLjM2LDU4LjEzMiw2My4yNjUsNjAuMDM2LDYzLjI2NSw2Mi4zOTJ6IE0zNy4zNDUsNjIuMzkyYzAsM" +
+"i4zNDQtMS44OTksNC4yNTQtNC4yNSw0LjI1NGMtMi4zNDksMC00LjI1LTEuOTEtNC4yNS00LjI1NA0KC" +
+"QljMC0yLjM1NSwxLjkwMS00LjI2MSw0LjI1LTQuMjYxQzM1LjQ0NSw1OC4xMzIsMzcuMzQ1LDYwLjAzN" +
+"iwzNy4zNDUsNjIuMzkyeiIvPg0KPC9nPg0KPC9zdmc+\"");
 
-#line 26 "OnlyOfficeView.cshtml"
-                Write(fileType);
+WriteLiteral(" alt=\"Logo ENT\"");
 
+WriteLiteral(">\n        <div");
 
-#line default
-#line hidden
-WriteLiteral("\",\n        \"key\": \"");
+WriteLiteral(" style=\"position: absolute; top: 0px; left: 0px; right: 0px; bottom: 0px;\"");
 
+WriteLiteral(">\n            <center>\n                <div");
 
-#line 27 "OnlyOfficeView.cshtml"
-           Write(session.key);
+WriteLiteral(" style=\"max-width: 800px; padding: 40px;\"");
 
+WriteLiteral(">\n                    <div");
 
-#line default
-#line hidden
-WriteLiteral("\",\n        \"title\": \"");
+WriteLiteral(" style=\"font-weight: bold; font-size: 34px\"");
 
+WriteLiteral(">Laclasse.com 403</div><br>\n                    <div");
 
-#line 28 "OnlyOfficeView.cshtml"
-             Write(node.name);
+WriteLiteral(" style=\"font-size: 30px; padding: 10px\"");
 
+WriteLiteral(">Accès interdit</div>\n                    <div");
 
-#line default
-#line hidden
-WriteLiteral("\",\n        \"url\": \"");
+WriteLiteral(" style=\"text-align: left\"");
 
-
-#line 29 "OnlyOfficeView.cshtml"
-           Write(downloadUrl);
-
-
-#line default
-#line hidden
-WriteLiteral("\",\n        \"permissions\": {\n            \"comment\": true,\n            \"download\": " +
-"true,\n            \"edit\": ");
-
-
-#line 33 "OnlyOfficeView.cshtml"
-                Write(edit ? "true" : "false");
-
-
-#line default
-#line hidden
-WriteLiteral(",\n            \"print\": true,\n            \"review\": ");
-
-
-#line 35 "OnlyOfficeView.cshtml"
-                  Write(edit ? "true" : "false");
-
-
-#line default
-#line hidden
-WriteLiteral("\n        }\n    },\n    \"documentType\": \"");
-
-
-#line 38 "OnlyOfficeView.cshtml"
-                Write(documentType);
-
-
-#line default
-#line hidden
-WriteLiteral("\",\n    \"editorConfig\": {\n        \"callbackUrl\": \"");
-
-
-#line 40 "OnlyOfficeView.cshtml"
-                   Write(callbackUrl);
-
-
-#line default
-#line hidden
-WriteLiteral("\",\n        \"lang\": \"fr-FR\",\n        \"user\": {\n            \"id\": \"");
-
-
-#line 43 "OnlyOfficeView.cshtml"
-              Write(user.id);
-
-
-#line default
-#line hidden
-WriteLiteral("\",\n            \"name\": \"");
-
-
-#line 44 "OnlyOfficeView.cshtml"
-                 Write(user.firstname + " " + user.lastname);
-
-
-#line default
-#line hidden
-WriteLiteral("\"\n        },\n        \"customization\": {\n            \"forcesave\": true,\n          " +
-"  \"logo\": {\n                \"image\": \"/portail/img/logo-onlyoffice.png\",\n       " +
-"         \"url\": \"/\"\n            }\n        }\n    },\n    \"type\": \"");
-
-
-#line 54 "OnlyOfficeView.cshtml"
-         Write(mode == OnlyOfficeMode.Mobile ? "mobile" : "desktop");
-
-
-#line default
-#line hidden
-WriteLiteral("\",\n    \"width\": \"100%\",\n    \"height\": \"100%\"\n};\n\nvar docEditor = new DocsAPI.DocE" +
-"ditor(\"placeholder\", config);\n        </script>\n    </body>\n</html>");
+WriteLiteral(@">
+                        Vous n'avez pas les droits nécessaire pour accéder à cette
+                        ressource. Contacter votre administrateur ou la personne
+                        qui vous a communiqué ce lien afin de lui demander les
+                        droits.
+                    </div>
+                </div>
+            </center>
+        </div>
+    </body>
+</html>
+");
 
 }
 }
@@ -174,7 +197,7 @@ WriteLiteral("\",\n    \"width\": \"100%\",\n    \"height\": \"100%\"\n};\n\nvar
 // NOTE: this is the default generated helper class. You may choose to extract it to a separate file 
 // in order to customize it or share it between multiple templates, and specify the template's base 
 // class via the @inherits directive.
-public abstract class OnlyOfficeViewBase
+public abstract class AccessDenyViewBase
 {
 
 		// This field is OPTIONAL, but used by the default implementation of Generate, Write, WriteAttribute and WriteLiteral

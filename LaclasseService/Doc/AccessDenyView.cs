@@ -179,7 +179,7 @@ WriteLiteral(">Accès interdit</div>\n                    <div");
 WriteLiteral(" style=\"text-align: left\"");
 
 WriteLiteral(@">
-                        Vous n'avez pas les droits nécessaire pour accéder à cette
+                        Vous n'avez pas les droits nécessaires pour accéder à cette
                         ressource. Contacter votre administrateur ou la personne
                         qui vous a communiqué ce lien afin de lui demander les
                         droits.

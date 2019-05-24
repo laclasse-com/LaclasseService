@@ -92,8 +92,6 @@ namespace Laclasse.Doc
             string videoFile;
             try
             {
-                double rotation = Preview.ImageVideoPreview.GetVideoRotation(filepath);
-
                 double width; double height;
                 Preview.ImageVideoPreview.GetVideoSize(filepath, out width, out height);
 
@@ -113,21 +111,6 @@ namespace Laclasse.Doc
                 args.Add("-ab"); args.Add("64k");
                 args.Add("-ar"); args.Add("44100");
                 args.Add("-ac"); args.Add("1");
-                if (rotation == 90)
-                {
-                    args.Add("-vf");
-                    args.Add("transpose=0,hflip");
-                }
-                else if (rotation == 180)
-                {
-                    args.Add("-vf");
-                    args.Add("vflip,hflip");
-                }
-                else if (rotation == 270)
-                {
-                    args.Add("-vf");
-                    args.Add("transpose=0,vflip");
-                }
                 // variable depending on the quality expected
                 int resizedHeight;
                 // 720p

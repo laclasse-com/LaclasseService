@@ -123,35 +123,13 @@ namespace Laclasse.Doc.Preview
 
                 double videoWidth, videoHeight;
                 GetVideoSize(file, out videoWidth, out videoHeight);
-
-                double rotation = GetVideoRotation(file);
-
+                
                 List<string> argsList = new List<string>();
                 argsList.Add("-ss");
                 argsList.Add(((int)offset).ToString());
                 argsList.Add("-i");
                 argsList.Add(file);
-                if (rotation == 90)
-                {
-                    double tmp = videoHeight;
-                    videoHeight = videoWidth;
-                    videoWidth = tmp;
-                    argsList.Add("-vf");
-                    argsList.Add("transpose=0,hflip");
-                }
-                else if (rotation == 180)
-                {
-                    argsList.Add("-vf");
-                    argsList.Add("vflip,hflip");
-                }
-                else if (rotation == 270)
-                {
-                    double tmp = videoHeight;
-                    videoHeight = videoWidth;
-                    videoWidth = tmp;
-                    argsList.Add("-vf");
-                    argsList.Add("transpose=0,vflip");
-                }
+
                 double scaleWidth = width;
                 double scaleHeight = height;
 
@@ -296,7 +274,7 @@ namespace Laclasse.Doc.Preview
             width = 0;
             height = 0;
             // get media info
-            string args = BuildArguments(new string[] { "--Inform=Video;%Width%:%Height%", file });
+            string args = BuildArguments(new string[] { "--Inform=Video;%Width%:%Height%:%Rotation%", file });
             ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/mediainfo", args);
             startInfo.RedirectStandardError = true;
             startInfo.RedirectStandardOutput = true;
@@ -311,10 +289,18 @@ namespace Laclasse.Doc.Preview
                 {
                     string lines = process.StandardOutput.ReadToEnd().TrimEnd(' ', '\n');
                     string[] tab = lines.Split(':');
-                    if (tab.Length == 2)
+                    if (tab.Length == 3)
                     {
                         double.TryParse(tab[0], NumberStyles.Any, CultureInfo.InvariantCulture, out width);
                         double.TryParse(tab[1], NumberStyles.Any, CultureInfo.InvariantCulture, out height);
+                        double rotation;
+                        double.TryParse(tab[2], NumberStyles.Any, CultureInfo.InvariantCulture, out rotation);
+                        if ((int)rotation == 90 || (int)rotation == 270)
+                        {
+                            double swap = width;
+                            width = height;
+                            height = swap;
+                        }
                     }
                 }
             }

@@ -197,6 +197,7 @@ namespace Laclasse.Doc
 
                 args.Add(videoFile);
                 ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/ffmpeg", BuildArguments(args.ToArray()));
+                Video.context.docs.logger.Log(LogLevel.Debug, $"/usr/bin/ffmpeg {BuildArguments(args.ToArray())}");
 
                 using (Process process = new Process())
                 {

@@ -190,6 +190,8 @@
     <Compile Include="Authentication\CasView.cs">
       <DependentUpon>CasView.tt</DependentUpon>
     </Compile>
+    <Compile Include="Utils\LongTask.cs" />
+    <Compile Include="Utils\PriorityTaskScheduler.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

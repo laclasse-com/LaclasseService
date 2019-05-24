@@ -37,7 +37,7 @@ namespace Laclasse.Doc.Preview
 {
     public class ImageVideoPreview : IPreview
     {
-        string temporaryDirectory;
+        readonly string temporaryDirectory;
 
         public ImageVideoPreview(string temporaryDirectory)
         {
@@ -51,9 +51,9 @@ namespace Laclasse.Doc.Preview
             string tmpFile = temporaryDirectory + "/" + Guid.NewGuid().ToString();
 
             ProcessStartInfo startInfo;
-            if (mimetype.StartsWith("image/") || mimetype.StartsWith("audio/"))
+            if (mimetype.StartsWith("image/", StringComparison.InvariantCulture) || mimetype.StartsWith("audio/", StringComparison.InvariantCulture))
             {
-                if (mimetype.StartsWith("audio/"))
+                if (mimetype.StartsWith("audio/", StringComparison.InvariantCulture))
                 {
                     if (!ExtractCover(file, tmpFile))
                     {
@@ -65,11 +65,9 @@ namespace Laclasse.Doc.Preview
                     tmpFile = temporaryDirectory + "/" + Guid.NewGuid().ToString();
                 }
 
-                double naturalWidth;
-                double naturalHeight;
-                GetImageSize(file, out naturalWidth, out naturalHeight);
+                GetImageSize(file, out double naturalWidth, out double naturalHeight);
 
-                bool resizeNeeded = (naturalWidth == 0) || (naturalHeight == 0) ||
+                bool resizeNeeded = ((int)naturalWidth == 0) || ((int)naturalHeight == 0) ||
                     (naturalWidth > width) || (naturalHeight > height);
 
                 List<string> argsList = new List<string>();
@@ -121,14 +119,15 @@ namespace Laclasse.Doc.Preview
                 else if (duration < 30)
                     offset = 19;
 
-                double videoWidth, videoHeight;
-                GetVideoSize(file, out videoWidth, out videoHeight);
-                
-                List<string> argsList = new List<string>();
-                argsList.Add("-ss");
-                argsList.Add(((int)offset).ToString());
-                argsList.Add("-i");
-                argsList.Add(file);
+                GetVideoSize(file, out double videoWidth, out double videoHeight);
+
+                List<string> argsList = new List<string>
+                {
+                    "-ss",
+                    ((int)offset).ToString(),
+                    "-i",
+                    file
+                };
 
                 double scaleWidth = width;
                 double scaleHeight = height;
@@ -201,10 +200,12 @@ namespace Laclasse.Doc.Preview
             height = 0;
             // get media info
             string args = BuildArguments(new string[] { "--Inform=Image;%Width%:%Height%", file });
-            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/mediainfo", args);
-            startInfo.RedirectStandardError = true;
-            startInfo.RedirectStandardOutput = true;
-            startInfo.UseShellExecute = false;
+            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/mediainfo", args)
+            {
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false
+            };
 
             using (Process process = new Process())
             {
@@ -238,10 +239,12 @@ namespace Laclasse.Doc.Preview
             double rotation = 0;
             // get media info
             string args = BuildArguments(new string[] { "--Inform=Video;%Rotation%", file });
-            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/mediainfo", args);
-            startInfo.RedirectStandardError = true;
-            startInfo.RedirectStandardOutput = true;
-            startInfo.UseShellExecute = false;
+            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/mediainfo", args)
+            {
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false
+            };
 
             using (Process process = new Process())
             {
@@ -275,10 +278,12 @@ namespace Laclasse.Doc.Preview
             height = 0;
             // get media info
             string args = BuildArguments(new string[] { "--Inform=Video;%Width%:%Height%:%Rotation%", file });
-            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/mediainfo", args);
-            startInfo.RedirectStandardError = true;
-            startInfo.RedirectStandardOutput = true;
-            startInfo.UseShellExecute = false;
+            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/mediainfo", args)
+            {
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false
+            };
 
             using (Process process = new Process())
             {
@@ -293,8 +298,7 @@ namespace Laclasse.Doc.Preview
                     {
                         double.TryParse(tab[0], NumberStyles.Any, CultureInfo.InvariantCulture, out width);
                         double.TryParse(tab[1], NumberStyles.Any, CultureInfo.InvariantCulture, out height);
-                        double rotation;
-                        double.TryParse(tab[2], NumberStyles.Any, CultureInfo.InvariantCulture, out rotation);
+                        double.TryParse(tab[2], NumberStyles.Any, CultureInfo.InvariantCulture, out double rotation);
                         if ((int)rotation == 90 || (int)rotation == 270)
                         {
                             double swap = width;
@@ -320,10 +324,12 @@ namespace Laclasse.Doc.Preview
             double duration = 0;
             // get media info
             string args = BuildArguments(new string[] { "-i", file });
-            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/ffmpeg", args);
-            startInfo.RedirectStandardError = true;
-            startInfo.RedirectStandardOutput = true;
-            startInfo.UseShellExecute = false;
+            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/ffmpeg", args)
+            {
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false
+            };
 
             using (Process process = new Process())
             {
@@ -333,13 +339,12 @@ namespace Laclasse.Doc.Preview
                 string[] lines = process.StandardError.ReadToEnd().Split('\n');
                 foreach (string line in lines)
                 {
-                    if (line.IndexOf("Duration: ") != -1)
+                    if (line.IndexOf("Duration: ", StringComparison.InvariantCulture) != -1)
                     {
-                        string durationString = line.Substring(line.IndexOf("Duration: ") + 10);
+                        string durationString = line.Substring(line.IndexOf("Duration: ", StringComparison.Ordinal) + 10);
                         if (durationString.IndexOf(',') != -1)
                             durationString = durationString.Substring(0, durationString.IndexOf(','));
-                        TimeSpan durationSpan;
-                        if (TimeSpan.TryParse(durationString, out durationSpan))
+                        if (TimeSpan.TryParse(durationString, out TimeSpan durationSpan))
                             duration = durationSpan.TotalSeconds;
                     }
                 }
@@ -352,10 +357,12 @@ namespace Laclasse.Doc.Preview
             bool hasCover = false;
             // get media info
             string args = BuildArguments(new string[] { "--Inform=General;%Cover%", file });
-            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/mediainfo", args);
-            startInfo.RedirectStandardError = true;
-            startInfo.RedirectStandardOutput = true;
-            startInfo.UseShellExecute = false;
+            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/mediainfo", args)
+            {
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false
+            };
 
             using (Process process = new Process())
             {
@@ -375,10 +382,12 @@ namespace Laclasse.Doc.Preview
         {
             // get media info
             string args = BuildArguments(new string[] { "-i", file, "-an", "-vcodec", "copy", "-f", "image2", toFile });
-            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/ffmpeg", args);
-            startInfo.RedirectStandardError = true;
-            startInfo.RedirectStandardOutput = true;
-            startInfo.UseShellExecute = false;
+            ProcessStartInfo startInfo = new ProcessStartInfo("/usr/bin/ffmpeg", args)
+            {
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false
+            };
 
             using (Process process = new Process())
             {

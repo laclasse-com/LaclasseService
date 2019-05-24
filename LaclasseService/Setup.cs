@@ -8,6 +8,7 @@ namespace Laclasse
         public int port = 4321;
         public bool stopOnException = false;
         public string publicUrl = "http://localhost:4321/";
+        public string internalUrl = "http://localhost:4321/";
         public string publicFiles = "/usr/share/laclasse/";
         public string publicIcons = "/usr/share/laclasse/icons/";
         public string storage = "/var/lib/laclasse";

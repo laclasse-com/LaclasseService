@@ -57,7 +57,7 @@ namespace Laclasse.Doc
     public class Item
     {
         public readonly Node node;
-        protected Context context;
+        internal Context context;
 
         public Item(Context context, Node node)
         {

@@ -140,6 +140,8 @@ namespace Laclasse
             var contextInjector = new ContextInjector();
             server.Add(contextInjector);
 
+            var longTaskScheduler = new Utils.PriorityTaskScheduler(2);
+
             var mapper = new PathMapper();
             server.Add(mapper);
             mapper.Add("/api/sessions", sessions);
@@ -185,21 +187,33 @@ namespace Laclasse
             //mapper.Add("/sso/oidc", new OidcSso(setup.authentication.oidcSso, users, cas));
 
             mapper.Add("/api/aaf/synchronizations", new AafSyncService(
-                dbUrl, setup.aaf.logPath, logger, setup.aaf.path, setup.aaf.zipPath, setup.aaf.logPath));
+                dbUrl, setup.aaf.logPath, logger, setup.aaf.path,
+                setup.aaf.zipPath, setup.aaf.logPath));
 
-            mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path, setup.aaf.zipPath));
+            mapper.Add("/api/aaf", new Aaf.Aaf(dbUrl, setup.aaf.path,
+                setup.aaf.zipPath));
 
             mapper.Add("/api/setup", new SetupService(setup));
-            mapper.Add("/api/manage", new Manage.ManageService());
+            mapper.Add("/api/manage", new Manage.ManageService(longTaskScheduler));
 
             mapper.Add("/api/users", new Mail.ImapCheck(dbUrl));
             mapper.Add("/api/mailboxes", new Mail.Mailboxes(dbUrl, setup.mail.server.path));
 
-            var blobs = new Blobs(logger, setup.doc.url, Path.Combine(setup.server.storage, "blobs"), setup.server.temporaryDirectory);
+            var blobs = new Blobs(logger, setup.doc.url,
+                Path.Combine(setup.server.storage, "blobs"),
+                setup.server.temporaryDirectory);
             mapper.Add("/api/blobs", blobs);
-            var onlyOfficeSessions = new OnlyOfficeSessions(logger, setup.doc.url, setup.server.publicUrl);
+            var onlyOfficeSessions = new OnlyOfficeSessions(logger,
+                setup.doc.url, setup.server.publicUrl);
             mapper.Add("/api/docs/onlyoffice/sessions", onlyOfficeSessions);
-            var docs = new Docs(logger, setup.doc.url, setup.doc.path, setup.server.temporaryDirectory, blobs, setup.http.defaultCacheDuration, dbUrl, setup);
+            var videoEncoder = new VideoEncoderService(longTaskScheduler);
+            mapper.Add("/api/videoencoder", videoEncoder);
+            var audioEncoder = new AudioEncoderService(longTaskScheduler);
+            mapper.Add("/api/audioencoder", audioEncoder);
+            var docs = new Docs(logger, setup.doc.url, setup.doc.path,
+                setup.server.temporaryDirectory, blobs,
+                setup.http.defaultCacheDuration, dbUrl, setup,
+                longTaskScheduler, videoEncoder, audioEncoder);
             mapper.Add("/api/docs", docs);
 
             //mapper.Add("/api/icons", new Icons(dbUrl));

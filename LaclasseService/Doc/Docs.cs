@@ -402,8 +402,10 @@ namespace Laclasse.Doc
 
     public class Docs : HttpRouting
     {
+        internal VideoEncoderService videoEncoder;
+        internal AudioEncoderService audioEncoder;
         internal Logger logger;
-        string dbUrl;
+        internal string dbUrl;
         string path;
         string tempDir;
         string directoryDbUrl;
@@ -461,7 +463,7 @@ namespace Laclasse.Doc
         };
 
 
-        public Docs(Logger logger, string dbUrl, string path, string tempDir, Blobs blobs, int cacheDuration, string directoryDbUrl, Setup globalSetup)
+        public Docs(Logger logger, string dbUrl, string path, string tempDir, Blobs blobs, int cacheDuration, string directoryDbUrl, Setup globalSetup, Utils.PriorityTaskScheduler longTaskScheduler, VideoEncoderService videoEncoder, AudioEncoderService audioEncoder)
         {
             this.logger = logger;
             this.dbUrl = dbUrl;
@@ -471,6 +473,8 @@ namespace Laclasse.Doc
             this.globalSetup = globalSetup;
             this.setup = globalSetup.doc;
             this.directoryDbUrl = directoryDbUrl;
+            this.videoEncoder = videoEncoder;
+            this.audioEncoder = audioEncoder;
 
             BeforeAsync = async (p, c) =>
             {
@@ -1323,6 +1327,10 @@ namespace Laclasse.Doc
             GetAsync["/{id}/pdf"] = async (p, c) =>
             {
                 var id = long.Parse((string)p["id"]);
+                long argRev = -1;
+                if (c.Request.QueryString.ContainsKey("rev"))
+                    argRev = Convert.ToInt64(c.Request.QueryString["rev"]);
+
                 using (var db = await DB.CreateAsync(dbUrl, true))
                 {
                     var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
@@ -1341,6 +1349,9 @@ namespace Laclasse.Doc
                             content.Headers["content-type"] = "application/pdf";
                             content.FileName = item.node.name + ".pdf";
                             c.Response.StatusCode = 200;
+                            c.Response.SupportRanges = true;
+                            if (!c.Request.QueryString.ContainsKey("nocache") && argRev == item.node.rev)
+                                c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
                             c.Response.Content = content;
                         }
                     }
@@ -1379,6 +1390,10 @@ namespace Laclasse.Doc
             GetAsync["/{id}/webimage"] = async (p, c) =>
             {
                 var id = long.Parse((string)p["id"]);
+                long argRev = -1;
+                if (c.Request.QueryString.ContainsKey("rev"))
+                    argRev = Convert.ToInt64(c.Request.QueryString["rev"]);
+
                 using (var db = await DB.CreateAsync(dbUrl, true))
                 {
                     var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
@@ -1397,6 +1412,9 @@ namespace Laclasse.Doc
                             content.Headers["content-type"] = "image/jpeg";
                             content.FileName = item.node.name + ".jpg";
                             c.Response.StatusCode = 200;
+                            c.Response.SupportRanges = true;
+                            if (!c.Request.QueryString.ContainsKey("nocache") && argRev == item.node.rev)
+                                c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;
                             c.Response.Content = content;
                         }
                     }
@@ -1433,6 +1451,57 @@ namespace Laclasse.Doc
                 }
             };
 
+            GetAsync["/{id}/webaudioencoder"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+                using (var db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                    var item = await context.GetByIdAsync(id);
+                    if (item != null && item is Audio)
+                    {
+                        // check file read right
+                        var rights = await item.RightsAsync();
+                        if (!rights.Read)
+                            throw new WebException(403, "Insufficient rights");
+
+                        var (stream, encoder) = await ((Audio)item).GetWebAudioStreamOrEncoderAsync();
+                        if (stream != null)
+                        {
+                            stream.Close();
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = new JsonObject
+                            {
+                                ["node_id"] = id,
+                                ["state"] = "done"
+                            };
+                        }
+                        else if (encoder != null)
+                        {
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = new JsonObject
+                            {
+                                ["node_id"] = id,
+                                ["state"] = encoder.State.ToString(),
+                                ["encoder_id"] = encoder.Id,
+                                ["progress"] = encoder.Progress,
+                                ["ctime"] = encoder.CTime
+                            };
+                        }
+                        else
+                        {
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = new JsonObject
+                            {
+                                ["node_id"] = id,
+                                ["state"] = "notavailable"
+                            };
+                        }
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
             GetAsync["/{id}/webvideo"] = async (p, c) =>
             {
                 var id = long.Parse((string)p["id"]);
@@ -1456,6 +1525,57 @@ namespace Laclasse.Doc
                             c.Response.StatusCode = 200;
                             c.Response.SupportRanges = true;
                             c.Response.Content = content;
+                        }
+                    }
+                    await db.CommitAsync();
+                }
+            };
+
+            GetAsync["/{id}/webvideoencoder"] = async (p, c) =>
+            {
+                var id = long.Parse((string)p["id"]);
+                using (var db = await DB.CreateAsync(dbUrl, true))
+                {
+                    var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
+                    var item = await context.GetByIdAsync(id);
+                    if (item != null && item is Video)
+                    {
+                        // check file read right
+                        var rights = await item.RightsAsync();
+                        if (!rights.Read)
+                            throw new WebException(403, "Insufficient rights");
+
+                        var (stream, encoder) = await ((Video)item).GetWebVideoStreamOrEncoderAsync();
+                        if (stream != null)
+                        {
+                            stream.Close();
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = new JsonObject
+                            {
+                                ["node_id"] = id,
+                                ["state"] = "done"
+                            };
+                        }
+                        else if (encoder != null)
+                        {
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = new JsonObject
+                            {
+                                ["node_id"] = id,
+                                ["state"] = encoder.State.ToString(),
+                                ["encoder_id"] = encoder.Id,
+                                ["progress"] = encoder.Progress,
+                                ["ctime"] = encoder.CTime
+                            };
+                        }
+                        else
+                        {
+                            c.Response.StatusCode = 200;
+                            c.Response.Content = new JsonObject
+                            {
+                                ["node_id"] = id,
+                                ["state"] = "notavailable"
+                            };
                         }
                     }
                     await db.CommitAsync();

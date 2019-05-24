@@ -35,13 +35,18 @@ using System.Threading;
 using Erasme.Http;
 using Erasme.Json;
 using Laclasse.Authentication;
+using Laclasse.Utils;
 
 namespace Laclasse.Manage
 {
 	public class ManageService : HttpRouting
 	{
-		public ManageService()
+        PriorityTaskScheduler scheduler;
+
+        public ManageService(PriorityTaskScheduler scheduler)
 		{
+            this.scheduler = scheduler;
+
 			// API only available to authenticated users
 			BeforeAsync = async (p, c) => await c.EnsureIsSuperAdminAsync();
 
@@ -53,7 +58,9 @@ namespace Laclasse.Manage
 				c.Response.Content = new JsonContent(json);
 				// get connected HTTP clients
 				json["clients"] = GetClients(c, c.Request.QueryString);
-				c.Response.Content = json;
+                // get long running tasks
+                json["tasks"] = GetTasks(c.Request.QueryString);
+                c.Response.Content = json;
 			};
 
 			// GET /clients get all connected HTTP clients
@@ -70,7 +77,15 @@ namespace Laclasse.Manage
 				c.Response.StatusCode = 200;
 				c.Response.Headers["cache-control"] = "no-cache, must-revalidate";
 			};
-		}
+
+            // GET /tasks get all long running tasks
+            Get["/tasks"] = (p, c) =>
+            {
+                c.Response.StatusCode = 200;
+                c.Response.Headers["cache-control"] = "no-cache, must-revalidate";
+                c.Response.Content = GetTasks(c.Request.QueryString);
+            };
+        }
 
 		public IManageRights Rights { get; set; }
 
@@ -155,5 +170,32 @@ namespace Laclasse.Manage
 			}
 			return done;
 		}
-	}
+
+        public JsonValue GetTasks()
+        {
+            return GetTasks(null);
+        }
+
+        public JsonValue GetTasks(Dictionary<string, string> filters)
+        {
+            LongTask[] allTasks = scheduler.Tasks;
+
+            // get connected HTTP clients
+            JsonArray tasks = new JsonArray();
+            foreach (LongTask task in allTasks)
+            {
+                JsonObject jsonTask = new JsonObject();
+                jsonTask["id"] = task.Id;
+                jsonTask["status"] = task.Status.ToString();
+                jsonTask["create"] = task.CreateDate.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'");
+                jsonTask["owner"] = task.Owner;
+                jsonTask["description"] = task.Description;
+                jsonTask["priority"] = task.Priority.ToString();
+                if (CheckFilters(jsonTask, filters))
+                    tasks.Add(jsonTask);
+            }
+            return tasks;
+        }
+
+    }
 }

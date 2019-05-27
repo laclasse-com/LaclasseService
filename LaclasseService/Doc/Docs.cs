@@ -1117,6 +1117,19 @@ namespace Laclasse.Doc
                         callbackUrl = $"{c.SelfURL()}?session={token}"
                     }.GenerateString();
                 }
+
+                var active_profile = authUser.user.profiles.FirstOrDefault((arg) => arg.active);
+                using (DB db = await DB.CreateAsync(directoryDbUrl))
+                    // write a log
+                    await (new Directory.Log
+                    {
+                        application_id = "OOFFICE",
+                        user_id = authUser.user.id,
+                        structure_id = active_profile?.structure_id,
+                        profil_id = active_profile?.type,
+                        ip = c.RemoteIP(),
+                        url = c.SelfURL()
+                    }).SaveAsync(db);
             };
 
             GetAsync["/{id}/onlyoffice/file"] = async (p, c) =>

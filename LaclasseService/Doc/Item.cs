@@ -676,7 +676,7 @@ namespace Laclasse.Doc
             RegisterFileExtension(".mpg", "video/mpeg");
             RegisterFileExtension(".mpeg", "video/mpeg");
             RegisterFileExtension(".asf", "video/x-ms-asf");
-            RegisterFileExtension(".avi", "video/avi");
+            RegisterFileExtension(".avi", "video/x-msvideo");
             Register(Video.MimeToExtension.Keys, (context, node) => new Video(context, node));
 
             Register("*", (context, node) => new Document(context, node));

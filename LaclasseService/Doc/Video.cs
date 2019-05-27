@@ -142,8 +142,6 @@ namespace Laclasse.Doc
                 TimeTotal = Preview.ImageVideoPreview.GetVideoDuration(filepath);
 
                 videoFile = Path.Combine(Video.context.tempDir, Guid.NewGuid().ToString());
-                if (Video.MimeToExtension.ContainsKey(Video.node.mime))
-                    videoFile += "." + Video.MimeToExtension[Video.node.mime];
 
                 List<string> args = new List<string>
                 {
@@ -213,6 +211,11 @@ namespace Laclasse.Doc
                 videoFile = null;
                 Video.context.docs.logger.Log(LogLevel.Error, $"Error while encoding node {Video.node.name} (id: {Video.node.id}),  Exception: {e}");
             }
+            if (File.Exists(videoFile) && (new FileInfo(videoFile).Length == 0))
+            {
+                File.Delete(videoFile);
+                videoFile = null;
+            }
             return (videoFile != null && File.Exists(videoFile)) ? videoFile : null;
         }
 
@@ -254,6 +257,19 @@ namespace Laclasse.Doc
                     using (DB db = DB.Create(Video.context.docs.dbUrl, true))
                     {
                         var task = Video.context.blobs.CreateBlobFromTempFileAsync(db, videoMp4Blob, videoMp4File);
+                        task.Wait();
+                        videoMp4Blob = task.Result;
+                        db.CommitAsync().Wait();
+                    }
+                    Blob = videoMp4Blob;
+                }
+                else
+                {
+                    Video.context.docs.logger.Log(LogLevel.Error, $"Error while encoding file '{Video.node.name}' (id: {Video.node.id}).");
+                    // write a zero size blob to signal the encoding failure
+                    using (DB db = DB.Create(Video.context.docs.dbUrl, true))
+                    {
+                        var task = Video.context.blobs.CreateBlobAsync(db, new FileDefinition(), videoMp4Blob);
                         task.Wait();
                         videoMp4Blob = task.Result;
                         db.CommitAsync().Wait();
@@ -417,7 +433,11 @@ namespace Laclasse.Doc
 
             var videoBlob = node.blob.children.Find(child => child.name == "webvideo");
             if (videoBlob != null)
+            {
+                if (videoBlob.size == 0)
+                    return (null, null);
                 return (context.blobs.GetBlobStream(videoBlob.id), null);
+            }
 
             return (null, context.docs.videoEncoder.ScheduleEncode(this));
         }

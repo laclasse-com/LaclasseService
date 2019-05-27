@@ -29,7 +29,11 @@ namespace Laclasse.Doc
 
             var imageBlob = node.blob.children.Find(child => child.name == "webimage");
             if (imageBlob != null)
+            {
+                if (imageBlob.size == 0)
+                    return null;
                 return context.blobs.GetBlobStream(imageBlob.id);
+            }
 
             Stream imageStream = null;
             var stream = await GetContentAsync();
@@ -62,6 +66,12 @@ namespace Laclasse.Doc
                         {
                             thumbnailBlob = await context.blobs.CreateBlobFromTempFileAsync(context.db, thumbnailBlob, thumbnailTempFile);
                             imageStream = context.blobs.GetBlobStream(thumbnailBlob.id);
+                        }
+                        // if convert fails, create an empty blob to save the failure
+                        else
+                        {
+                            thumbnailBlob = await context.blobs.CreateBlobAsync(context.db, new FileDefinition(), thumbnailBlob);
+                            imageStream = null;
                         }
                     }
                     finally

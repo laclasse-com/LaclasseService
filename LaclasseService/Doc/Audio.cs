@@ -152,6 +152,11 @@ namespace Laclasse.Doc
                 audioFile = null;
                 Audio.context.docs.logger.Log(LogLevel.Error, $"Error while encoding node {Audio.node.name} (id: {Audio.node.id}),  Exception: {e}");
             }
+            if (File.Exists(audioFile) && (new FileInfo(audioFile).Length == 0))
+            {
+                File.Delete(audioFile);
+                audioFile = null;
+            }
             return (audioFile != null && File.Exists(audioFile)) ? audioFile : null;
         }
 
@@ -193,6 +198,19 @@ namespace Laclasse.Doc
                     using (DB db = DB.Create(Audio.context.docs.dbUrl, true))
                     {
                         var task = Audio.context.blobs.CreateBlobFromTempFileAsync(db, audioMp3Blob, audioMp3File);
+                        task.Wait();
+                        audioMp3Blob = task.Result;
+                        db.CommitAsync().Wait();
+                    }
+                    Blob = audioMp3Blob;
+                }
+                else
+                {
+                    Audio.context.docs.logger.Log(LogLevel.Error, $"Error while encoding file '{Audio.node.name}' (id: {Audio.node.id}).");
+                    // write a zero size blob to signal the encoding failure
+                    using (DB db = DB.Create(Audio.context.docs.dbUrl, true))
+                    {
+                        var task = Audio.context.blobs.CreateBlobAsync(db, new FileDefinition(), audioMp3Blob);
                         task.Wait();
                         audioMp3Blob = task.Result;
                         db.CommitAsync().Wait();
@@ -360,7 +378,11 @@ namespace Laclasse.Doc
 
             var audioBlob = node.blob.children.Find(child => child.name == "webaudio");
             if (audioBlob != null)
+            {
+                if (audioBlob.size == 0)
+                    return (null, null);
                 return (context.blobs.GetBlobStream(audioBlob.id), null);
+            }
 
             return (null, context.docs.audioEncoder.ScheduleEncode(this));
         }

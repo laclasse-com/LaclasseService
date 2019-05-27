@@ -161,6 +161,8 @@ namespace Laclasse.Doc
                     "libx264",
                     "-preset",
                     "slow",
+                    "-pix_fmt",
+                    "yuv420p",
                     "-profile:v",
                     "baseline",
                     "-map_metadata",

@@ -1362,6 +1362,7 @@ namespace Laclasse.Doc
                             content.Headers["content-type"] = "application/pdf";
                             content.FileName = item.node.name + ".pdf";
                             c.Response.StatusCode = 200;
+                            c.Response.Headers["content-disposition"] = $"filename=\"{item.node.name.Replace('"', ' ')}.pdf\"";
                             c.Response.SupportRanges = true;
                             if (!c.Request.QueryString.ContainsKey("nocache") && argRev == item.node.rev)
                                 c.Response.Headers["cache-control"] = "max-age=" + cacheDuration;

@@ -197,7 +197,6 @@
     <None Include="app.config" />
     <None Include="packages.config" />
     <None Include="lib\Erasme.Http.dll" />
-    <None Include="lib\Erasme.Http.dll.mdb" />
     <None Include="lib\SharpZipLib.dll" />
     <None Include="lib\SharpZipLib.dll.mdb" />
     <None Include="Doc\AccessDenyView.cshtml">
@@ -212,6 +211,7 @@
       <Generator>TextTemplatingFilePreprocessor</Generator>
       <LastGenOutput>CasView.cs</LastGenOutput>
     </None>
+    <None Include="lib\Erasme.Http.pdb" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Directory\" />

@@ -908,7 +908,7 @@ namespace Laclasse.Doc
                     using (var db = await DB.CreateAsync(dbUrl))
                     {
                         var context = new Context { setup = setup, storageDir = path, tempDir = tempDir, docs = this, blobs = blobs, db = db, user = await c.GetAuthenticatedUserAsync(), directoryDbUrl = directoryDbUrl, httpContext = c };
-                        c.Response.Content = await ArchiveZip.DownloadAsArchiveAsync(context, ids);
+                        await ArchiveZip.DownloadAsArchiveAsync(context, c.Response.OutputStream, ids);
                     }
                 }
             };

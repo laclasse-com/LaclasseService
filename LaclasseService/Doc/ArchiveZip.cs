@@ -61,12 +61,9 @@ namespace Laclasse.Doc
             });
         }
 
-        public static async Task<Stream> DownloadAsArchiveAsync(Context context, long[] files)
+        public static async Task DownloadAsArchiveAsync(Context context, Stream outStream, long[] files)
         {
-            var guid = Guid.NewGuid().ToString();
-            string tempFile = Path.Combine(context.tempDir, guid);
-            using (var fileStream = File.OpenWrite(tempFile))
-            using (var zipStream = new ZipOutputStream(fileStream))
+            using (var zipStream = new ZipOutputStream(outStream))
             {
                 Func<Item, string, Task> AddItemAsync = null;
                 AddItemAsync = async (Item item, string path) =>
@@ -102,9 +99,6 @@ namespace Laclasse.Doc
                     await AddItemAsync(file, "/");
                 }
             }
-            var stream = File.OpenRead(tempFile);
-            File.Delete(tempFile);
-            return stream;
         }
 
         public static async Task<List<Item>> ExtractAsync(Context context, long fileId, long parentId)

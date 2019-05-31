@@ -47,9 +47,6 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Net.Http" />
-    <Reference Include="SharpZipLib">
-      <HintPath>lib\SharpZipLib.dll</HintPath>
-    </Reference>
     <Reference Include="Erasme.Http">
       <HintPath>lib\Erasme.Http.dll</HintPath>
     </Reference>
@@ -92,6 +89,9 @@
     <Reference Include="System.Net.Http.WebRequest" />
     <Reference Include="BouncyCastle.Crypto">
       <HintPath>..\packages\BouncyCastle.1.8.5\lib\BouncyCastle.Crypto.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>..\packages\SharpZipLib.1.1.0\lib\net45\ICSharpCode.SharpZipLib.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -197,8 +197,6 @@
     <None Include="app.config" />
     <None Include="packages.config" />
     <None Include="lib\Erasme.Http.dll" />
-    <None Include="lib\SharpZipLib.dll" />
-    <None Include="lib\SharpZipLib.dll.mdb" />
     <None Include="Doc\AccessDenyView.cshtml">
       <Generator>RazorTemplatePreprocessor</Generator>
       <LastGenOutput>AccessDenyView.cs</LastGenOutput>
